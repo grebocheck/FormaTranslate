@@ -76,8 +76,8 @@ Popup {
                 Layout.fillWidth: true; columns: 2; columnSpacing: 20; rowSpacing: 8
                 Copy { text: qsTr("Сьогодні"); color: "#66778c" }
                 Copy { text: qsTr("Останні 30 днів"); color: "#66778c" }
-                Copy { objectName: "usageToday"; text: "≈ " + (panel.stats.today ? panel.stats.today.costText : "—"); font.pixelSize: 25; font.weight: Font.DemiBold }
-                Copy { text: "≈ " + (panel.stats.month ? panel.stats.month.costText : "—"); font.pixelSize: 25; font.weight: Font.DemiBold }
+                Copy { objectName: "usageToday"; text: panel.stats.today ? panel.stats.today.costLabel : "—"; font.pixelSize: 25; font.weight: Font.DemiBold }
+                Copy { text: panel.stats.month ? panel.stats.month.costLabel : "—"; font.pixelSize: 25; font.weight: Font.DemiBold }
                 Copy { text: qsTr("Запитів: %1").arg(panel.stats.today ? panel.stats.today.requests : 0) }
                 Copy { text: qsTr("Запитів: %1").arg(panel.stats.month ? panel.stats.month.requests : 0) }
             }
@@ -86,6 +86,25 @@ Popup {
                 visible: !!panel.stats.month && panel.stats.month.unknown > 0
                 text: qsTr("Без оцінки вартості: %1 запитів. Їх не включено в суми вище: API не надав usage або тариф невідомий.").arg(panel.stats.month ? panel.stats.month.unknown : 0)
                 color: "#96581b"
+            }
+            Copy {
+                visible: !!panel.stats.month && panel.stats.month.uncertain > 0
+                text: qsTr("Неповні дані для %1 запитів: не збережено деталізацію кешу. Сума орієнтовна; точний залишок за нею визначити неможливо.").arg(panel.stats.month ? panel.stats.month.uncertain : 0)
+                color: "#96581b"
+            }
+            Action { id: showModels; objectName: "usageModelsToggle"; checkable: true; text: qsTr("Деталі за моделями"); visible: !!panel.stats.models && panel.stats.models.length > 0 }
+            ColumnLayout {
+                visible: showModels.checked; Layout.fillWidth: true
+                Repeater {
+                    model: panel.stats.models || []
+                    delegate: ColumnLayout {
+                        required property var modelData
+                        Layout.fillWidth: true; spacing: 4
+                        Copy { text: modelData.model + " · " + modelData.costLabel; font.weight: Font.DemiBold }
+                        Copy { text: qsTr("Запитів: %1 · токени вхід / вихід: %2").arg(modelData.requests).arg(modelData.tokensText); color: "#66778c"; font.pixelSize: 12 }
+                        Copy { text: qsTr("Кеш · читання: %1 · запис: %2").arg(modelData.cached).arg(modelData.writeText); color: "#66778c"; font.pixelSize: 12 }
+                    }
+                }
             }
             Rectangle { Layout.fillWidth: true; implicitHeight: 1; color: "#d5dfed" }
             Copy { text: qsTr("Баланс"); font.pixelSize: 16; font.weight: Font.DemiBold }
@@ -107,7 +126,7 @@ Popup {
             }
             Copy {
                 visible: !!panel.stats.balance && panel.stats.balance.unknown > 0
-                text: qsTr("Залишок невідомий: після введення балансу є запити без оцінки вартості.")
+                text: qsTr("Залишок невідомий: після введення балансу є запити без повної оцінки вартості.")
                 color: "#96581b"
             }
             Action { id: editBalance; checkable: true; text: qsTr("Вказати поточний баланс вручну"); enabled: !panel.stats.unavailable }
@@ -138,7 +157,7 @@ Popup {
                 Action { text: qsTr("Зберегти тариф"); onClicked: if (panel.controller.saveTariff(inputRate.text, cacheRate.text, outputRate.text)) editTariff.checked = false }
             }
             Copy {
-                text: qsTr("Автотарифи OpenAI: %1, стандартна обробка. Податки, регіональні доплати та окрема оплата запису кешу не включені. Точні списання перевіряйте у провайдера.").arg(panel.stats.priceDate || "")
+                text: qsTr("Автотарифи OpenAI: %1, стандартна обробка. Враховано читання та запис кешу за даними API. Податки й регіональні доплати не включені. Точні списання перевіряйте у провайдера.").arg(panel.stats.priceDate || "")
                 color: "#66778c"; font.pixelSize: 11
             }
         }

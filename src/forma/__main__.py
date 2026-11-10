@@ -74,6 +74,7 @@ def main() -> int:
                     if not reader.fieldnames or not {"source", "target"} <= set(reader.fieldnames):
                         raise FormaError("CSV має містити стовпці source,target.")
                     glossary = {r["source"]: r["target"] for r in reader}
+            settings = Settings.load(args.env).with_overrides(parallel_documents=1)
             options = Options(
                 args.source,
                 args.target,
@@ -81,10 +82,9 @@ def main() -> int:
                 not args.no_review,
                 not args.no_auto_glossary,
                 glossary,
+                instructions=settings.translation_instructions,
             )
-            result = TranslationEngine(
-                Settings.load(args.env).with_overrides(parallel_documents=1)
-            ).translate(
+            result = TranslationEngine(settings).translate(
                 args.file,
                 args.output,
                 options,

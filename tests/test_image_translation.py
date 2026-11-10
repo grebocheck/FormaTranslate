@@ -7,6 +7,7 @@ import pytest
 from PySide6.QtCore import QRect
 from PySide6.QtGui import QColor, QImage
 
+from forma.config import Settings
 from forma.image_translation import (
     MAX_BLOCKS,
     MAX_IMAGE_PIXELS,
@@ -26,6 +27,7 @@ from forma.provider import Cancelled, JobControl
 class FakeProvider:
     def __init__(self, *responses):
         self.responses = iter(responses)
+        self.settings = Settings()
         self.control = JobControl()
         self.calls = []
 
@@ -265,3 +267,15 @@ def test_cancellation_after_vision_prevents_rendering(qapp):
     with pytest.raises(Cancelled):
         translate_image(provider, picture(), "en", "uk", progress=progress)
     assert len(provider.calls) == 1
+
+
+def test_custom_instructions_reach_image_recognition_and_repair(qapp):
+    provider = FakeProvider(
+        {"blocks": [block("Power 25 kW", "Потужність 35 кВт")]},
+        {"translations": [{"id": 0, "translation": "Потужність 25 кВт"}]},
+    )
+    provider.settings = Settings(translation_instructions="Use formal technical language.")
+    result = translate_image(provider, picture(), "en", "uk")
+    assert result.translated_text == "Потужність 25 кВт"
+    assert len(provider.calls) == 2
+    assert all('"translation_preferences": "Use formal technical language."' in call[0] for call in provider.calls)

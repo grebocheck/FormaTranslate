@@ -17,6 +17,8 @@ Item {
     readonly property color accent: "#2859c5"
     readonly property color line: "#dce2ea"
     signal configureRequested()
+    signal instructionsRequested()
+    property bool instructionsActive: false
 
     function zoomImage(factor) {
         var previous = imageZoom
@@ -152,7 +154,12 @@ Item {
             Button { objectName: "quickTextMode"; text: qsTr("Текст"); iconName: "text"; checked: !page.imageMode; subtle: true; enabled: !page.controller.busy; onClicked: page.controller.setMode("text") }
             Button { objectName: "quickImageMode"; text: qsTr("Фото"); iconName: "image"; checked: page.imageMode; subtle: true; enabled: !page.controller.busy; onClicked: page.controller.setMode("image") }
             Item { Layout.fillWidth: true }
-            Caption { text: page.modelName; elide: Text.ElideMiddle; Layout.maximumWidth: 240; visible: page.modelName.length > 0 }
+            Button {
+                text: qsTr("Інструкції") + (page.instructionsActive ? " •" : "")
+                iconName: "edit"; objectName: "quickInstructionsButton"; subtle: true
+                enabled: !page.controller.busy; onClicked: page.instructionsRequested()
+            }
+            Caption { text: page.modelName; elide: Text.ElideMiddle; Layout.maximumWidth: 180; visible: page.modelName.length > 0 }
             Button {
                 text: page.modelName ? "" : qsTr("Налаштувати підключення"); iconName: "settings"
                 hint: qsTr("Модель і підключення"); subtle: true

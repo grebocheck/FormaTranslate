@@ -19,7 +19,7 @@ The interface supports **English, Ukrainian, Polish and German**, follows the sy
 
 ## Download and start
 
-Get the package for your platform from **[GitHub Releases](https://github.com/grebocheck/FormaTranslate/releases/latest)**. Extract it and launch the executable. Python and a `.env` file are not needed for the packaged app. On Linux, make the executable runnable with `chmod +x Forma-linux-x86_64` if necessary. The 0.4.0 Linux binary requires **glibc 2.43 or newer** (built on Ubuntu 26.04); use the source installation on older distributions. See each release's platform validation notes; macOS is not supported yet.
+Get the package for your platform from **[GitHub Releases](https://github.com/grebocheck/FormaTranslate/releases/latest)**. Extract it and launch the executable. Python and a `.env` file are not needed for the packaged app. On Linux, make the executable runnable with `chmod +x Forma-linux-x86_64` if necessary. The 0.5.0 Linux binary requires **glibc 2.43 or newer** (built on Ubuntu 26.04); use the source installation on older distributions. See each release's platform validation notes; macOS is not supported yet.
 
 1. Open **Settings** and enter your API address, model and API key. The model list can be loaded from providers that support it, or entered manually.
 2. Add DOCX, XLSX or text-based PDF files and select the source and target languages.
@@ -49,9 +49,13 @@ Quick text and images remain in session memory, without automatic history or cac
 
 ![Text and photo translation workspace with a synthetic example](docs/quick-translate.png)
 
+## Custom translation instructions
+
+Save reusable terminology and style rules with **Custom instructions** in Documents or **Instructions** in Text & photos. They apply to future document, text/photo and editorial requests; changing them refreshes translation caches. See [instructions](docs/INSTRUCTIONS.md).
+
 ## Costs and balance
 
-The **Costs** button shows local spending estimates for today and the last 30 days, request counts and tokens. Recognized standard OpenAI models use bundled prices; other providers can use a custom model tariff. Missing usage and unknown prices are marked explicitly. Recording starts with this update and covers only Forma requests with the current key and server.
+The **Costs** button shows local spending estimates for today and the last 30 days, request counts and tokens. Recognized standard OpenAI models use bundled prices; other providers can use a custom model tariff. Cache reads and writes use their separate rates; small charges remain visible. Missing usage, unknown prices and incomplete historical estimates are marked explicitly. Recording starts with this update and covers only Forma requests with the current key and server.
 
 Open the official OpenAI billing page for your actual credit balance, or enter a balance manually to track an explicitly labeled local estimate. A regular OpenAI API key cannot retrieve remaining credits through a documented public endpoint. [How accounting works and its limits](docs/COSTS.md).
 

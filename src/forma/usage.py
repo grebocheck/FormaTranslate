@@ -24,8 +24,8 @@ from forma.models import FormaError
 
 PRICE_DATE = "2026-11-10"
 PRICE_URL = "https://developers.openai.com/api/docs/pricing"
-# Standard processing: input, cached input, output. Unreported cache writes,
-# regional processing, taxes and other surcharges are excluded from estimates.
+# Standard processing: input, cached input, output. Cache writes replace the
+# ordinary input rate (1.25x for 30m, 2.5x for 12h); they are not an additive fee.
 OPENAI_RATES = {
     "gpt-6-astra": ("10", "1", "50"),
     "gpt-6.1-sol": ("2", ".10", "10"),
@@ -69,6 +69,7 @@ LONG_CONTEXT = {
     "gpt-5.4",
     "gpt-5.4-pro",
 }
+CACHE_WRITE_MODELS = {name for name in OPENAI_RATES if name.startswith(("gpt-6", "gpt-5.6-"))}
 _LOCK = threading.Lock()
 _FAILURES: set[tuple[str, str]] = set()
 
@@ -105,8 +106,8 @@ def money(nano: int | None) -> str:
     value = Decimal(nano) / 1_000_000_000
     if value and abs(value) < Decimal(".000001"):
         return "< $0.000001" if value > 0 else "> -$0.000001"
-    digits = 2 if value == 0 or abs(value) >= 1 else 6
-    return f"${value:,.{digits}f}"
+    whole, fraction = f"{value:,.6f}".split(".")
+    return "$" + whole + "." + fraction.rstrip("0").ljust(2, "0")
 
 
 def _count(value):
@@ -146,18 +147,54 @@ def token_counts(mode: str, data: dict) -> tuple[int, int, int] | None:
     return incoming, cached, outgoing
 
 
-def estimate(settings, model, counts, tier, override, timestamp):
+def cache_write_counts(mode: str, data: dict):
+    """Read disjoint write buckets; None means malformed, a null total is missing.
+
+    Forma sends no extended TTL: a total without lifetime detail uses the default
+    30m lifetime. For Responses, explicit lifetime buckets take precedence.
+    """
+    usage = data.get("usage") or {}
+    if not isinstance(usage, dict):
+        return None
+    if mode == "gemini":
+        return 0, 0, 0  # Forma does not create Gemini explicit context caches.
+    if mode == "anthropic":
+        total = _count(usage.get("cache_creation_input_tokens", 0))
+        return (total, total, 0) if total is not None else None
+    details = usage.get("input_tokens_details", usage.get("prompt_tokens_details")) or {}
+    if not isinstance(details, dict):
+        return None
+    if "cache_write_tokens" not in details:
+        return None, None, None
+    total = _count(details["cache_write_tokens"])
+    if total is None:
+        return None
+    lifetimes = details.get("cache_write_tokens_details")
+    if lifetimes is None:
+        return total, total, 0
+    if not isinstance(lifetimes, dict):
+        return None
+    short, long = (_count(lifetimes.get(key)) for key in ("ttl_30m_tokens", "ttl_12h_tokens"))
+    if short is None or long is None or short + long != total:
+        return None
+    return total, short, long
+
+
+def estimate(settings, model, counts, tier, override, timestamp, writes=(0, 0, 0)):
     if counts is None:
         return None, "missing_usage"
+    if writes is None or (writes[0] is not None and writes[0] + counts[1] > counts[0]):
+        return None, "invalid_usage"
+    name = re.sub(r"-\d{4}-\d{2}-\d{2}$", "", model)
+    openai = official_openai(settings)
+    write_pricing = openai and name in CACHE_WRITE_MODELS
     if override is not None:
         rates, source = tuple(map(Decimal, override)), "manual"
     else:
-        if not official_openai(settings) or tier not in (None, "default", "standard"):
+        if not openai or tier not in (None, "default", "standard"):
             return None, "unknown_tariff"
-        name = re.sub(r"-\d{4}-\d{2}-\d{2}$", "", model)
         if name not in OPENAI_RATES:
             return None, "unknown_tariff"
-        # The published promotional price has an explicit end date.
         if name == "gpt-5.6-sol" and timestamp >= 1796083200:  # 2026-12-01 UTC
             return None, "expired_tariff"
         rates = tuple(map(Decimal, OPENAI_RATES[name]))
@@ -165,7 +202,21 @@ def estimate(settings, model, counts, tier, override, timestamp):
             rates = rates[0] * 2, rates[1] * 2, rates[2] * Decimal("1.5")
         source = "openai_standard_" + PRICE_DATE
     incoming, cached, outgoing = counts
-    cost = ((incoming - cached) * rates[0] + cached * rates[1] + outgoing * rates[2]) * 1000
+    written, short, long = writes
+    if written and not write_pricing:
+        # A three-part manual tariff does not establish another provider's write fee.
+        return None, "unknown_write_tariff"
+    if written is None and write_pricing:
+        # Keep only a lower bound; do not invent a zero write count.
+        source += "_cache_unknown"
+    written, short, long = written or 0, short or 0, long or 0
+    cost = (
+        (incoming - cached - written) * rates[0]
+        + cached * rates[1]
+        + short * rates[0] * Decimal("1.25")
+        + long * rates[0] * Decimal("2.5")
+        + outgoing * rates[2]
+    ) * 1000
     return int(cost.to_integral_value(rounding=ROUND_HALF_UP)), source
 
 
@@ -177,27 +228,40 @@ class UsageLedger:
     def connect(self):
         with closing(sqlite3.connect(self.path, timeout=0.5)) as db:
             db.row_factory = sqlite3.Row
-            version = db.execute("PRAGMA user_version").fetchone()[0]
-            if version not in (0, 1):
-                raise sqlite3.DatabaseError("Unsupported usage database version")
-            if version == 0:
+            if db.execute("PRAGMA user_version").fetchone()[0] != 2:
                 with db:
-                    db.executescript("""
-                        CREATE TABLE IF NOT EXISTS requests (
-                            id INTEGER PRIMARY KEY, account TEXT NOT NULL, at REAL NOT NULL,
-                            model TEXT NOT NULL, status INTEGER NOT NULL,
-                            input INTEGER, cached INTEGER, output INTEGER,
-                            cost INTEGER, price_source TEXT NOT NULL);
-                        CREATE INDEX IF NOT EXISTS requests_scope ON requests(account, at);
-                        CREATE TABLE IF NOT EXISTS tariffs (
-                            account TEXT NOT NULL, model TEXT NOT NULL,
-                            input TEXT NOT NULL, cached TEXT NOT NULL, output TEXT NOT NULL,
-                            PRIMARY KEY(account, model));
-                        CREATE TABLE IF NOT EXISTS balances (
-                            account TEXT PRIMARY KEY, amount INTEGER NOT NULL,
-                            after_id INTEGER NOT NULL, at REAL NOT NULL);
-                        PRAGMA user_version=1;
-                    """)
+                    db.execute("BEGIN IMMEDIATE")
+                    version = db.execute("PRAGMA user_version").fetchone()[0]
+                    if version not in (0, 1, 2):
+                        raise sqlite3.DatabaseError("Unsupported usage database version")
+                    if version == 0:
+                        for statement in (
+                            "CREATE TABLE requests (id INTEGER PRIMARY KEY, account TEXT NOT NULL, at REAL NOT NULL, "
+                            "model TEXT NOT NULL, status INTEGER NOT NULL, input INTEGER, cached INTEGER, output INTEGER, "
+                            "cost INTEGER, price_source TEXT NOT NULL)",
+                            "CREATE INDEX requests_scope ON requests(account, at)",
+                            "CREATE TABLE tariffs (account TEXT NOT NULL, model TEXT NOT NULL, input TEXT NOT NULL, "
+                            "cached TEXT NOT NULL, output TEXT NOT NULL, PRIMARY KEY(account, model))",
+                            "CREATE TABLE balances (account TEXT PRIMARY KEY, amount INTEGER NOT NULL, after_id INTEGER NOT NULL, at REAL NOT NULL)",
+                        ):
+                            db.execute(statement)
+                    if version in (0, 1):
+                        for definition in (
+                            "cache_write INTEGER",
+                            "write_long INTEGER",
+                            "service_tier TEXT",
+                            "uncertain INTEGER NOT NULL DEFAULT 0",
+                        ):
+                            db.execute("ALTER TABLE requests ADD COLUMN " + definition)
+                        # Version 1 discarded cache-write usage. Never silently relabel
+                        # its old estimates as complete or reconstruct missing counts.
+                        db.execute(
+                            "UPDATE requests SET uncertain=CASE WHEN price_source='manual' THEN 2 ELSE 1 END "
+                            "WHERE cost IS NOT NULL AND (price_source='manual' OR "
+                            "(price_source LIKE 'openai_standard_%' AND "
+                            "(model LIKE 'gpt-6%' OR model LIKE 'gpt-5.6-%')))"
+                        )
+                        db.execute("PRAGMA user_version=2")
             with db:
                 yield db
 
@@ -213,22 +277,50 @@ class UsageLedger:
             data.get("model", data.get("modelVersion", requested)), settings.api_key
         )
         counts = token_counts(settings.api_mode, data)
+        writes = cache_write_counts(settings.api_mode, data)
+        tier = data.get("service_tier")
+        safe_tier = (
+            tier
+            if tier
+            in (
+                None,
+                "default",
+                "standard",
+                "flex",
+                "priority",
+                "fast",
+                "ultrafast",
+                "auto",
+                "scale",
+            )
+            else "unknown"
+        )
         account = scope(settings)
         with self.connect() as db:
             tariff = db.execute(
                 "SELECT input,cached,output FROM tariffs WHERE account=? AND model=?",
                 (account, requested),
             ).fetchone()
-            cost, source = estimate(
-                settings, returned, counts, data.get("service_tier"), tariff, now
-            )
+            cost, source = estimate(settings, returned, counts, safe_tier, tariff, now, writes)
             # Rejected requests without usage do not consume inference tokens.
             if counts is None and status in (400, 401, 403, 404, 413, 422, 429):
                 cost, source = 0, "rejected"
             db.execute(
-                "INSERT INTO requests(account,at,model,status,input,cached,output,cost,price_source) "
-                "VALUES(?,?,?,?,?,?,?,?,?)",
-                (account, now, returned, status, *(counts or (None, None, None)), cost, source),
+                "INSERT INTO requests(account,at,model,status,input,cached,output,cost,price_source,cache_write,write_long,service_tier,uncertain) "
+                "VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                (
+                    account,
+                    now,
+                    returned,
+                    status,
+                    *(counts or (None, None, None)),
+                    cost,
+                    source,
+                    writes[0] if writes else None,
+                    writes[2] if writes else None,
+                    safe_tier,
+                    int(source.endswith("_cache_unknown")),
+                ),
             )
 
     def set_tariff(self, settings, values):
@@ -263,7 +355,8 @@ class UsageLedger:
         row = db.execute(
             "SELECT COUNT(*) requests, COALESCE(SUM(input),0) input, "
             "COALESCE(SUM(cached),0) cached, COALESCE(SUM(output),0) output, "
-            "COALESCE(SUM(cost),0) cost, COALESCE(SUM(cost IS NULL),0) unknown "
+            "COALESCE(SUM(cost),0) cost, COALESCE(SUM(cost IS NULL),0) unknown, "
+            "COALESCE(SUM(uncertain>0),0) uncertain, COALESCE(SUM(uncertain=2),0) unbounded, COALESCE(SUM(cache_write),0) cache_write "
             f"FROM requests WHERE account=? AND {condition}",
             (account, parameter),
         ).fetchone()
@@ -292,15 +385,28 @@ class UsageLedger:
             if balance:
                 since = self._totals(db, account, "id>?", balance["after_id"])
                 result["balance"] = {
-                    "remaining": None if since["unknown"] else balance["amount"] - since["cost"],
+                    "remaining": None
+                    if since["unknown"] or since["uncertain"]
+                    else balance["amount"] - since["cost"],
                     "at": balance["at"],
-                    "unknown": since["unknown"],
+                    "unknown": since["unknown"] + since["uncertain"],
                 }
             tariff = db.execute(
                 "SELECT input,cached,output FROM tariffs WHERE account=? AND model=?",
                 (account, model_name(settings.model, settings.api_key)),
             ).fetchone()
             result["tariff"] = list(tariff) if tariff else []
+            result["models"] = [
+                dict(row)
+                for row in db.execute(
+                    "SELECT model, COUNT(*) requests, COALESCE(SUM(input),0) input, "
+                    "COALESCE(SUM(cached),0) cached, COALESCE(SUM(output),0) output, "
+                    "COALESCE(SUM(cache_write),0) cache_write, COALESCE(SUM(cost),0) cost, "
+                    "COALESCE(SUM(uncertain>0),0) uncertain, COALESCE(SUM(uncertain=2),0) unbounded, COALESCE(SUM(cost IS NULL),0) unknown "
+                    "FROM requests WHERE account=? AND at>=? GROUP BY model ORDER BY SUM(cost) DESC",
+                    (account, start_month),
+                )
+            ]
         with _LOCK:
             result["incomplete"] = (str(self.path), account) in _FAILURES
         return result

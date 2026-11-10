@@ -440,3 +440,62 @@ def test_uppercase_descriptive_labels_reach_translation_while_codes_remain_intac
     assert (
         metrics["structure_ok"] and metrics["formulas_preserved"] and metrics["numbers_preserved"]
     )
+
+
+@pytest.mark.parametrize("separator", ["tab", "br", "cr"])
+def test_toc_heading_and_page_number_do_not_become_an_equipment_code(tmp_path, separator):
+    from docx import Document
+    from docx.oxml import OxmlElement
+    from docx.oxml.ns import qn
+
+    source = tmp_path / "toc.docx"
+    document = Document()
+    start = document.add_paragraph()
+    begin = OxmlElement("w:fldChar")
+    begin.set(qn("w:fldCharType"), "begin")
+    start.add_run()._r.append(begin)
+    instruction = OxmlElement("w:instrText")
+    instruction.text = ' TOC \\o "1-3" \\h '
+    start.add_run()._r.append(instruction)
+    separate = OxmlElement("w:fldChar")
+    separate.set(qn("w:fldCharType"), "separate")
+    start.add_run()._r.append(separate)
+    paragraph = document.add_paragraph()
+    link = OxmlElement("w:hyperlink")
+    link.set(qn("w:anchor"), "_TocAppendices")
+    for text in ("ДОДАТКИ", "40"):
+        run, node = OxmlElement("w:r"), OxmlElement("w:t")
+        node.text = text
+        run.append(node)
+        link.append(run)
+        if text == "ДОДАТКИ":
+            boundary = OxmlElement("w:r")
+            boundary.append(OxmlElement("w:" + separator))
+            link.append(boundary)
+    paragraph._p.append(link)
+    end = OxmlElement("w:fldChar")
+    end.set(qn("w:fldCharType"), "end")
+    document.add_paragraph().add_run()._r.append(end)
+    code = document.add_paragraph()
+    code.add_run("AB-")
+    code.add_run("123")
+    document.save(source)
+
+    office = OfficeDocument(source)
+    assert len(office.segments) == 1
+    heading = office.segments[0]
+    assert heading.source == "<r0>ДОДАТКИ</r0><k0/><r1>40</r1>"
+    output = tmp_path / "translated.docx"
+    office.write({heading.id: heading.source.replace("ДОДАТКИ", "APPENDICES")}, output)
+    with ZipFile(source) as original, ZipFile(output) as translated:
+        assert original.namelist() == translated.namelist()
+        assert all(
+            original.read(n) == translated.read(n)
+            for n in original.namelist()
+            if n != "word/document.xml"
+        )
+        before = etree.fromstring(original.read("word/document.xml"))
+        after = etree.fromstring(translated.read("word/document.xml"))
+        target = next(n for n in before.iter(f"{{{W}}}t") if n.text == "ДОДАТКИ")
+        target.text = "APPENDICES"
+        assert etree.tostring(before) == etree.tostring(after)

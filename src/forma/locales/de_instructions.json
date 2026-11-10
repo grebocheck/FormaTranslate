@@ -1,0 +1,10 @@
+{
+  "Власні інструкції": "Eigene Anweisungen",
+  "Інструкції": "Anweisungen",
+  "Власні інструкції для перекладу": "Eigene Übersetzungsanweisungen",
+  "Опишіть бажані терміни, стиль і правила перекладу. Інструкції діють для наступних перекладів документів, тексту та фото, включно з редакторською перевіркою.": "Beschreiben Sie die gewünschte Terminologie, den Stil und die Übersetzungsregeln. Die Anweisungen gelten für künftige Dokument-, Text- und Fotoübersetzungen einschließlich der redaktionellen Prüfung.",
+  "Наприклад:\nДля англійської використовуйте британський правопис.\nДОДАТКИ перекладайте як APPENDICES.\nДотримуйтеся формального технічного стилю.": "Zum Beispiel:\nBei Übersetzungen ins Englische britische Schreibweise verwenden.\nAnhangsüberschriften als APPENDICES übersetzen.\nEinen sachlichen technischen Stil verwenden.",
+  "Зберігаються на цьому пристрої та надсилаються вибраному AI-сервісу разом із запитами. Порожнє поле вимикає власні інструкції. Числа, коди й форматування залишаються захищеними.": "Auf diesem Gerät gespeichert und mit den Anfragen an den gewählten KI-Dienst gesendet. Ein leeres Feld deaktiviert eigene Anweisungen. Zahlen, Codes und Formatierungen bleiben geschützt.",
+  "Власні інструкції: дозволено до 8 000 символів без нульових байтів.": "Eigene Anweisungen: bis zu 8.000 Zeichen, ohne Nullbytes.",
+  "Не вдалося зберегти власні інструкції.": "Eigene Anweisungen konnten nicht gespeichert werden."
+}

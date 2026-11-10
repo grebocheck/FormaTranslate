@@ -14,6 +14,7 @@ from pathlib import Path
 from pypdf import PdfReader
 
 from forma.config import Settings, data_directory
+from forma.instructions import translation_prompt
 from forma.models import Cancelled, FormaError, Issue, Options, TranslationResult
 from forma.pdf_api import PDFAPI
 from forma.pdf_progress import PDFProgress
@@ -184,6 +185,7 @@ def _run_babeldoc(arguments, logfile, settings, control, progress, workers, api=
 def translate_pdf(
     source: Path, folder: Path, options: Options, settings: Settings, control: JobControl, progress
 ) -> TranslationResult:
+    options.validate()
     executable = find_babeldoc(settings.babeldoc_path)
     if not executable:
         raise FormaError(
@@ -236,7 +238,13 @@ def translate_pdf(
             control.max_parallel_requests,
             max(1, settings.max_parallel_requests // settings.parallel_documents),
         )
-        api = resources.enter_context(PDFAPI(settings, workers, control=control))
+        api = resources.enter_context(
+            PDFAPI(
+                settings.with_overrides(translation_instructions=options.instructions),
+                workers,
+                control=control,
+            )
+        )
         # Secrets go in a private temporary file, never into process arguments.
         config = {
             "openai": True,
@@ -253,14 +261,17 @@ def translate_pdf(
             "report-interval": 0.5,
             "translate-table-text": True,
             "no-send-temperature": True,
-            "custom-system-prompt": "You are a precise professional translator. Translate all human-readable text into "
-            + (
-                {"uk": "Ukrainian", "en": "English"}.get(
-                    options.target_language, options.target_language
+            "custom-system-prompt": translation_prompt(
+                "You are a precise professional translator. Translate all human-readable text into "
+                + (
+                    {"uk": "Ukrainian", "en": "English"}.get(
+                        options.target_language, options.target_language
+                    )
                 )
-            )
-            + f" ({options.target_language}). Preserve all numbers and identifiers. Domain: "
-            + options.domain,
+                + f" ({options.target_language}). Preserve all numbers and identifiers. Domain: "
+                + options.domain,
+                options.instructions,
+            ),
         }
         if not options.auto_glossary:
             config["no-auto-extract-glossary"] = True

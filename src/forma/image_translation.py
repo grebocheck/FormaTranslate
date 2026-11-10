@@ -16,6 +16,7 @@ from statistics import median
 from PySide6.QtCore import QBuffer, QIODevice, QPointF, QRect, Qt
 from PySide6.QtGui import QColor, QFont, QImage, QPainter, QTextLayout, QTextOption
 
+from forma.instructions import translation_prompt
 from forma.models import FormaError, Options
 from forma.provider import Provider
 from forma.quality import numbers_match, protected_values
@@ -208,7 +209,7 @@ def _correct_values(
     if not affected:
         return blocks
     response = provider.complete(
-        _CORRECTION_INSTRUCTION,
+        translation_prompt(_CORRECTION_INSTRUCTION, provider.settings.translation_instructions),
         {
             "source_language": source_language,
             "target_language": target_language,
@@ -382,7 +383,7 @@ def translate_image(
     data_url = _image_payload(image)
     provider.control.check()
     response = provider.complete(
-        _IMAGE_INSTRUCTION,
+        translation_prompt(_IMAGE_INSTRUCTION, provider.settings.translation_instructions),
         {"source_language": source_language, "target_language": target_language},
         _IMAGE_SCHEMA,
         images=[data_url],

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 import tempfile
 import time
 from collections import defaultdict
@@ -16,7 +17,7 @@ from lxml import etree
 from forma.engine import translation_issues
 from forma.models import FormaError, Segment, TranslationResult, plain_text
 from forma.ooxml import A, OfficeDocument, S, Target, W
-from forma.quality import parse_translation
+from forma.quality import immutable_spans, parse_translation
 from forma.reports import write_translation_report
 from forma.review import SEGMENT_CHECK_CODES
 from forma.storage import atomic_bytes, atomic_json
@@ -295,13 +296,14 @@ def _export(source, output, report, edits, folder, expected_report_fingerprint, 
         raise FormaError("Не вдалося прочитати звіт Forma.") from None
     previous, options = parse_report_data(metadata, report)
     saved_options = metadata["options"]
-    for key in ("domain", "review", "auto_glossary", "glossary"):
+    for key in ("domain", "review", "auto_glossary", "glossary", "instructions"):
         value = saved_options.get(key)
         if type(value) is type(getattr(options, key)) and (
             key != "glossary"
             or all(isinstance(k, str) and isinstance(v, str) for k, v in value.items())
         ):
             setattr(options, key, value)
+    options.validate()
     if previous.engine not in {"forma-ooxml", "forma-corpus"}:
         raise FormaError("Цей звіт не підтримує ручний експорт Office.")
     if not set(edits) <= set(previous.translations):
@@ -314,10 +316,23 @@ def _export(source, output, report, edits, folder, expected_report_fingerprint, 
     for segment in original.segments:
         by_source[(segment.location, segment.source)].append(segment)
     reported = [(segment.location, segment.source) for segment in previous.segments]
+    # Before 0.5.0, text separated by tabs/breaks could be concatenated into a
+    # false identifier and omitted. Accept only that precisely reproducible gap
+    # in old reports; all reported segments still require exact unique matches.
+    legacy_gaps = set(by_source) - set(reported)
+
+    def legacy_omission(markup):
+        if not re.search(r"<k\d+\s*/>", markup):
+            return False
+        collapsed = plain_text(re.sub(r"<k\d+\s*/>", "", markup)).strip()
+        return any(
+            start == 0 and end == len(collapsed) for start, end, _ in immutable_spans(collapsed)
+        )
+
     if (
-        len(reported) != len(original.segments)
-        or len(set(reported)) != len(reported)
-        or set(reported) != set(by_source)
+        len(set(reported)) != len(reported)
+        or not set(reported) <= set(by_source)
+        or any(not legacy_omission(markup) for _, markup in legacy_gaps)
         or any(len(matches) != 1 for matches in by_source.values())
     ):
         raise FormaError(

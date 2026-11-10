@@ -14,7 +14,6 @@
   "Відкрити баланс OpenAI ↗": "Otwórz saldo OpenAI ↗",
   "Розрахунковий залишок: %1": "Szacowane pozostałe saldo: %1",
   "Від суми, вказаної %1. Витрати інших застосунків, поповнення та строк дії кредитів не враховано.": "Na podstawie kwoty podanej %1. Nie uwzględnia innych aplikacji, doładowań ani wygaśnięcia środków.",
-  "Залишок невідомий: після введення балансу є запити без оцінки вартості.": "Pozostałe saldo jest nieznane: część zapytań od wprowadzenia salda nie ma wyceny.",
   "Вказати поточний баланс вручну": "Wpisz aktualne saldo ręcznie",
   "Сума у USD. Порожнє поле прибирає розрахунковий баланс.": "Kwota w USD. Puste pole usuwa szacowane saldo.",
   "Поточний баланс у USD": "Aktualne saldo w USD",
@@ -24,11 +23,16 @@
   "Кешований вхід": "Wejście z pamięci podręcznej",
   "Вихід": "Wyjście",
   "Зберегти тариф": "Zapisz stawki",
-  "Автотарифи OpenAI: %1, стандартна обробка. Податки, регіональні доплати та окрема оплата запису кешу не включені. Точні списання перевіряйте у провайдера.": "Automatyczne stawki OpenAI: %1, standardowe przetwarzanie. Bez podatków, dopłat regionalnych i osobnych opłat za zapis pamięci podręcznej. Rzeczywiste opłaty sprawdź u dostawcy.",
   "Статистика витрат недоступна. Перевірте доступ до сховища застосунку.": "Statystyki kosztów są niedostępne. Sprawdź dostęp do danych aplikacji.",
   "Вкажіть невід’ємну суму в USD, не більшу за 1 000 000.": "Wpisz nieujemną kwotę w USD, nie większą niż 1 000 000.",
   "Не вдалося зберегти дані витрат.": "Nie udało się zapisać danych kosztów.",
   "Заповніть усі три тарифи невід’ємними числами або очистіть усі поля.": "Wpisz nieujemne liczby dla wszystkich trzech stawek lub wyczyść wszystkie pola.",
   "Не вдалося відкрити браузер.": "Nie udało się otworzyć przeglądarki.",
-  "Закрити": "Zamknij"
+  "Закрити": "Zamknij",
+  "Неповні дані для %1 запитів: не збережено деталізацію кешу. Сума орієнтовна; точний залишок за нею визначити неможливо.": "Niepełne dane dla %1 żądań: nie zapisano szczegółów pamięci podręcznej. Koszty są przybliżone; nie można wiarygodnie obliczyć pozostałego salda.",
+  "Деталі за моделями": "Szczegóły według modeli",
+  "Запитів: %1 · токени вхід / вихід: %2": "Żądania: %1 · tokeny wejściowe / wyjściowe: %2",
+  "Кеш · читання: %1 · запис: %2": "Pamięć podręczna · odczyt: %1 · zapis: %2",
+  "Автотарифи OpenAI: %1, стандартна обробка. Враховано читання та запис кешу за даними API. Податки й регіональні доплати не включені. Точні списання перевіряйте у провайдера.": "Automatyczne stawki OpenAI: %1, przetwarzanie standardowe. Uwzględniają odczyt i zapis pamięci podręcznej zgłoszony przez API. Bez podatków i dopłat regionalnych. Rzeczywiste opłaty sprawdź u dostawcy.",
+  "Залишок невідомий: після введення балансу є запити без повної оцінки вартості.": "Pozostałe saldo jest nieznane: niektóre żądania od wpisania salda nie mają pełnej wyceny."
 }

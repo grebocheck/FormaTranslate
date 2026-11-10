@@ -73,7 +73,7 @@ def test_controller_updates_usage_balance_rates_and_safe_billing_link(usage_wind
     ledger.record(backend._settings, {"usage": {"input_tokens": 100, "output_tokens": 50}})
     usage.refresh()
     assert usage.summary["today"]["cost"] == 250_000
-    assert usage.summary["balance"]["text"] == "$5.00"
+    assert usage.summary["balance"]["text"] == "$4.99975"
     assert not usage.saveBalance("NaN")
     assert usage.summary["error"]
     assert not usage.saveTariff("1", "", "2")
@@ -102,3 +102,36 @@ def test_controller_handles_corrupt_storage_without_exposing_paths(usage_window)
     assert backend.usage.summary["unavailable"]
     assert "secret" not in backend.usage.summary["error"]
     assert str(ledger.path) not in backend.usage.summary["error"]
+
+
+def test_cache_details_and_incomplete_history_are_visible_without_false_balance(usage_window):
+    backend, window, warnings = usage_window
+    backend._settings = backend._settings.with_overrides(model="gpt-6.1-terra")
+    ledger = UsageLedger()
+    ledger.set_balance(backend._settings, "5")
+    ledger.record(
+        backend._settings,
+        {
+            "usage": {
+                "input_tokens": 1502,
+                "output_tokens": 14,
+                "input_tokens_details": {"cached_tokens": 0, "cache_write_tokens": 1499},
+            }
+        },
+    )
+    backend.usage.refresh()
+    assert backend.usage.summary["today"]["costLabel"] == "≈ $0.001947"
+    assert backend.usage.summary["models"][0]["writeText"] == "1,499"
+    assert backend.usage.summary["balance"]["text"] == "$4.998053"
+    ledger.record(backend._settings, {"usage": {"input_tokens": 1502, "output_tokens": 14}})
+    backend.usage.refresh()
+    assert backend.usage.summary["today"]["costLabel"].startswith("≥ ")
+    assert backend.usage.summary["balance"]["text"] == "—"
+    assert backend.usage.summary["models"][0]["writeText"] == "—"
+    window.findChild(QQuickItem, "usageButton").clicked.emit()
+    window.findChild(QQuickItem, "usageModelsToggle").setProperty("checked", True)
+    for language in ("uk", "en", "pl", "de"):
+        backend.setUiLanguage(language)
+        QTest.qWait(20)
+        assert not window.grabWindow().isNull()
+    assert not warnings, "\n".join(warnings)

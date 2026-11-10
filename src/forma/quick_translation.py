@@ -6,6 +6,7 @@ import re
 from collections.abc import Callable
 from dataclasses import dataclass
 
+from forma.instructions import translation_prompt
 from forma.models import FormaError, Options
 from forma.provider import TRANSLATION_SCHEMA, Provider
 from forma.quality import immutable_spans, numbers_match, protected_values
@@ -180,13 +181,17 @@ def translate_text(
     }
     if progress:
         progress(5, "Перекладаємо текст…")
-    draft = provider.complete(_TRANSLATE, payload, TRANSLATION_SCHEMA)
+    draft = provider.complete(
+        translation_prompt(_TRANSLATE, provider.settings.translation_instructions),
+        payload,
+        TRANSLATION_SCHEMA,
+    )
     provider.control.check()
     draft = _validated_result(draft, lines, prefix, final=False)
     if progress:
         progress(60, "Перевіряємо переклад…")
     reviewed = provider.complete(
-        _REVIEW,
+        translation_prompt(_REVIEW, provider.settings.translation_instructions),
         {
             **payload,
             "segments": [

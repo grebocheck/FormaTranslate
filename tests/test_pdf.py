@@ -35,6 +35,11 @@ def test_pdf_adapter_keeps_key_out_of_arguments(pdf_file, tmp_path, monkeypatch)
             assert config["openai-model"].startswith("test-forma-")
             assert config["lang-out"] == "en"
             assert config["no-send-temperature"]
+            assert (
+                '"translation_preferences": "Use formal technical language."'
+                in config["custom-system-prompt"]
+            )
+            assert "Use formal" not in " ".join(arguments)
             if os.name != "nt":
                 assert config_path.stat().st_mode & 0o777 == 0o600
             (Path(config["output"]) / "sample.mono.pdf").write_bytes(pdf_file.read_bytes())
@@ -46,7 +51,11 @@ def test_pdf_adapter_keeps_key_out_of_arguments(pdf_file, tmp_path, monkeypatch)
     result = translate_pdf(
         pdf_file,
         tmp_path / "out",
-        Options(source_language="en", target_language="en"),
+        Options(
+            source_language="en",
+            target_language="en",
+            instructions="Use formal technical language.",
+        ),
         Settings(model="test", api_key="secret-test-key"),
         JobControl(),
         lambda *_: None,

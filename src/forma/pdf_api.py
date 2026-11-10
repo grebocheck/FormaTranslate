@@ -261,6 +261,10 @@ class PDFAPI:
             "reasoning_effort": settings.reasoning_effort,
             "max_output_tokens": settings.max_output_tokens,
         }
+        if settings.translation_instructions.strip():
+            identity["instructions_sha256"] = hashlib.sha256(
+                settings.translation_instructions.encode()
+            ).hexdigest()
         if self.native:
             identity.update(protocol=2, api_mode=settings.api_mode)
         # Keep previous Chat cache identities: pacing and the new provider UI

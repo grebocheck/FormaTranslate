@@ -400,3 +400,31 @@ def test_publication_collision_never_overwrites_and_removes_only_own_partial_fil
         export_reviewed_copy(source, output, report, {segment_id: markup})
     assert competitor.read_bytes() == b"other process report"
     assert not competitor.with_name(competitor.name.removesuffix(".forma.json")).exists()
+
+
+def test_legacy_report_with_omitted_toc_heading_still_edits_correct_body(tmp_path):
+    source = tmp_path / "legacy-toc.docx"
+    document = Document()
+    paragraph = document.add_paragraph("ДОДАТКИ")
+    paragraph.add_run().add_tab()
+    paragraph.add_run("40")
+    document.add_paragraph("Перед запуском.")
+    document.save(source)
+    output, report = write_translation(source)
+    data = json.loads(report.read_text())
+    assert len(data["segments"]) == 2
+    omitted = data["segments"].pop(0)
+    data["issues"] = [i for i in data["issues"] if i.get("segment_id") != omitted["id"]]
+    data["options"]["instructions"] = "Use British spelling."
+    report.write_text(json.dumps(data))
+    body = data["segments"][0]
+    result = export_reviewed_copy(source, output, report, {body["id"]: "<r0>Before start-up.</r0>"})
+    content = Document(result.output)
+    assert content.paragraphs[0].text == "ДОДАТКИ\t40"
+    assert content.paragraphs[1].text == "Before start-up."
+    assert json.loads(result.report.read_text())["options"]["instructions"] == "Use British spelling."
+    # The compatibility exception must not accept arbitrary missing prose.
+    data["segments"] = [omitted]
+    report.write_text(json.dumps(data))
+    with pytest.raises(FormaError, match="повному набору"):
+        export_reviewed_copy(source, output, report, {omitted["id"]: omitted["source"]})

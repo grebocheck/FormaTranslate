@@ -14,7 +14,6 @@
   "Відкрити баланс OpenAI ↗": "OpenAI-Guthaben öffnen ↗",
   "Розрахунковий залишок: %1": "Geschätztes Restguthaben: %1",
   "Від суми, вказаної %1. Витрати інших застосунків, поповнення та строк дії кредитів не враховано.": "Ausgehend vom am %1 eingegebenen Betrag. Andere Apps, Aufladungen und der Verfall von Guthaben sind nicht berücksichtigt.",
-  "Залишок невідомий: після введення балансу є запити без оцінки вартості.": "Restguthaben unbekannt: Für einige Anfragen seit der Eingabe fehlt eine Kostenschätzung.",
   "Вказати поточний баланс вручну": "Aktuelles Guthaben manuell eingeben",
   "Сума у USD. Порожнє поле прибирає розрахунковий баланс.": "Betrag in USD. Ein leeres Feld entfernt das geschätzte Guthaben.",
   "Поточний баланс у USD": "Aktuelles Guthaben in USD",
@@ -24,11 +23,16 @@
   "Кешований вхід": "Eingabe aus dem Cache",
   "Вихід": "Ausgabe",
   "Зберегти тариф": "Preise speichern",
-  "Автотарифи OpenAI: %1, стандартна обробка. Податки, регіональні доплати та окрема оплата запису кешу не включені. Точні списання перевіряйте у провайдера.": "Automatische OpenAI-Preise: %1, Standardverarbeitung. Ohne Steuern, regionale Zuschläge und separate Cache-Schreibkosten. Tatsächliche Abbuchungen beim Anbieter prüfen.",
   "Статистика витрат недоступна. Перевірте доступ до сховища застосунку.": "Kostenstatistik nicht verfügbar. Prüfen Sie den Zugriff auf den Anwendungsspeicher.",
   "Вкажіть невід’ємну суму в USD, не більшу за 1 000 000.": "Geben Sie einen nicht negativen USD-Betrag bis 1.000.000 ein.",
   "Не вдалося зберегти дані витрат.": "Kostendaten konnten nicht gespeichert werden.",
   "Заповніть усі три тарифи невід’ємними числами або очистіть усі поля.": "Geben Sie für alle drei Preise nicht negative Zahlen ein oder leeren Sie alle Felder.",
   "Не вдалося відкрити браузер.": "Der Browser konnte nicht geöffnet werden.",
-  "Закрити": "Schließen"
+  "Закрити": "Schließen",
+  "Неповні дані для %1 запитів: не збережено деталізацію кешу. Сума орієнтовна; точний залишок за нею визначити неможливо.": "Unvollständige Daten für %1 Anfragen: Cache-Details wurden nicht erfasst. Die Kosten sind geschätzt; ein verlässliches Restguthaben lässt sich nicht berechnen.",
+  "Деталі за моделями": "Details nach Modell",
+  "Запитів: %1 · токени вхід / вихід: %2": "Anfragen: %1 · Eingabe- / Ausgabetokens: %2",
+  "Кеш · читання: %1 · запис: %2": "Cache · gelesen: %1 · geschrieben: %2",
+  "Автотарифи OpenAI: %1, стандартна обробка. Враховано читання та запис кешу за даними API. Податки й регіональні доплати не включені. Точні списання перевіряйте у провайдера.": "Automatische OpenAI-Tarife: %1, Standardverarbeitung. Berücksichtigt vom API gemeldete Cache-Lese- und Schreibvorgänge. Ohne Steuern und regionale Zuschläge. Tatsächliche Gebühren beim Anbieter prüfen.",
+  "Залишок невідомий: після введення балансу є запити без повної оцінки вартості.": "Restguthaben unbekannt: Für einige Anfragen seit der Guthabeneingabe fehlt eine vollständige Kostenschätzung."
 }

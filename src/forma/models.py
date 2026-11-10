@@ -22,6 +22,14 @@ class FormaError(Exception):
     """An error safe to display in the interface."""
 
 
+MAX_TRANSLATION_INSTRUCTIONS = 8000
+
+
+def validate_instructions(value: str) -> None:
+    if not isinstance(value, str) or len(value) > MAX_TRANSLATION_INSTRUCTIONS or "\x00" in value:
+        raise FormaError("Власні інструкції: дозволено до 8 000 символів без нульових байтів.")
+
+
 class Cancelled(FormaError):
     pass
 
@@ -63,8 +71,10 @@ class Options:
     review: bool = True
     auto_glossary: bool = True
     glossary: dict[str, str] = field(default_factory=dict)
+    instructions: str = ""
 
     def validate(self) -> None:
+        validate_instructions(self.instructions)
         pattern = r"[A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,8})*"
         if self.source_language != "auto" and not re.fullmatch(pattern, self.source_language):
             raise FormaError("Вкажіть код мови оригіналу, наприклад en або auto.")

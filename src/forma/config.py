@@ -11,7 +11,7 @@ from urllib.parse import urlparse
 from dotenv import dotenv_values
 from platformdirs import user_data_path
 
-from forma.models import FormaError
+from forma.models import FormaError, validate_instructions
 from forma.storage import atomic_json
 
 STRING_PREFERENCES = {
@@ -26,6 +26,7 @@ STRING_PREFERENCES = {
     "output_folder",
     "ui_language",
     "provider_preset",
+    "translation_instructions",
 }
 NUMBER_PREFERENCES = {
     "max_output_tokens",
@@ -71,6 +72,7 @@ class Settings:
     api_mode: str = "chat"
     response_format: str = "auto"
     review_model: str = ""
+    translation_instructions: str = ""
     reasoning_effort: str = ""
     max_output_tokens: int = 0
     timeout: float = 180
@@ -104,6 +106,7 @@ class Settings:
             for name, env_name in ENV_FIELDS.items()
         }
         fields["base_url"] = preferences.get("base_url", environment_base)
+        fields["translation_instructions"] = preferences.get("translation_instructions", "")
         try:
             timeout = float(fields["timeout"])
             if not math.isfinite(timeout) or timeout <= 0:
@@ -194,6 +197,7 @@ class Settings:
         from forma.credentials import canonical_endpoint
         from forma.provider_presets import PRESET_IDS
 
+        validate_instructions(self.translation_instructions)
         if self.provider_preset not in PRESET_IDS:
             raise FormaError("Невідомий пресет провайдера. Оберіть його знову в налаштуваннях.")
         if (

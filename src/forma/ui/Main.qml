@@ -363,6 +363,7 @@ ApplicationWindow {
     }
 
     Timer { interval: 5000; repeat: true; running: root.visible; onTriggered: backend.usage.refresh() }
+    InstructionsDialog { id: instructionsDialog; controller: backend }
     UsagePanel { id: usagePanel; parent: Overlay.overlay; controller: backend.usage }
 
     header: Rectangle {
@@ -381,7 +382,7 @@ ApplicationWindow {
             }
             Action {
                 objectName: "usageButton"
-                text: qsTr("Витрати") + " · " + (backend.usage.summary.today ? "≈ " + backend.usage.summary.today.costText : "—") + (backend.usage.summary.month && backend.usage.summary.month.unknown > 0 ? " *" : "")
+                text: qsTr("Витрати") + " · " + (backend.usage.summary.today ? backend.usage.summary.today.costLabel : "—") + (backend.usage.summary.month && backend.usage.summary.month.unknown > 0 ? " *" : "")
                 hint: qsTr("Витрати API та баланс")
                 subtle: true; implicitHeight: 36
                 onClicked: usagePanel.open()
@@ -580,6 +581,11 @@ ApplicationWindow {
                                         Item { Layout.fillWidth: true }
                                         Action { text: ""; iconName: "close"; hint: qsTr("Прибрати глосарій"); subtle: true; implicitWidth: 30; implicitHeight: 30; visible: backend.glossaryCount > 0; enabled: !backend.busy; onClicked: backend.clearGlossary(); Accessible.name: hint }
                                     }
+                                }
+                                Action {
+                                    text: qsTr("Власні інструкції") + (backend.translationInstructions.trim().length ? " •" : "")
+                                    objectName: "documentInstructionsButton"; iconName: "edit"; subtle: true
+                                    Layout.fillWidth: true; enabled: !backend.busy; onClicked: instructionsDialog.open()
                                 }
                                 Caption { text: qsTr("Перевіряємо переклад і зберігаємо оригінальний файл."); visible: review.checked && !root.hasPdf; wrapMode: Text.WordWrap; Layout.fillWidth: true; lineHeight: 1.4 }
                                 Caption { text: qsTr("Редакторську перевірку вимкнено."); visible: !review.checked && !root.hasPdf; color: "#9b4c22"; wrapMode: Text.WordWrap; Layout.fillWidth: true }
@@ -1024,6 +1030,8 @@ ApplicationWindow {
                 targetCodes: root.targetCodes
                 languageLabels: root.languageLabels
                 modelName: backend.settings.model || ""
+                instructionsActive: backend.translationInstructions.trim().length > 0
+                onInstructionsRequested: instructionsDialog.open()
                 onConfigureRequested: root.page = 2
             }
         }

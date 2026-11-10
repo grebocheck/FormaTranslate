@@ -41,9 +41,14 @@ class UsageController(QObject):
             if account != self._scope or self._summary.get("unavailable"):
                 self._error = ""
                 self._scope = account
-            for period in ("today", "month"):
-                row = data[period]
+            for row in (data["today"], data["month"], *data["models"]):
                 row["costText"] = money(row["cost"])
+                row["costLabel"] = (
+                    "≥ " if (row["unknown"] or row["uncertain"]) and not row["unbounded"] else "≈ "
+                ) + row["costText"]
+                row["writeText"] = (
+                    "—" if row["uncertain"] or row["unknown"] else f"{row['cache_write']:,}"
+                )
                 row["tokensText"] = f"{row['input']:,} / {row['output']:,}"
             balance = data.get("balance")
             if balance:

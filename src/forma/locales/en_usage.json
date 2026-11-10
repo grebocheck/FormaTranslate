@@ -14,7 +14,6 @@
   "Відкрити баланс OpenAI ↗": "Open OpenAI billing ↗",
   "Розрахунковий залишок: %1": "Estimated remaining balance: %1",
   "Від суми, вказаної %1. Витрати інших застосунків, поповнення та строк дії кредитів не враховано.": "Based on the amount entered on %1. Excludes other apps, top-ups and credit expiry.",
-  "Залишок невідомий: після введення балансу є запити без оцінки вартості.": "Remaining balance unknown: some requests since the balance entry have no cost estimate.",
   "Вказати поточний баланс вручну": "Enter current balance manually",
   "Сума у USD. Порожнє поле прибирає розрахунковий баланс.": "Amount in USD. Leave blank to remove the estimated balance.",
   "Поточний баланс у USD": "Current balance in USD",
@@ -24,11 +23,16 @@
   "Кешований вхід": "Cached input",
   "Вихід": "Output",
   "Зберегти тариф": "Save rates",
-  "Автотарифи OpenAI: %1, стандартна обробка. Податки, регіональні доплати та окрема оплата запису кешу не включені. Точні списання перевіряйте у провайдера.": "Automatic OpenAI rates: %1, standard processing. Excludes taxes, regional surcharges and separate cache-write charges. Check your provider for actual charges.",
   "Статистика витрат недоступна. Перевірте доступ до сховища застосунку.": "Cost statistics are unavailable. Check access to application storage.",
   "Вкажіть невід’ємну суму в USD, не більшу за 1 000 000.": "Enter a non-negative USD amount, no greater than 1,000,000.",
   "Не вдалося зберегти дані витрат.": "Could not save cost data.",
   "Заповніть усі три тарифи невід’ємними числами або очистіть усі поля.": "Enter non-negative numbers for all three rates, or clear all fields.",
   "Не вдалося відкрити браузер.": "Could not open the browser.",
-  "Закрити": "Close"
+  "Закрити": "Close",
+  "Неповні дані для %1 запитів: не збережено деталізацію кешу. Сума орієнтовна; точний залишок за нею визначити неможливо.": "Incomplete data for %1 requests: cache details were not recorded. Costs are approximate; a reliable remaining balance cannot be calculated.",
+  "Деталі за моделями": "Details by model",
+  "Запитів: %1 · токени вхід / вихід: %2": "Requests: %1 · input / output tokens: %2",
+  "Кеш · читання: %1 · запис: %2": "Cache · read: %1 · write: %2",
+  "Автотарифи OpenAI: %1, стандартна обробка. Враховано читання та запис кешу за даними API. Податки й регіональні доплати не включені. Точні списання перевіряйте у провайдера.": "Automatic OpenAI rates: %1, standard processing. Includes cache reads and writes reported by the API. Excludes taxes and regional surcharges. Check your provider for actual charges.",
+  "Залишок невідомий: після введення балансу є запити без повної оцінки вартості.": "Remaining balance unknown: some requests since the balance entry have no complete cost estimate."
 }

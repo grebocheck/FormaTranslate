@@ -12,7 +12,7 @@ from zipfile import BadZipFile, ZipFile
 
 from lxml import etree
 
-from forma.models import ISSUE_EXPLANATIONS, FormaError, Issue, Segment
+from forma.models import ISSUE_EXPLANATIONS, FormaError, Issue, Segment, plain_text
 from forma.quality import immutable_spans
 from forma.storage import atomic_bytes
 
@@ -101,9 +101,6 @@ class OfficeDocument:
             return
         # Use the same protected-value rules as translation validation. Uppercase
         # descriptive labels such as IN-SERVICE are words, not equipment codes.
-        plain = "".join(n.text or "" for n in nodes).strip()
-        if any(start == 0 and end == len(plain) for start, end, _ in immutable_spans(plain)):
-            return
         marker_nodes = markers or []
         node_ids = {id(n): i for i, n in enumerate(nodes)}
         marker_ids = {id(n): i for i, n in enumerate(marker_nodes)}
@@ -117,6 +114,11 @@ class OfficeDocument:
             else f"<k{marker_ids[id(n)]}/>"
             for n in events
         )
+        # Tabs/breaks separate a TOC heading from its page number. Joining only
+        # text runs turned e.g. ДОДАТКИ + tab + 40 into the false code ДОДАТКИ40.
+        plain = plain_text(source).strip()
+        if any(start == 0 and end == len(plain) for start, end, _ in immutable_spans(plain)):
+            return
         sid = f"{part}#{len(self.segments)}"
         self.segments.append(Segment(sid, location, source, context))
         self.targets[sid] = Target(part, nodes, marker_nodes)

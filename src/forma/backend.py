@@ -26,7 +26,13 @@ from forma.i18n import translate_ui_message as tr
 from forma.jobs import DocumentQueue, run_documents
 from forma.library import TranslationLibrary
 from forma.model_catalog import list_models
-from forma.models import FormaError, Options, plain_text
+from forma.models import (
+    MAX_TRANSLATION_INSTRUCTIONS,
+    FormaError,
+    Options,
+    plain_text,
+    validate_instructions,
+)
 from forma.ooxml import OfficeDocument
 from forma.pdf import find_babeldoc, inspect_pdf
 from forma.provider import JobControl, Provider
@@ -80,6 +86,7 @@ class Backend(QObject):
         self._control = None
         self._message = ""
         self._message_kind = "info"
+        self._instructions_error = ""
         self._api_status = "Очікує налаштування"
         self._settings = self._read_settings()
         self._usage = UsageController(self, settings=lambda: self._settings)
@@ -1194,6 +1201,37 @@ class Backend(QObject):
             "pdfReady": bool(find_babeldoc(s.babeldoc_path)),
         }
 
+    @Property(str, notify=changed)
+    def translationInstructions(self):
+        return self._settings.translation_instructions
+
+    @Property(int, constant=True)
+    def maximumInstructionsLength(self):
+        return MAX_TRANSLATION_INSTRUCTIONS
+
+    @Property(str, notify=changed)
+    def instructionsError(self):
+        return tr(self._instructions_error)
+
+    @Slot(str, result=bool)
+    def saveTranslationInstructions(self, value):
+        if self.busy:
+            return False
+        try:
+            validate_instructions(value)
+            save_preferences({**load_preferences(), "translation_instructions": value})
+        except FormaError as exc:
+            self._instructions_error = str(exc)
+        except OSError:
+            self._instructions_error = "Не вдалося зберегти власні інструкції."
+        else:
+            self._settings = self._settings.with_overrides(translation_instructions=value)
+            self._instructions_error = ""
+            self.changed.emit()
+            return True
+        self.changed.emit()
+        return False
+
     @Property("QVariantList", notify=languageChanged)
     def providerPresets(self):
         return provider_presets()
@@ -1599,7 +1637,13 @@ class Backend(QObject):
         self._busy, self._paused, self._translation_active = True, False, True
         self._control = JobControl(max_parallel_requests=self._settings.max_parallel_requests)
         options = Options(
-            source_language, target_language, domain, review, auto_glossary, dict(self._glossary)
+            source_language,
+            target_language,
+            domain,
+            review,
+            auto_glossary,
+            dict(self._glossary),
+            instructions=self._settings.translation_instructions,
         )
         self._run_options = options
         for document in pending:

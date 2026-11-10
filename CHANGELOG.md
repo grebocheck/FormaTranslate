@@ -2,6 +2,14 @@
 
 Versions follow semantic versioning. Changes before 1.0 may evolve as document compatibility improves.
 
+## 0.5.0 — 2026-11-10
+
+- Fix skipped Office headings separated from page numbers by tabs/breaks, including table-of-contents entries; preserve fields, links, layout markers and protected equipment codes.
+- Add persistent custom translation instructions for documents, text, photos, PDF and editorial passes, with cache isolation and all four interface languages.
+- Keep manual editing compatible with legacy reports affected by the skipped-heading bug.
+- Correct OpenAI cache-write pricing, including reported lifetimes and long-context rates. Preserve and mark incomplete historical estimates instead of fabricating missing token counts.
+- Show small balance changes and expandable model/cache totals; hide remaining estimates when accounting is incomplete.
+
 ## 0.4.0 — 2026-11-10
 
 - Add a compact Costs panel with local spending estimates for today and 30 days, request counts and token usage across documents, text, photos and PDF.
