@@ -9,7 +9,7 @@ ApplicationWindow {
     minimumWidth: 960
     minimumHeight: 680
     visible: true
-    title: qsTr("Forma — переклад документів")
+    title: qsTr("Forma — перекладач")
     color: bg
     font.pixelSize: 14
     property color bg: "#f4f6fa"
@@ -40,14 +40,15 @@ ApplicationWindow {
     property var domainValues: ["Загальна тематика", "Технічна документація", "Ділові документи", "Наукові матеріали", "Юридичні документи"]
     property var domainLabels: [qsTr("Загальна тематика"), qsTr("Технічна документація"), qsTr("Ділові документи"), qsTr("Наукові матеріали"), qsTr("Юридичні документи")]
     property var uiLanguageCodes: ["system", "uk", "en", "pl", "de"]
-    property var titles: [qsTr("Переклад документів"), qsTr("Перевірка документа"), qsTr("Налаштування"), qsTr("Історія перекладів")]
+    property var titles: [qsTr("Переклад документів"), qsTr("Перевірка документа"), qsTr("Налаштування"), qsTr("Історія перекладів"), qsTr("Переклад тексту та фото")]
+    readonly property var navigationPages: [0, 4, 1, 3, 2]
     readonly property bool hasCompleted: backend.documents.some(function(d) { return d.status === "done" })
     readonly property int reviewEntryIndex: backend.reviewEntries.findIndex(function(entry) { return entry.id === backend.selectedReviewId })
     readonly property bool reviewLocked: backend.reviewEditing || backend.reviewSaving
 
     onClosing: function(close) { close.accepted = backend.requestClose() }
     Component.onCompleted: loadConfig()
-    Shortcut { sequences: [StandardKey.Open]; enabled: backend.canAddDocuments && !root.reviewLocked; onActivated: backend.pickDocuments() }
+    Shortcut { sequences: [StandardKey.Open]; enabled: root.page !== 4 && backend.canAddDocuments && !root.reviewLocked; onActivated: backend.pickDocuments() }
     Timer { interval: 1000; repeat: true; running: backend.translating; onTriggered: root.clockNow = Date.now() }
 
     component LabelText: Text {
@@ -171,6 +172,7 @@ ApplicationWindow {
         property string iconName: "document"
         implicitHeight: 46
         implicitWidth: tabContent.implicitWidth + 36
+        width: implicitWidth
         contentItem: Item {
             implicitWidth: tabContent.implicitWidth
             implicitHeight: tabContent.implicitHeight
@@ -375,16 +377,17 @@ ApplicationWindow {
             id: navigation
             objectName: "mainNavigation"
             anchors.left: parent.left; anchors.bottom: parent.bottom; anchors.leftMargin: 24; anchors.bottomMargin: 1
-            width: Math.min(800, parent.width - 48); height: 46
+            width: parent.width - 48; height: 46
             spacing: 4
             enabled: !root.reviewLocked
-            currentIndex: root.page
-            onCurrentIndexChanged: if (root.page !== currentIndex) root.page = currentIndex
+            currentIndex: root.navigationPages.indexOf(root.page)
+            onCurrentIndexChanged: if (currentIndex >= 0 && root.page !== root.navigationPages[currentIndex]) root.page = root.navigationPages[currentIndex]
             background: Rectangle { color: "transparent" }
-            NavigationTab { text: qsTr("Переклад"); iconName: "translate"; objectName: "translationTab" }
+            NavigationTab { text: qsTr("Документи"); iconName: "translate"; objectName: "translationTab" }
+            NavigationTab { text: qsTr("Текст і фото"); iconName: "image-text"; objectName: "quickTranslationTab" }
             NavigationTab { text: qsTr("Перевірка"); iconName: "review"; objectName: "reviewTab" }
-            NavigationTab { text: qsTr("Налаштування"); iconName: "settings"; objectName: "settingsButton" }
             NavigationTab { text: qsTr("Історія"); iconName: "history"; objectName: "historyTab" }
+            NavigationTab { text: qsTr("Налаштування"); iconName: "settings"; objectName: "settingsButton" }
         }
     }
 
@@ -986,8 +989,17 @@ ApplicationWindow {
                     }
                 }
             }
+            QuickTranslate {
+                objectName: "quickTranslationPage"
+                controller: backend.quickTranslator
+                sourceCodes: root.sourceCodes
+                targetCodes: root.targetCodes
+                languageLabels: root.languageLabels
+                modelName: backend.settings.model || ""
+                onConfigureRequested: root.page = 2
+            }
         }
-        Caption { text: qsTr("Документи зберігаються локально. Текст для перекладу надсилається вибраному AI-сервісу."); font.pixelSize: 11; Layout.fillWidth: true; elide: Text.ElideRight }
+        Caption { text: root.page === 4 ? qsTr("Текст і фото для перекладу надсилаються вибраному AI-сервісу.") : qsTr("Документи зберігаються локально. Текст для перекладу надсилається вибраному AI-сервісу."); font.pixelSize: 11; Layout.fillWidth: true; elide: Text.ElideRight }
     }
 
     function saveConfig() {

@@ -76,7 +76,7 @@ def prepare_release_materials(
         shutil.copy2(source, payload / name)
     public_docs = ["README.md", "CHANGELOG.md", "CONTRIBUTING.md", "SECURITY.md", "LICENSE"]
     public_docs += [path.relative_to(root).as_posix() for path in (root / "docs").glob("*.md")]
-    public_docs.append("docs/interface.png")
+    public_docs += ["docs/interface.png", "docs/quick-translate.png"]
     for name in public_docs:
         source = root / name
         if source.is_file():

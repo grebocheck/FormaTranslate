@@ -2,6 +2,17 @@
 
 Versions follow semantic versioning. Changes before 1.0 may evolve as document compatibility improves.
 
+## 0.2.0 — 2026-11-10
+
+- Add a Text & photos workspace for direct text translation and image translation with local text overlays.
+- Paste text or images from the clipboard, drag in photos, compare the original/translated image, zoom, copy and save PNG.
+- Translate and edit plain text while preserving line breaks, codes, URLs and numeric values.
+- Support vision image inputs through both Chat Completions and Responses-compatible APIs, with bounded input sizes and safe capability errors.
+- Keep quick translations in session memory; require an explicit action before any API request.
+- Localize the new workflow in English, Ukrainian, Polish and German.
+
+Photo OCR and positions are estimated by the selected model; complex backgrounds are not reconstructed. See docs/TEXT-AND-PHOTOS.md for limitations and validation.
+
 ## 0.1.0 — 2026-11-10
 
 First public release of FormaTranslate.

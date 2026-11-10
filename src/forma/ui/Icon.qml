@@ -42,7 +42,15 @@ Item {
         "arrow-up": '<path d="M12 20V4m-6 6 6-6 6 6"/>',
         "arrow-down": '<path d="M12 4v16m-6-6 6 6 6-6"/>',
         "clear-done": '<path d="M3 5h12M3 11h8M3 17h7m4-2 3 3 5-6"/>',
-        "import": '<path d="M12 3v12m-5-5 5 5 5-5M4 15v6h16v-6"/>'
+        "import": '<path d="M12 3v12m-5-5 5 5 5-5M4 15v6h16v-6"/>',
+        "image-text": '<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M6 7h7M6 11h4m1 10 5-7 5 7"/><circle cx="17" cy="8" r="1"/>',
+        "image": '<rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8" cy="8" r="2"/><path d="m21 15-5-5L5 21"/>',
+        "text": '<path d="M4 5h16M12 5v15M8 20h8M4 5v3m16-3v3"/>',
+        "copy": '<rect x="8" y="8" width="13" height="13" rx="2"/><path d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3"/>',
+        "paste": '<path d="M9 5H6a2 2 0 0 0-2 2v13h16V7a2 2 0 0 0-2-2h-3"/><rect x="9" y="3" width="6" height="4" rx="1"/><path d="M8 12h8M8 16h6"/>',
+        "swap": '<path d="M3 7h17m-4-4 4 4-4 4M21 17H4m4-4-4 4 4 4"/>',
+        "zoom-in": '<circle cx="10" cy="10" r="7"/><path d="m15 15 6 6M7 10h6m-3-3v6"/>',
+        "fit": '<path d="M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5"/>'
     })
     Image {
         anchors.fill: parent

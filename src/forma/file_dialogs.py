@@ -84,21 +84,28 @@ class FilePickers(QObject):
         name_filter: str = "",
         multiple: bool = False,
         folder: bool = False,
+        save: bool = False,
     ) -> QFileDialog:
         dialog = QFileDialog(None, tr(title), directory, tr(name_filter))
         restore_dialog_locations(dialog)
         # Keep platform defaults: no stylesheet, palette, custom delegates, or
         # DontUseNativeDialog. Qt's widget fallback also retains the OS palette.
-        dialog.setAcceptMode(QFileDialog.AcceptMode.AcceptOpen)
+        dialog.setAcceptMode(
+            QFileDialog.AcceptMode.AcceptSave if save else QFileDialog.AcceptMode.AcceptOpen
+        )
         dialog.setFileMode(
             QFileDialog.FileMode.Directory
             if folder
+            else QFileDialog.FileMode.AnyFile
+            if save
             else QFileDialog.FileMode.ExistingFiles
             if multiple
             else QFileDialog.FileMode.ExistingFile
         )
         if folder:
             dialog.setOption(QFileDialog.Option.ShowDirsOnly)
+        if save:
+            dialog.setDefaultSuffix("png")
         dialog.setWindowModality(Qt.WindowModality.ApplicationModal)
         if self.window is not None:
             dialog.winId()

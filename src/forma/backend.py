@@ -30,6 +30,7 @@ from forma.models import FormaError, Options, plain_text
 from forma.ooxml import OfficeDocument
 from forma.pdf import find_babeldoc, inspect_pdf
 from forma.provider import JobControl, Provider
+from forma.quick_controller import QuickTranslator
 from forma.review import actionable_count, build_review, load_report
 from forma.review_store import ReviewStore
 
@@ -114,6 +115,16 @@ class Backend(QObject):
         self._review_edit_error = ""
         self._review_action_error = ""
         self._review_saving = False
+        self._quick = QuickTranslator(
+            self,
+            settings=lambda: self._settings,
+            launch=self._launch,
+            available=lambda: not self._busy and not self._closing and not self._review_saving,
+            pickers=self._pickers,
+            output_folder=lambda: self._folder,
+        )
+        self._quick.activityChanged.connect(self.changed.emit)
+        self.changed.connect(self._quick.changed.emit)
         self._library = None
         self._restored_ids = set()
         try:
@@ -154,6 +165,10 @@ class Backend(QObject):
 
     def _read_settings(self):
         return Settings.load()
+
+    @Property(QObject, constant=True)
+    def quickTranslator(self):
+        return self._quick
 
     @Property(str, notify=languageChanged)
     def uiLanguage(self):
@@ -1167,7 +1182,7 @@ class Backend(QObject):
 
     @Property(bool, notify=changed)
     def busy(self):
-        return self._busy
+        return self._busy or self._quick.busy
 
     @Property(bool, notify=changed)
     def paused(self):
@@ -1401,7 +1416,7 @@ class Backend(QObject):
 
     @Slot("QVariantMap", result=bool)
     def saveSettings(self, values):
-        if self._busy:
+        if self.busy:
             return False
         old = self._settings
         try:
@@ -1512,7 +1527,7 @@ class Backend(QObject):
 
     @Slot()
     def reloadEnv(self):
-        if self._busy:
+        if self.busy:
             return
         try:
             self._settings = self._read_settings()
@@ -1523,7 +1538,7 @@ class Backend(QObject):
 
     @Slot()
     def testConnection(self):
-        if self._busy:
+        if self.busy:
             return
         try:
             self._settings.validate()
@@ -1546,7 +1561,7 @@ class Backend(QObject):
 
     @Slot(str, str, str, bool, bool)
     def start(self, source_language, target_language, domain, review, auto_glossary):
-        if self._busy or self._review_editing or self._review_saving:
+        if self.busy or self._review_editing or self._review_saving:
             return
         try:
             self._settings.validate()
@@ -1656,6 +1671,7 @@ class Backend(QObject):
         if not self._threads:
             return True
         self._closing = True
+        self._quick.cancel()
         self.cancel()
         self._notice("Завершуємо поточну операцію перед закриттям…")
         return False

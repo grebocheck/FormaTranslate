@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 import json
 import threading
 import time
@@ -10,7 +11,14 @@ import pytest
 
 from forma.config import Settings
 from forma.models import Cancelled, FormaError
-from forma.provider import TRANSLATION_SCHEMA, JobControl, Provider, retry_delay
+from forma.provider import (
+    MAX_IMAGE_INPUTS,
+    MAX_IMAGE_PAYLOAD_BYTES,
+    TRANSLATION_SCHEMA,
+    JobControl,
+    Provider,
+    retry_delay,
+)
 
 
 def settings(**kwargs):
@@ -40,6 +48,207 @@ def test_chat_payload_and_usage():
     try:
         assert provider.complete("Translate", {}, TRANSLATION_SCHEMA) == {"segments": []}
         assert (provider.input_tokens, provider.output_tokens) == (14, 8)
+    finally:
+        provider.close()
+
+
+PNG_DATA_URL = "data:image/png;base64," + base64.b64encode(b"\x89PNG\r\n\x1a\nfixture").decode()
+
+
+@pytest.mark.parametrize("mode", ["chat", "responses"])
+def test_embedded_image_payloads_use_correct_api_schema(mode):
+    payload = {"source_language": "uk", "target_language": "en", "hint": "Текст"}
+
+    def handler(request):
+        body = json.loads(request.content)
+        messages = body["input" if mode == "responses" else "messages"]
+        assert body["model"] == "test-model"
+        assert body.get("max_output_tokens", body.get("max_completion_tokens")) == 1234
+        assert messages[0]["role"] == "system"
+        if mode == "responses":
+            assert body["store"] is False
+            assert messages[1]["content"] == [
+                {"type": "input_text", "text": json.dumps(payload, ensure_ascii=False)},
+                {"type": "input_image", "image_url": PNG_DATA_URL, "detail": "high"},
+            ]
+            return httpx.Response(
+                200,
+                json={
+                    "status": "completed",
+                    "output": [{"content": [{"type": "output_text", "text": '{"segments":[]}'}]}],
+                },
+            )
+        assert messages[1]["content"] == [
+            {"type": "text", "text": json.dumps(payload, ensure_ascii=False)},
+            {"type": "image_url", "image_url": {"url": PNG_DATA_URL, "detail": "high"}},
+        ]
+        return chat_response({"segments": []})
+
+    provider = Provider(
+        settings(api_mode=mode, max_output_tokens=1234), transport=httpx.MockTransport(handler)
+    )
+    try:
+        assert provider.complete(
+            "Translate", payload, TRANSLATION_SCHEMA, images=[PNG_DATA_URL]
+        ) == {"segments": []}
+    finally:
+        provider.close()
+
+
+@pytest.mark.parametrize("mode", ["chat", "responses"])
+def test_no_images_retains_text_only_request_structure(mode):
+    provider = Provider(settings(api_mode=mode))
+    try:
+        original = provider._body("Translate", {"text": "Hello"}, TRANSLATION_SCHEMA, "test-model")
+        explicit_empty = provider._body(
+            "Translate", {"text": "Hello"}, TRANSLATION_SCHEMA, "test-model", images=()
+        )
+        assert original == explicit_empty
+        assert isinstance(
+            original["input" if mode == "responses" else "messages"][1]["content"], str
+        )
+    finally:
+        provider.close()
+
+
+@pytest.mark.parametrize(
+    "images",
+    [
+        ["https://example.org/private.png"],
+        ["file:///private.png"],
+        ["data:image/svg+xml;base64,PHN2Zz4="],
+        ["data:image/png;base64,not_base64"],
+        ["data:image/png;base64,cGxhaW4gdGV4dA=="],
+        ["data:image/png;base64,"],
+        [PNG_DATA_URL] * (MAX_IMAGE_INPUTS + 1),
+        [None],
+        PNG_DATA_URL,
+    ],
+)
+def test_invalid_image_inputs_are_rejected_before_network(images):
+    provider = Provider(
+        settings(), transport=httpx.MockTransport(lambda _: pytest.fail("Network called"))
+    )
+    try:
+        with pytest.raises(FormaError):
+            provider.complete("Translate", {}, TRANSLATION_SCHEMA, images=images)
+    finally:
+        provider.close()
+
+
+def test_image_payload_size_is_bounded_before_base64_decode():
+    provider = Provider(
+        settings(), transport=httpx.MockTransport(lambda _: pytest.fail("Network called"))
+    )
+    try:
+        with pytest.raises(FormaError, match="завелике"):
+            provider.complete(
+                "Translate", {}, TRANSLATION_SCHEMA, images=["a" * (MAX_IMAGE_PAYLOAD_BYTES + 1)]
+            )
+    finally:
+        provider.close()
+
+
+@pytest.mark.parametrize(
+    "mime,data", [("jpeg", b"\xff\xd8\xfffixture"), ("webp", b"RIFF\0\0\0\0WEBPfixture")]
+)
+def test_other_supported_raster_mime_types(mime, data):
+    image = f"data:image/{mime};base64," + base64.b64encode(data).decode()
+    provider = Provider(
+        settings(), transport=httpx.MockTransport(lambda _: chat_response({"segments": []}))
+    )
+    try:
+        assert provider.complete("Translate", {}, TRANSLATION_SCHEMA, images=[image]) == {
+            "segments": []
+        }
+    finally:
+        provider.close()
+
+
+@pytest.mark.parametrize("response_format", ["auto", "strict", "json", "plain"])
+def test_unsupported_vision_reports_actionable_hint_without_server_data(response_format):
+    requests = []
+
+    def handler(request):
+        requests.append(request)
+        return httpx.Response(
+            400,
+            json={
+                "error": {
+                    "message": "This model does not support image inputs secret-sensitive-key "
+                    + PNG_DATA_URL
+                }
+            },
+        )
+
+    provider = Provider(
+        settings(response_format=response_format), transport=httpx.MockTransport(handler)
+    )
+    try:
+        with pytest.raises(FormaError, match="підтримкою зображень") as error:
+            provider.complete("Translate", {}, TRANSLATION_SCHEMA, images=[PNG_DATA_URL])
+        assert len(requests) == 1
+        assert "secret-sensitive-key" not in str(error.value)
+        assert "data:image" not in str(error.value)
+    finally:
+        provider.close()
+
+
+def test_images_survive_json_format_negotiation():
+    requests = []
+
+    def handler(request):
+        body = json.loads(request.content)
+        requests.append(body)
+        assert body["messages"][1]["content"][1]["image_url"]["url"] == PNG_DATA_URL
+        if len(requests) == 1:
+            return httpx.Response(
+                400, json={"error": "response_format json_schema unsupported with images"}
+            )
+        return chat_response({"segments": []})
+
+    provider = Provider(settings(), transport=httpx.MockTransport(handler))
+    try:
+        provider.complete("Translate", {}, TRANSLATION_SCHEMA, images=[PNG_DATA_URL])
+        assert len(requests) == 2
+        assert requests[-1]["response_format"]["type"] == "json_object"
+    finally:
+        provider.close()
+
+
+def test_image_request_cancellation_discards_result_but_accounts_usage():
+    control = JobControl()
+
+    def handler(_request):
+        control.cancelled.set()
+        return chat_response({"segments": []})
+
+    provider = Provider(settings(), control, transport=httpx.MockTransport(handler))
+    try:
+        with pytest.raises(Cancelled):
+            provider.complete("Translate", {}, TRANSLATION_SCHEMA, images=[PNG_DATA_URL])
+        assert provider.input_tokens == 14
+    finally:
+        provider.close()
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        [],
+        {"choices": []},
+        {"choices": [{"message": {"content": []}}]},
+        {"usage": [2]},
+        {"choices": [{"message": {"content": 12}}]},
+    ],
+)
+def test_malformed_image_response_is_a_safe_error(body):
+    provider = Provider(
+        settings(), transport=httpx.MockTransport(lambda _: httpx.Response(200, json=body))
+    )
+    try:
+        with pytest.raises(FormaError, match="некоректний JSON"):
+            provider.complete("Translate", {}, TRANSLATION_SCHEMA, images=[PNG_DATA_URL])
     finally:
         provider.close()
 

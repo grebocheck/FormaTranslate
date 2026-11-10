@@ -1,7 +1,7 @@
 <div align="center">
   <img src="src/forma/ui/forma.svg" width="80" alt="FormaTranslate icon">
   <h1>FormaTranslate</h1>
-  <p>Translate DOCX, XLSX and PDF documents with your own AI provider.</p>
+  <p>Translate documents, text and photos with your own AI provider.</p>
   <p>Keep document structure. Review the result. Stay in control of your files.</p>
   <p>
     <a href="https://github.com/grebocheck/FormaTranslate/releases/latest">Download</a> ·
@@ -19,13 +19,29 @@ The interface supports **English, Ukrainian, Polish and German**, follows the sy
 
 ## Download and start
 
-Get the package for your platform from **[GitHub Releases](https://github.com/grebocheck/FormaTranslate/releases/latest)**. Extract it and launch the executable. Python and a `.env` file are not needed for the packaged app. On Linux, make the executable runnable with `chmod +x Forma-linux-x86_64` if necessary. The 0.1.0 Linux binary requires **glibc 2.43 or newer** (built on Ubuntu 26.04); use the source installation on older distributions. See each release's platform validation notes; macOS is not supported yet.
+Get the package for your platform from **[GitHub Releases](https://github.com/grebocheck/FormaTranslate/releases/latest)**. Extract it and launch the executable. Python and a `.env` file are not needed for the packaged app. On Linux, make the executable runnable with `chmod +x Forma-linux-x86_64` if necessary. The 0.2.0 Linux binary requires **glibc 2.43 or newer** (built on Ubuntu 26.04); use the source installation on older distributions. See each release's platform validation notes; macOS is not supported yet.
 
 1. Open **Settings** and enter your API address, model and API key. The model list can be loaded from providers that support it, or entered manually.
 2. Add DOCX, XLSX or text-based PDF files and select the source and target languages.
 3. Translate, open the output folder, and use **Review** to inspect the result.
 
 DOCX and XLSX work directly. **PDF requires a separate BabelDOC installation**; see [PDF setup](docs/PDF.md). Some OpenAI-compatible providers omit features used by particular API modes; choose the mode and response format supported by yours.
+
+## Text and photo translation
+
+Open **Text & photos** to translate text directly or paste an image from the clipboard. You can also choose an image file or drag it into the photo area. Choose the source and target languages, then click **Translate**. Nothing is sent merely by pasting.
+
+- Text: up to 20,000 characters, translation plus editorial review, original line breaks and protected codes/links retained, and one-click copying.
+- Photos: PNG/JPEG/WebP/BMP/TIFF, clipboard screenshots, original/translated preview with zoom, recognized text alongside the translation, and copy/save of the translated image as PNG.
+- Uses your configured model and connection. **Photos require a vision-capable model**; ordinary text-only models cannot read them.
+
+The photo feature reads text and its approximate position with a vision model, then draws the translation locally. It works best on clear, upright text. It does not reconstruct complex backgrounds: translated areas may use readable solid panels. Small, rotated or missed text can require another photo/crop; compare the recognized text with the original. If a block cannot fit or its estimated position overlaps another, the app explains why that area remains unchanged and keeps the full translation available as text. This is a preview to review, not pixel-perfect OCR or typesetting.
+
+Quick text and images remain in session memory, without automatic history or cache files; saved PNGs are explicit exports. Image metadata is removed before uploading. Limits: 30 MB and 24 megapixels per input image; the API image is resized to at most 2048 pixels per side and 2 megapixels, while output retains the original dimensions.
+
+[Details and validation](docs/TEXT-AND-PHOTOS.md).
+
+![Text and photo translation workspace with a synthetic example](docs/quick-translate.png)
 
 ## What it does
 
@@ -41,11 +57,11 @@ DOCX and XLSX work directly. **PDF requires a separate BabelDOC installation**; 
 - Review with source and translation side by side, searchable findings, acknowledgements, and manual DOCX/XLSX corrections saved as a **new copy**.
 - Local checks for changed numbers, identifiers, missing text and damaged formatting markers.
 
-These checks help catch mistakes; they are not a score of linguistic accuracy. AI output still needs review for consequential documents. Longer translations can change pagination or overflow narrow cells and text boxes. Text inside images is not translated. Scanned PDFs, encrypted/signed Office files and Strict OOXML are not supported. Word tracked changes are preserved: deleted revision text remains in its original language. See the [detailed guide](docs/GUIDE.uk.md) and [evaluation method](docs/BENCHMARK.md).
+These checks help catch mistakes; they are not a score of linguistic accuracy. AI output still needs review for consequential documents. Longer translations can change pagination or overflow narrow cells and text boxes. Images embedded in documents are not translated automatically; translate individual images in Text & photos. Scanned PDFs, encrypted/signed Office files and Strict OOXML are not supported. Word tracked changes are preserved: deleted revision text remains in its original language. See the [detailed guide](docs/GUIDE.uk.md) and [evaluation method](docs/BENCHMARK.md).
 
 ## Privacy and storage
 
-Document text and context are sent to **the API endpoint you configure**. FormaTranslate has no hosted translation backend or telemetry. A connection test makes a small API request that may be billed.
+Document text, typed text and images selected for translation are sent to **the API endpoint you configure**. FormaTranslate has no hosted translation backend or telemetry. A connection test makes a small API request that may be billed.
 
 API keys can be stored in the operating system's credential vault, or kept for the current session. Preferences contain no API key. Local translation caches, reports and review drafts **can contain document text**; history stores paths and metadata. Keep those files private. Data lives in the platform's Forma application-data directory; `FORMA_DATA_DIR` overrides it. An optional `.env` remains available for CLI workflows; see [.env.example](.env.example).
 

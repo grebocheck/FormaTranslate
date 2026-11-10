@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ast
 import json
 import re
 from collections import Counter
@@ -101,9 +102,10 @@ def test_formatted_status_and_canonical_locations_are_presentation_only():
 
 
 def test_catalogs_cover_every_qml_key_and_preserve_placeholders():
-    text = Path("src/forma/ui/Main.qml").read_text(encoding="utf-8")
     qml_keys = {
-        json.loads(match.group(1)) for match in re.finditer(r'qsTr\(("(?:[^"\\]|\\.)*")\)', text)
+        json.loads(match.group(1))
+        for path in Path("src/forma/ui").glob("*.qml")
+        for match in re.finditer(r'qsTr\(("(?:[^"\\]|\\.)*")\)', path.read_text(encoding="utf-8"))
     }
     assert qml_keys
     formatter = Formatter()
@@ -128,6 +130,25 @@ def test_catalogs_cover_every_qml_key_and_preserve_placeholders():
             assert not re.search(r"[А-Яа-яІіЇїЄєҐґ]", translated), (language, source, translated)
             if "uv tool install" in source:
                 assert "uv tool install --python 3.12 BabelDOC==0.7.1" in translated
+
+
+def test_quick_translator_messages_are_available_in_every_interface_language():
+    keys = set()
+    for filename in ("quick_controller.py", "quick_translation.py", "image_translation.py"):
+        tree = ast.parse((Path("src/forma") / filename).read_text(encoding="utf-8"))
+        keys.update(
+            node.value
+            for node in ast.walk(tree)
+            if isinstance(node, ast.Constant)
+            and isinstance(node.value, str)
+            and re.search(r"[А-Яа-яІіЇїЄєҐґ]", node.value)
+        )
+    assert keys
+    for language in ("en", "pl", "de"):
+        assert keys <= i18n._catalogs()[language].keys(), (
+            language,
+            sorted(keys - i18n._catalogs()[language].keys()),
+        )
 
 
 def test_concurrent_language_changes_return_only_complete_catalog_values():

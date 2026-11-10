@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import base64
+import binascii
 import json
 import math
 import threading
@@ -140,6 +142,61 @@ def array_schema(key: str, fields: tuple[str, ...]) -> dict:
 TRANSLATION_SCHEMA = array_schema("segments", ("id", "text"))
 GLOSSARY_SCHEMA = array_schema("terms", ("source", "target"))
 
+MAX_IMAGE_INPUTS = 4
+MAX_IMAGE_PAYLOAD_BYTES = 24 * 1024 * 1024
+
+
+def _validated_images(images: list[str] | None) -> tuple[str, ...]:
+    """Only bounded, embedded raster images may cross the provider boundary."""
+    if images is None:
+        return ()
+    if not isinstance(images, list) or len(images) > MAX_IMAGE_INPUTS:
+        raise FormaError("Забагато зображень в одному запиті.")
+    if any(not isinstance(value, str) for value in images):
+        raise FormaError("Некоректні дані зображення для API.")
+    if sum(map(len, images)) > MAX_IMAGE_PAYLOAD_BYTES:
+        raise FormaError("Зображення завелике для надсилання. Зменште його розмір.")
+    signatures = {
+        "data:image/png;base64": lambda data: data.startswith(b"\x89PNG\r\n\x1a\n"),
+        "data:image/jpeg;base64": lambda data: data.startswith(b"\xff\xd8\xff"),
+        "data:image/webp;base64": lambda data: data[:4] == b"RIFF" and data[8:12] == b"WEBP",
+    }
+    for value in images:
+        prefix, separator, encoded = value.partition(",")
+        if not separator or prefix not in signatures:
+            raise FormaError("Некоректні дані зображення для API.")
+        try:
+            data = base64.b64decode(encoded, validate=True)
+        except (ValueError, binascii.Error) as exc:
+            raise FormaError("Некоректні дані зображення для API.") from exc
+        if not signatures[prefix](data):
+            raise FormaError("Некоректні дані зображення для API.")
+    return tuple(images)
+
+
+def _unsupported_vision(error: str) -> bool:
+    image_terms = ("image", "vision", "multimodal")
+    unsupported = (
+        "not support",
+        "unsupported",
+        "not accept",
+        "text-only",
+        "only text",
+        "not allowed",
+        "only supported",
+        "doesn't support",
+        "cannot accept",
+        "can't accept",
+    )
+    # A server may support images but not structured output together with them;
+    # that remains a JSON negotiation error rather than a vision-model error.
+    format_terms = ("response_format", "json_schema", "text.format", "structured", "json_object")
+    return (
+        any(term in error for term in image_terms)
+        and any(term in error for term in unsupported)
+        and not any(term in error for term in format_terms)
+    )
+
 
 class Provider:
     def __init__(self, settings: Settings, control: JobControl | None = None, *, transport=None):
@@ -193,6 +250,7 @@ class Provider:
         schema: dict,
         *,
         model: str = "",
+        images: list[str] | None = None,
         retain_completed_on_cancel: bool = False,
     ) -> dict:
         with self._lifetime:
@@ -200,11 +258,13 @@ class Provider:
                 raise FormaError("З’єднання з API вже закрито.")
             self._active_calls += 1
         try:
+            self.control.check()
             return self._complete(
                 instruction,
                 payload,
                 schema,
                 model=model,
+                images=_validated_images(images),
                 retain_completed_on_cancel=retain_completed_on_cancel,
             )
         finally:
@@ -219,6 +279,7 @@ class Provider:
         schema: dict,
         *,
         model: str = "",
+        images: tuple[str, ...] = (),
         retain_completed_on_cancel: bool = False,
     ) -> dict:
         last_error = None
@@ -232,6 +293,7 @@ class Provider:
                 schema,
                 model or self.settings.model,
                 response_format=response_format,
+                images=images,
             )
             endpoint = (
                 "/responses" if self.settings.api_mode == "responses" else "/chat/completions"
@@ -250,13 +312,22 @@ class Provider:
                     raise last_error from exc
                 self.control.delay(min(2**attempt, 8))
                 continue
-            if response.status_code == 400 and self.settings.response_format == "auto":
+            if response.status_code == 400:
                 self.control.check()
                 try:
-                    error = str(response.json().get("error", "")).lower()
+                    error_data = response.json()
+                    error = (
+                        str(error_data.get("error", "")).lower()
+                        if isinstance(error_data, dict)
+                        else ""
+                    )
                 except ValueError:
                     error = ""
-                if any(
+                if images and _unsupported_vision(error):
+                    raise FormaError(
+                        "Модель або сервер не підтримує зображення. Оберіть модель із підтримкою зображень у налаштуваннях."
+                    )
+                if self.settings.response_format == "auto" and any(
                     word in error
                     for word in (
                         "response_format",
@@ -296,6 +367,8 @@ class Provider:
                 )
             try:
                 data = response.json()
+                if not isinstance(data, dict):
+                    raise ValueError("Expected a response object")
                 usage = data.get("usage") or {}
                 input_details = (
                     usage.get("input_tokens_details", usage.get("prompt_tokens_details")) or {}
@@ -328,7 +401,7 @@ class Provider:
                 if not isinstance(parsed, dict):
                     raise ValueError("Expected an object")
                 return parsed
-            except (ValueError, KeyError, IndexError, TypeError) as exc:
+            except (ValueError, KeyError, IndexError, TypeError, AttributeError) as exc:
                 self.control.check()
                 raise FormaError(
                     "API повернув некоректний JSON. Спробуйте інший режим відповіді або модель."
@@ -346,6 +419,7 @@ class Provider:
         model: str,
         *,
         response_format: str | None = None,
+        images: tuple[str, ...] = (),
     ) -> dict:
         if response_format is None:
             with self._lock:
@@ -357,6 +431,24 @@ class Provider:
             {"role": "system", "content": instruction},
             {"role": "user", "content": json.dumps(payload, ensure_ascii=False)},
         ]
+        if images:
+            text = messages[1]["content"]
+            if self.settings.api_mode == "responses":
+                messages[1]["content"] = [
+                    {"type": "input_text", "text": text},
+                    *[
+                        {"type": "input_image", "image_url": value, "detail": "high"}
+                        for value in images
+                    ],
+                ]
+            else:
+                messages[1]["content"] = [
+                    {"type": "text", "text": text},
+                    *[
+                        {"type": "image_url", "image_url": {"url": value, "detail": "high"}}
+                        for value in images
+                    ],
+                ]
         body = {"model": model}
         if self.settings.reasoning_effort and model.startswith(
             ("gpt-5", "gpt-6", "o1", "o3", "o4")
