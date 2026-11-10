@@ -362,6 +362,9 @@ ApplicationWindow {
         }
     }
 
+    Timer { interval: 5000; repeat: true; running: root.visible; onTriggered: backend.usage.refresh() }
+    UsagePanel { id: usagePanel; parent: Overlay.overlay; controller: backend.usage }
+
     header: Rectangle {
         height: 108; color: "#ffffff"
         Rectangle { height: 1; anchors.left: parent.left; anchors.right: parent.right; anchors.bottom: parent.bottom; color: root.line }
@@ -374,7 +377,14 @@ ApplicationWindow {
             Caption {
                 text: backend.reviewEditing ? qsTr("Редагування перекладу") : backend.paused ? qsTr("На паузі") : backend.translating ? backend.queueSummary : backend.busy ? qsTr("Виконуємо завдання…") : backend.settings.model || qsTr("Підключення не налаштовано")
                 color: backend.busy ? root.accent : root.muted
-                elide: Text.ElideMiddle; Layout.maximumWidth: 420
+                elide: Text.ElideMiddle; Layout.maximumWidth: 300
+            }
+            Action {
+                objectName: "usageButton"
+                text: qsTr("Витрати") + " · " + (backend.usage.summary.today ? "≈ " + backend.usage.summary.today.costText : "—") + (backend.usage.summary.month && backend.usage.summary.month.unknown > 0 ? " *" : "")
+                hint: qsTr("Витрати API та баланс")
+                subtle: true; implicitHeight: 36
+                onClicked: usagePanel.open()
             }
         }
         TabBar {

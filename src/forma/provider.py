@@ -24,6 +24,7 @@ from forma.api_protocol import (
 )
 from forma.config import Settings
 from forma.models import Cancelled, FormaError
+from forma.usage import record_attempt
 
 _PACING_LOCK = threading.Lock()
 _PACING_DEADLINES: dict[str, float] = {}
@@ -373,6 +374,9 @@ class Provider:
                     requests_per_minute=getattr(self.settings, "requests_per_minute", 0),
                 ):
                     response = self.client.post(endpoint, json=body)
+                    record_attempt(
+                        self.settings, response.content, model=model, status=response.status_code
+                    )
                     if response.status_code == 429:
                         try:
                             error_data = response.json()
@@ -388,11 +392,15 @@ class Provider:
                         # Publish before releasing capacity, so waiting requests see the limit.
                         self.control.defer_requests(self.rate_limit_key, delay)
             except (httpx.TimeoutException, httpx.NetworkError) as exc:
+                record_attempt(self.settings, model=model)
                 last_error = FormaError("Немає відповіді API. Перевірте мережу та адресу сервера.")
                 if attempt == 3:
                     raise last_error from exc
                 self.control.delay(min(2**attempt, 8))
                 continue
+            except httpx.HTTPError:
+                record_attempt(self.settings, model=model)
+                raise
             if response.status_code == 400:
                 self.control.check()
                 try:

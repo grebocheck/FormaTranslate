@@ -19,7 +19,7 @@ The interface supports **English, Ukrainian, Polish and German**, follows the sy
 
 ## Download and start
 
-Get the package for your platform from **[GitHub Releases](https://github.com/grebocheck/FormaTranslate/releases/latest)**. Extract it and launch the executable. Python and a `.env` file are not needed for the packaged app. On Linux, make the executable runnable with `chmod +x Forma-linux-x86_64` if necessary. The 0.3.0 Linux binary requires **glibc 2.43 or newer** (built on Ubuntu 26.04); use the source installation on older distributions. See each release's platform validation notes; macOS is not supported yet.
+Get the package for your platform from **[GitHub Releases](https://github.com/grebocheck/FormaTranslate/releases/latest)**. Extract it and launch the executable. Python and a `.env` file are not needed for the packaged app. On Linux, make the executable runnable with `chmod +x Forma-linux-x86_64` if necessary. The 0.4.0 Linux binary requires **glibc 2.43 or newer** (built on Ubuntu 26.04); use the source installation on older distributions. See each release's platform validation notes; macOS is not supported yet.
 
 1. Open **Settings** and enter your API address, model and API key. The model list can be loaded from providers that support it, or entered manually.
 2. Add DOCX, XLSX or text-based PDF files and select the source and target languages.
@@ -49,6 +49,12 @@ Quick text and images remain in session memory, without automatic history or cac
 
 ![Text and photo translation workspace with a synthetic example](docs/quick-translate.png)
 
+## Costs and balance
+
+The **Costs** button shows local spending estimates for today and the last 30 days, request counts and tokens. Recognized standard OpenAI models use bundled prices; other providers can use a custom model tariff. Missing usage and unknown prices are marked explicitly. Recording starts with this update and covers only Forma requests with the current key and server.
+
+Open the official OpenAI billing page for your actual credit balance, or enter a balance manually to track an explicitly labeled local estimate. A regular OpenAI API key cannot retrieve remaining credits through a documented public endpoint. [How accounting works and its limits](docs/COSTS.md).
+
 ## What it does
 
 | Format | Translation and preservation |
@@ -69,7 +75,7 @@ These checks help catch mistakes; they are not a score of linguistic accuracy. A
 
 Document text, typed text and images selected for translation are sent to **the API endpoint you configure**. FormaTranslate has no hosted translation backend or telemetry. A connection test makes a small API request that may be billed.
 
-API keys can be stored in the operating system's credential vault, or kept for the current session. Preferences contain no API key. Local translation caches, reports and review drafts **can contain document text**; history stores paths and metadata. Keep those files private. Data lives in the platform's Forma application-data directory; `FORMA_DATA_DIR` overrides it. An optional `.env` remains available for CLI workflows; see [.env.example](.env.example).
+API keys can be stored in the operating system's credential vault, or kept for the current session. Preferences contain no API key. Local translation caches, reports and review drafts **can contain document text**; history stores paths and metadata. The local usage ledger stores only account hashes and request/cost metadata, never keys or document contents. Keep those files private. Data lives in the platform's Forma application-data directory; `FORMA_DATA_DIR` overrides it. An optional `.env` remains available for CLI workflows; see [.env.example](.env.example).
 
 ## Run from source
 

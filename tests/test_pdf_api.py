@@ -17,6 +17,7 @@ from forma.models import FormaError, Options
 from forma.pdf import translate_pdf
 from forma.pdf_api import MAX_BODY, PDFAPI, completion_body
 from forma.provider import JobControl, Provider
+from forma.usage import UsageLedger
 
 
 @pytest.fixture
@@ -93,6 +94,10 @@ def test_pdf_api_forwards_explicit_settings_and_accounts_usage(upstream):
         assert bridge.summary()["output_tokens"] == 12
         assert bridge.summary()["requests"] == 1
     assert not bridge.thread.is_alive()
+    recorded = UsageLedger().summary(config(upstream))["today"]
+    assert recorded["requests"] == 1
+    assert recorded["input"] == 31 and recorded["output"] == 12
+    assert recorded["unknown"] == 1  # Custom endpoint: no automatic OpenAI prices.
 
 
 def test_pdf_body_preserves_unconfigured_values_and_unknown_model_compatibility():

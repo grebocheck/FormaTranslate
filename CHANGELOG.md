@@ -2,6 +2,14 @@
 
 Versions follow semantic versioning. Changes before 1.0 may evolve as document compatibility improves.
 
+## 0.4.0 — 2026-11-10
+
+- Add a compact Costs panel with local spending estimates for today and 30 days, request counts and token usage across documents, text, photos and PDF.
+- Apply recognized standard OpenAI prices automatically; support custom model tariffs and clearly identify unpriced requests.
+- Open the official OpenAI billing page for the actual credit balance; optionally track an explicitly labeled estimate from a manually entered balance.
+- Persist metadata-only accounting per server/key, count retries and in-flight completed responses, and exclude local cache reuse.
+- Translate the new workflow into English, Ukrainian, Polish and German.
+
 ## 0.3.0 — 2026-11-10
 
 - Add native Google Gemini and Anthropic Claude APIs for documents, text and photos, including the external BabelDOC PDF bridge.

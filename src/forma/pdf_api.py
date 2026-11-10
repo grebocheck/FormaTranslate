@@ -34,6 +34,7 @@ from forma.api_protocol import (
 )
 from forma.models import FormaError
 from forma.provider import JobControl, retry_delay
+from forma.usage import record_attempt
 
 MAX_BODY = 4 * 1024 * 1024
 MAX_RESPONSE = 8 * 1024 * 1024
@@ -316,6 +317,7 @@ class PDFAPI:
                     b'{"error":{"message":"PDF provider request failed"}}',
                     {},
                 )
+                accounted = False
                 try:
                     body = completion_body(original, self.settings)
                     if self.native:
@@ -341,6 +343,8 @@ class PDFAPI:
                             content.extend(chunk)
                         status, data = response.status_code, bytes(content)
                         headers = _retry_headers(response.headers)
+                    accounted = True
+                    await asyncio.to_thread(record_attempt, self.settings, data, status=status)
                     if status == 429:
                         try:
                             error = json.loads(data)
@@ -402,6 +406,9 @@ class PDFAPI:
                 except (httpx.HTTPError, ValueError, FormaError):
                     status, data = 502, b'{"error":{"message":"PDF provider request failed"}}'
                 finally:
+                    if not accounted:
+                        # Cancelled/truncated streams may still have incurred a charge.
+                        record_attempt(self.settings)
                     with self.lock:
                         self.active -= 1
                         self.elapsed += time.monotonic() - started

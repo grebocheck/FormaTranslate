@@ -34,6 +34,7 @@ from forma.provider_presets import provider_presets
 from forma.quick_controller import QuickTranslator
 from forma.review import actionable_count, build_review, load_report
 from forma.review_store import ReviewStore
+from forma.usage_controller import UsageController
 
 
 class TaskThread(QThread):
@@ -81,6 +82,8 @@ class Backend(QObject):
         self._message_kind = "info"
         self._api_status = "Очікує налаштування"
         self._settings = self._read_settings()
+        self._usage = UsageController(self, settings=lambda: self._settings)
+        self.languageChanged.connect(self._usage.changed.emit)
         self._folder = load_preferences().get("output_folder") or str(
             Path.home() / "Documents" / "Forma"
         )
@@ -166,6 +169,10 @@ class Backend(QObject):
 
     def _read_settings(self):
         return Settings.load()
+
+    @Property(QObject, constant=True)
+    def usage(self):
+        return self._usage
 
     @Property(QObject, constant=True)
     def quickTranslator(self):
@@ -1527,6 +1534,7 @@ class Backend(QObject):
             self._settings = candidate.with_overrides(
                 api_key=key, key_source=key_source, key_stored=stored, credential_status=status
             )
+            self._usage.refresh()
             self._api_status = "Налаштування збережено"
             self._notice(notice, "warning" if warning else "success")
             return True
@@ -1544,6 +1552,7 @@ class Backend(QObject):
             return
         try:
             self._settings = self._read_settings()
+            self._usage.refresh()
             self._api_status = "Конфігурацію оновлено"
             self._notice("Налаштування перечитано. Збережені параметри застосунку мають пріоритет.")
         except FormaError as exc:
