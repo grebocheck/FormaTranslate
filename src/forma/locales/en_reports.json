@@ -1,0 +1,9 @@
+{
+  "Forma — звіт перекладу": "Forma — translation report",
+  "forma. / Звіт перекладу": "forma. / Translation report",
+  "Автоматичні перевірки пройдено.": "Automated checks passed.",
+  "Використання токенів зовнішнім рушієм не обліковано.": "Token usage by the external engine was not recorded.",
+  "Перевірки структури й чисел не є оцінкою точності перекладу. Верстку та зміст слід перевірити на характерних документах.": "Structural and numerical checks do not assess translation accuracy. Review the layout and content of representative documents.",
+  "Токени: {input_tokens} вхід / {output_tokens} вихід. Із кешу: {cached_segments} фрагментів.": "Tokens: {input_tokens} input / {output_tokens} output. Cached segments: {cached_segments}.",
+  "Тривалість: {seconds} с": "Duration: {seconds} s"
+}

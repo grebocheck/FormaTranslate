@@ -1,0 +1,72 @@
+[
+  {
+    "file": "licenses/ICU-73.2-LICENSE.txt",
+    "url": "https://raw.githubusercontent.com/unicode-org/icu/release-73-2/icu4c/LICENSE",
+    "sha256": "f3005e195ff74d8812cc1f182a1c446fab678d70a10e3dada497585befee5416"
+  },
+  {
+    "file": "licenses/OpenSSL-3.0.13-LICENSE.txt",
+    "url": "https://raw.githubusercontent.com/openssl/openssl/openssl-3.0.13/LICENSE.txt",
+    "sha256": "7d5450cb2d142651b8afa315b5f238efc805dad827d91ba367d8516bc9d49e7a"
+  },
+  {
+    "file": "licenses/OpenSSL-3.0.13-README.md",
+    "url": "https://raw.githubusercontent.com/openssl/openssl/openssl-3.0.13/README.md",
+    "sha256": "9d91b81580e7c70c94df047da8f2d4e32ba747db556eee0b7cc94d2758273ca3"
+  },
+  {
+    "file": "licenses/libffi-3.4.4-LICENSE.txt",
+    "url": "https://raw.githubusercontent.com/libffi/libffi/v3.4.4/LICENSE",
+    "sha256": "2c9c2acb9743e6b007b91350475308aee44691d96aa20eacef8e199988c8c388"
+  },
+  {
+    "file": "licenses/LLVM-3.6.2-LICENSE.txt",
+    "url": "https://raw.githubusercontent.com/llvm/llvm-project/llvmorg-3.6.2/llvm/LICENSE.TXT",
+    "sha256": "e3bc36440fc927c62d5cc24efeefe225a14d4e34ffeb0c92e430625cce9ee444"
+  },
+  {
+    "file": "licenses/Mesa-11.2.2-LICENSE.html",
+    "url": "https://gitlab.freedesktop.org/mesa/mesa/-/raw/mesa-11.2.2/docs/license.html",
+    "sha256": "288ddfae338be168ef2492c21de42ee2f5c8ebc5a734b4e58b37007141bc2d6d"
+  },
+  {
+    "file": "licenses/Python-3.11.9-LICENSE.txt",
+    "url": "https://raw.githubusercontent.com/python/cpython/v3.11.9/LICENSE",
+    "sha256": "3b2f81fe21d181c499c59a256c8e1968455d6689d269aa85373bfb6af41da3bf"
+  },
+  {
+    "file": "licenses/Python-3.12.3-LICENSE.txt",
+    "url": "https://raw.githubusercontent.com/python/cpython/v3.12.3/LICENSE",
+    "sha256": "3b2f81fe21d181c499c59a256c8e1968455d6689d269aa85373bfb6af41da3bf"
+  },
+  {
+    "file": "licenses/Python-3.13.17-LICENSE.txt",
+    "url": "https://raw.githubusercontent.com/python/cpython/v3.13.17/LICENSE",
+    "sha256": "78b12c3a81360b357002334f0e70ea0e92eebf7a9b358805c03c48484945f3bb"
+  },
+  {
+    "file": "licenses/OpenSSL-3.5.9-LICENSE.txt",
+    "url": "https://raw.githubusercontent.com/openssl/openssl/openssl-3.5.9/LICENSE.txt",
+    "sha256": "7d5450cb2d142651b8afa315b5f238efc805dad827d91ba367d8516bc9d49e7a"
+  },
+  {
+    "file": "licenses/OpenSSL-3.5.9-README.md",
+    "url": "https://raw.githubusercontent.com/openssl/openssl/openssl-3.5.9/README.md",
+    "sha256": "f68c351048c11bd8499b9d6ef8b283386d4544cc556fd2679a2ff2b1c50a378b"
+  },
+  {
+    "file": "licenses/Python-3.13.15-LICENSE.txt",
+    "url": "https://raw.githubusercontent.com/python/cpython/v3.13.15/LICENSE",
+    "sha256": "78b12c3a81360b357002334f0e70ea0e92eebf7a9b358805c03c48484945f3bb"
+  },
+  {
+    "file": "licenses/OpenSSL-3.5.8-LICENSE.txt",
+    "url": "https://raw.githubusercontent.com/openssl/openssl/openssl-3.5.8/LICENSE.txt",
+    "sha256": "7d5450cb2d142651b8afa315b5f238efc805dad827d91ba367d8516bc9d49e7a"
+  },
+  {
+    "file": "licenses/OpenSSL-3.5.8-README.md",
+    "url": "https://raw.githubusercontent.com/openssl/openssl/openssl-3.5.8/README.md",
+    "sha256": "f68c351048c11bd8499b9d6ef8b283386d4544cc556fd2679a2ff2b1c50a378b"
+  }
+]

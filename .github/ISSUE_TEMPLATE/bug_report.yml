@@ -1,0 +1,32 @@
+name: Bug report
+description: Report a reproducible problem using a non-sensitive example.
+title: "[Bug]: "
+body:
+  - type: markdown
+    attributes:
+      value: "Please use synthetic examples. Do not upload API keys, .env files or confidential documents."
+  - type: input
+    id: version
+    attributes:
+      label: FormaTranslate version and operating system
+      placeholder: "0.1.0, Windows 11 / Linux distribution"
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Include file format, source/target languages and relevant provider/model settings without credentials.
+    validations:
+      required: true
+  - type: textarea
+    id: behavior
+    attributes:
+      label: Expected and actual behavior
+    validations:
+      required: true
+  - type: textarea
+    id: example
+    attributes:
+      label: Synthetic example or redacted screenshot
+      description: Only share material you are allowed to publish.
