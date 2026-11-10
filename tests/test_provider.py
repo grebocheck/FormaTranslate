@@ -423,6 +423,11 @@ def test_retry_after_supports_seconds_dates_and_compatible_milliseconds(
     assert retry_delay(httpx.Headers(headers), 2) == expected
 
 
+def test_invalid_retry_header_still_respects_native_retryinfo():
+    assert retry_delay(httpx.Headers({"retry-after": "invalid"}), 0, fallback=30) == 30
+    assert retry_delay(httpx.Headers({"retry-after": "40"}), 0, fallback=30) == 40
+
+
 def test_rate_limit_cooldown_is_shared_with_another_provider():
     class ObservedControl(JobControl):
         def __init__(self):
@@ -558,3 +563,262 @@ def test_completed_response_can_be_retained_only_with_explicit_opt_in():
             provider.complete("Translate", {}, TRANSLATION_SCHEMA, retain_completed_on_cancel=True)
     finally:
         provider.close()
+
+
+def native_response(mode, *, finish=None):
+    if mode == "gemini":
+        return {
+            "candidates": [
+                {
+                    "content": {
+                        "parts": [{"text": '{"segments":[]}'}, {"text": "hidden", "thought": True}]
+                    },
+                    "finishReason": finish or "STOP",
+                }
+            ],
+            "usageMetadata": {
+                "promptTokenCount": 14,
+                "candidatesTokenCount": 6,
+                "thoughtsTokenCount": 2,
+            },
+        }
+    return {
+        "content": [{"type": "text", "text": '{"segments":[]}'}],
+        "stop_reason": finish or "end_turn",
+        "usage": {"input_tokens": 14, "output_tokens": 8},
+    }
+
+
+@pytest.mark.parametrize("mode", ["gemini", "anthropic"])
+def test_native_provider_uses_images_editor_override_and_native_auth(mode):
+    def handler(request):
+        body = json.loads(request.content)
+        assert "fixture-key" not in str(request.url) and not request.url.query
+        if mode == "gemini":
+            assert request.headers["x-goog-api-key"] == "fixture-key"
+            assert "authorization" not in request.headers
+            assert request.url.path.endswith("/models/editor:generateContent")
+            assert (
+                body["contents"][0]["parts"][1]["inlineData"]["data"] == PNG_DATA_URL.split(",")[1]
+            )
+        else:
+            assert request.headers["authorization"] == "Bearer fixture-key"
+            assert request.headers["anthropic-version"] == "2026-10-21"
+            assert request.url.path.endswith("/messages") and body["model"] == "editor"
+            assert body["max_tokens"] == 1234
+            assert body["messages"][0]["content"][1]["source"]["data"] == PNG_DATA_URL.split(",")[1]
+        return httpx.Response(200, json=native_response(mode))
+
+    provider = Provider(
+        settings(api_mode=mode, api_key="fixture-key", max_output_tokens=1234),
+        transport=httpx.MockTransport(handler),
+    )
+    try:
+        assert provider.complete(
+            "Translate", {}, TRANSLATION_SCHEMA, model="editor", images=[PNG_DATA_URL]
+        ) == {"segments": []}
+        assert (provider.input_tokens, provider.output_tokens) == (14, 8)
+    finally:
+        provider.close()
+
+
+@pytest.mark.parametrize("mode", ["gemini", "anthropic"])
+def test_native_json_schema_fallback_retains_image_and_schema_instruction(mode):
+    requests = []
+
+    def handler(request):
+        body = json.loads(request.content)
+        requests.append(body)
+        if len(requests) == 1:
+            key = "responseJsonSchema" if mode == "gemini" else "output_config.format"
+            return httpx.Response(400, json={"error": {"message": key + " unsupported"}})
+        if mode == "gemini":
+            assert "responseJsonSchema" not in body["generationConfig"]
+            assert "JSON schema:" in body["systemInstruction"]["parts"][0]["text"]
+            assert len(body["contents"][0]["parts"]) == 2
+        else:
+            assert "output_config" not in body
+            assert "JSON schema:" in body["system"]
+            assert len(body["messages"][0]["content"]) == 2
+        return httpx.Response(200, json=native_response(mode))
+
+    provider = Provider(settings(api_mode=mode), transport=httpx.MockTransport(handler))
+    try:
+        assert provider.complete("Translate", {}, TRANSLATION_SCHEMA, images=[PNG_DATA_URL]) == {
+            "segments": []
+        }
+        assert len(requests) == 2
+    finally:
+        provider.close()
+
+
+@pytest.mark.parametrize(
+    "mode,finish,message",
+    [
+        ("gemini", "MAX_TOKENS", "обірвалася"),
+        ("gemini", "SAFETY", "відмовилась"),
+        ("anthropic", "max_tokens", "обірвалася"),
+        ("anthropic", "refusal", "відмовилась"),
+    ],
+)
+def test_native_incomplete_response_is_not_accepted_even_when_json_is_valid(mode, finish, message):
+    provider = Provider(
+        settings(api_mode=mode),
+        transport=httpx.MockTransport(
+            lambda _: httpx.Response(200, json=native_response(mode, finish=finish))
+        ),
+    )
+    try:
+        with pytest.raises(FormaError, match=message):
+            provider.complete("Translate", {}, TRANSLATION_SCHEMA)
+        assert provider.output_tokens == 8
+    finally:
+        provider.close()
+
+
+def test_gemini_daily_quota_is_not_retried_and_does_not_echo_server_details():
+    requests = []
+
+    def handler(request):
+        requests.append(request)
+        return httpx.Response(
+            429,
+            json={
+                "error": {
+                    "message": "fixture-secret",
+                    "details": [
+                        {
+                            "@type": "type.googleapis.com/google.rpc.QuotaFailure",
+                            "violations": [
+                                {"quotaId": "GenerateRequestsPerDayPerProjectPerModel-FreeTier"}
+                            ],
+                        },
+                        {"@type": "type.googleapis.com/google.rpc.RetryInfo", "retryDelay": "60s"},
+                    ],
+                }
+            },
+        )
+
+    provider = Provider(settings(api_mode="gemini"), transport=httpx.MockTransport(handler))
+    try:
+        with pytest.raises(FormaError, match="денну квоту") as exc:
+            provider.complete("Translate", {}, TRANSLATION_SCHEMA)
+        assert len(requests) == 1 and "fixture-secret" not in str(exc.value)
+    finally:
+        provider.close()
+
+
+def test_gemini_retryinfo_is_shared_and_cancellable():
+    class ObservedControl(JobControl):
+        def __init__(self):
+            super().__init__()
+            self.deferred = threading.Event()
+            self.seconds = 0
+
+        def defer_requests(self, key, seconds):
+            super().defer_requests(key, seconds)
+            self.seconds = seconds
+            self.deferred.set()
+
+    control = ObservedControl()
+    provider = Provider(
+        settings(api_mode="gemini"),
+        control,
+        transport=httpx.MockTransport(
+            lambda _: httpx.Response(
+                429,
+                json={
+                    "error": {
+                        "details": [
+                            {
+                                "@type": "type.googleapis.com/google.rpc.RetryInfo",
+                                "retryDelay": "60.5s",
+                            }
+                        ]
+                    }
+                },
+            )
+        ),
+    )
+    try:
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            future = executor.submit(provider.complete, "Translate", {}, TRANSLATION_SCHEMA)
+            assert control.deferred.wait(1) and control.seconds == 60.5
+            control.cancelled.set()
+            with pytest.raises(Cancelled):
+                future.result(timeout=1)
+    finally:
+        provider.close()
+
+
+def test_rpm_gate_does_not_reserve_waiting_calls_and_is_shared_with_pool(monkeypatch):
+    now = [10.0]
+    monkeypatch.setattr("forma.provider.time.monotonic", lambda: now[0])
+    control = JobControl(2)
+    assert control.request_delay("provider", 5) == 0
+    assert control.request_delay("provider", 5) == 12
+    assert control.request_delay("other", 5) == 0
+    now[0] += 12
+    with control.request_slots(cooldown_key="provider", requests_per_minute=5):
+        assert control.request_delay("provider", 5) == 12
+    now[0] += 12
+    control.defer_requests("provider", 30)
+    assert control.request_delay("provider", 5) == 30
+    now[0] += 30
+    assert control.request_delay("provider", 5) == 0
+
+
+def test_rpm_wait_can_be_cancelled_without_network_or_capacity_leak():
+    control = JobControl(1)
+    provider = Provider(
+        settings(requests_per_minute=1),
+        control,
+        transport=httpx.MockTransport(lambda _: pytest.fail("Network called")),
+    )
+    assert control.request_delay(provider.rate_limit_key, 1) == 0
+    try:
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            future = executor.submit(provider.complete, "Translate", {}, TRANSLATION_SCHEMA)
+            time.sleep(0.02)
+            control.cancelled.set()
+            with pytest.raises(Cancelled):
+                future.result(timeout=1)
+        assert control._available == 1 and not control._waiters
+    finally:
+        provider.close()
+
+
+def test_capped_account_pacing_and_cooldown_survive_new_jobs_without_sharing_cancel(monkeypatch):
+    from forma.api_protocol import rate_limit_key
+
+    monkeypatch.setattr("forma.provider._PACING_DEADLINES", {})
+    now = [10.0]
+    monkeypatch.setattr("forma.provider.time.monotonic", lambda: now[0])
+    connection = settings(api_key="scoped-fixture-key", requests_per_minute=5)
+    key = rate_limit_key(connection)
+    assert "scoped-fixture-key" not in key
+    first, second = JobControl(), JobControl()
+    assert first.request_delay(key, 5) == 0
+    assert second.request_delay(key, 5) == 12
+    assert (
+        second.request_delay(rate_limit_key(connection.with_overrides(api_key="another-key")), 5)
+        == 0
+    )
+    first.cancelled.set()
+    assert not second.cancelled.is_set()
+    now[0] += 12
+    assert second.request_delay(key, 5) == 0
+    second.defer_requests(key, 60)
+    assert JobControl().request_delay(key, 5) == 60
+
+
+def test_shared_pacing_cache_has_a_bounded_account_count(monkeypatch):
+    from forma import provider as module
+    from forma.api_protocol import RATE_LIMIT_SCOPE_PREFIX
+
+    monkeypatch.setattr(module, "_PACING_DEADLINES", {})
+    monkeypatch.setattr(module.time, "monotonic", lambda: 10.0)
+    control = JobControl()
+    for index in range(600):
+        control.request_delay(RATE_LIMIT_SCOPE_PREFIX + str(index), 5)
+    assert len(module._PACING_DEADLINES) == module._MAX_PACING_ACCOUNTS

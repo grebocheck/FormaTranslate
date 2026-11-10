@@ -25,8 +25,15 @@ STRING_PREFERENCES = {
     "credential_mode",
     "output_folder",
     "ui_language",
+    "provider_preset",
 }
-NUMBER_PREFERENCES = {"max_output_tokens", "timeout", "max_parallel_requests", "parallel_documents"}
+NUMBER_PREFERENCES = {
+    "max_output_tokens",
+    "timeout",
+    "max_parallel_requests",
+    "parallel_documents",
+    "requests_per_minute",
+}
 ENV_FIELDS = {
     "base_url": "OPENAI_BASE_URL",
     "model": "OPENAI_MODEL",
@@ -39,6 +46,8 @@ ENV_FIELDS = {
     "babeldoc_path": "FORMA_BABELDOC_PATH",
     "max_parallel_requests": "FORMA_MAX_PARALLEL_REQUESTS",
     "parallel_documents": "FORMA_PARALLEL_DOCUMENTS",
+    "provider_preset": "FORMA_PROVIDER_PRESET",
+    "requests_per_minute": "FORMA_REQUESTS_PER_MINUTE",
 }
 
 
@@ -67,6 +76,8 @@ class Settings:
     timeout: float = 180
     max_parallel_requests: int = 8
     parallel_documents: int = 2
+    provider_preset: str = "custom"
+    requests_per_minute: int = 0
     babeldoc_path: str = ""
     env_path: Path = field(default_factory=default_env_path)
     key_source: str = ""
@@ -83,10 +94,16 @@ class Settings:
         # path instead respects parameters saved by the user in the application.
         preferences = load_preferences() if env_path is None else {}
         defaults = cls()
+        environment_mode = values.get("FORMA_API_MODE") or defaults.api_mode
+        environment_base = values.get("OPENAI_BASE_URL") or {
+            "gemini": "https://generativelanguage.googleapis.com/v1beta",
+            "anthropic": "https://api.anthropic.com/v1",
+        }.get(environment_mode, defaults.base_url)
         fields = {
             name: preferences.get(name, values.get(env_name) or getattr(defaults, name))
             for name, env_name in ENV_FIELDS.items()
         }
+        fields["base_url"] = preferences.get("base_url", environment_base)
         try:
             timeout = float(fields["timeout"])
             if not math.isfinite(timeout) or timeout <= 0:
@@ -105,6 +122,18 @@ class Settings:
         except (TypeError, ValueError, OverflowError):
             raise FormaError("Ліміт вихідних токенів має бути цілим невід’ємним числом.") from None
         fields.update(timeout=timeout, max_output_tokens=max_tokens)
+        try:
+            raw_rpm = fields["requests_per_minute"]
+            rpm = int(raw_rpm)
+            if (
+                isinstance(raw_rpm, bool)
+                or str(rpm) != str(raw_rpm).strip()
+                or not 0 <= rpm <= 6000
+            ):
+                raise ValueError
+        except (TypeError, ValueError, OverflowError):
+            raise FormaError("Запити за хвилину: вкажіть ціле число від 0 до 6000.") from None
+        fields["requests_per_minute"] = rpm
         for name, limit, label in (
             ("max_parallel_requests", 16, "Паралельні запити"),
             ("parallel_documents", 4, "Паралельні документи"),
@@ -138,7 +167,6 @@ class Settings:
         elif mode == "session":
             status = "Ключ попередньої сесії не зберігався; введіть його знову"
         elif mode != "none":
-            environment_base = values.get("OPENAI_BASE_URL") or defaults.base_url
             try:
                 same_endpoint = canonical_endpoint(fields["base_url"]) == canonical_endpoint(
                     environment_base
@@ -146,7 +174,11 @@ class Settings:
             except FormaError:
                 same_endpoint = False
             if same_endpoint:
-                key = values.get("OPENAI_API_KEY") or ""
+                native_key = {
+                    "gemini": values.get("GEMINI_API_KEY") or values.get("GOOGLE_API_KEY"),
+                    "anthropic": values.get("ANTHROPIC_API_KEY"),
+                }.get(environment_mode)
+                key = native_key or values.get("OPENAI_API_KEY") or ""
                 source = "environment" if key else ""
                 status = "Ключ завантажено зі змінних середовища або .env" if key else status
         return cls(
@@ -160,6 +192,16 @@ class Settings:
 
     def validate(self, *, require_connection: bool = True) -> None:
         from forma.credentials import canonical_endpoint
+        from forma.provider_presets import PRESET_IDS
+
+        if self.provider_preset not in PRESET_IDS:
+            raise FormaError("Невідомий пресет провайдера. Оберіть його знову в налаштуваннях.")
+        if (
+            isinstance(self.requests_per_minute, bool)
+            or not isinstance(self.requests_per_minute, int)
+            or not 0 <= self.requests_per_minute <= 6000
+        ):
+            raise FormaError("Запити за хвилину: вкажіть ціле число від 0 до 6000.")
 
         for value, limit, label in (
             (self.max_parallel_requests, 16, "Паралельні запити"),
@@ -176,10 +218,19 @@ class Settings:
             raise FormaError("Адреса API не має містити query-параметрів або фрагментів.")
         if require_connection and not self.model.strip():
             raise FormaError("Вкажіть модель у налаштуваннях застосунку.")
-        if require_connection and parsed.hostname == "api.openai.com" and not self.api_key:
+        if (
+            require_connection
+            and parsed.hostname
+            in {
+                "api.openai.com",
+                "api.anthropic.com",
+                "generativelanguage.googleapis.com",
+            }
+            and not self.api_key
+        ):
             raise FormaError("Введіть API-ключ у налаштуваннях підключення.")
-        if self.api_mode not in ("chat", "responses"):
-            raise FormaError("Режим API має бути chat або responses.")
+        if self.api_mode not in ("chat", "responses", "gemini", "anthropic"):
+            raise FormaError("Режим API має бути chat, responses, gemini або anthropic.")
         if self.response_format not in ("auto", "strict", "json", "plain"):
             raise FormaError("Формат відповіді має бути auto, strict, json або plain.")
         if (

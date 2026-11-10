@@ -2,6 +2,14 @@
 
 Versions follow semantic versioning. Changes before 1.0 may evolve as document compatibility improves.
 
+## 0.3.0 — 2026-11-10
+
+- Add native Google Gemini and Anthropic Claude APIs for documents, text and photos, including the external BabelDOC PDF bridge.
+- Add editable Gemini Free Tier, Gemini and Claude presets in Settings; keep API keys separate by endpoint.
+- Add configurable request pacing, native retry/quota handling and paginated provider model lists.
+- Preserve all four interface languages and existing OpenAI-compatible connections.
+- Free Tier availability/billing remains controlled by the Google project; no automatic model or paid-tier fallback.
+
 ## 0.2.0 — 2026-11-10
 
 - Add a Text & photos workspace for direct text translation and image translation with local text overlays.

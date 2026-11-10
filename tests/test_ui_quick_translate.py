@@ -1,3 +1,4 @@
+import time
 from pathlib import Path
 
 import pytest
@@ -85,8 +86,15 @@ def test_text_paste_edits_and_language_switching_keep_draft_and_selection(qapp, 
         assert item(window, "quickSourceLanguage").property("currentIndex") == 1
         assert item(window, "quickTargetLanguage").property("currentIndex") == 1
         for name in (
-            "translationTab", "quickTranslationTab", "reviewTab", "historyTab", "settingsButton",
-            "quickTextMode", "quickImageMode", "quickTranslateButton", "quickCopyText",
+            "translationTab",
+            "quickTranslationTab",
+            "reviewTab",
+            "historyTab",
+            "settingsButton",
+            "quickTextMode",
+            "quickImageMode",
+            "quickTranslateButton",
+            "quickCopyText",
         ):
             button = item(window, name)
             assert button.width() >= button.implicitWidth() - 1, (language, name)
@@ -139,6 +147,12 @@ def test_image_clipboard_preview_copy_and_save_use_image_page_only(qapp, quick_w
     assert preview.property("source").toString() == quick.originalImageUrl
     click(window, "quickShowTranslated")
     assert preview.property("source").toString() == quick.translatedImageUrl
+    # QML can resolve a data URL after the source property changes. Wait for
+    # its real aspect ratio instead of sampling the temporary square preview.
+    ready_deadline = time.monotonic() + 2
+    while preview.property("sourceSize") != result.size() and time.monotonic() < ready_deadline:
+        QTest.qWait(10)
+    assert preview.property("sourceSize") == result.size()
     preview_width = preview.width()
     click(window, "quickZoomImage")
     assert preview.width() > preview_width
@@ -188,14 +202,20 @@ def test_drop_image_does_not_add_document_or_start_request(quick_window, tmp_pat
     mime = QMimeData()
     mime.setUrls([QUrl.fromLocalFile(str(path))])
     drag_event = QDragEnterEvent(
-        position, Qt.DropAction.CopyAction, mime,
-        Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier,
+        position,
+        Qt.DropAction.CopyAction,
+        mime,
+        Qt.MouseButton.LeftButton,
+        Qt.KeyboardModifier.NoModifier,
     )
     QCoreApplication.sendEvent(window, drag_event)
     assert drag_event.isAccepted()
     drop_event = QDropEvent(
-        position, Qt.DropAction.CopyAction, mime,
-        Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier,
+        position,
+        Qt.DropAction.CopyAction,
+        mime,
+        Qt.MouseButton.LeftButton,
+        Qt.KeyboardModifier.NoModifier,
     )
     QCoreApplication.sendEvent(window, drop_event)
     QTest.qWait(20)

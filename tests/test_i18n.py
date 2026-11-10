@@ -151,6 +151,34 @@ def test_quick_translator_messages_are_available_in_every_interface_language():
         )
 
 
+def test_provider_presets_and_protocol_messages_have_translations():
+    keys = set()
+    for filename in ("config.py", "provider_presets.py", "api_protocol.py"):
+        tree = ast.parse((Path("src/forma") / filename).read_text(encoding="utf-8"))
+        # Interpolated legacy config errors use separately translated templates;
+        # their fragments are not standalone presentation messages.
+        fragments = {
+            id(child)
+            for node in ast.walk(tree)
+            if isinstance(node, ast.JoinedStr)
+            for child in ast.walk(node)
+        }
+        keys.update(
+            node.value
+            for node in ast.walk(tree)
+            if isinstance(node, ast.Constant)
+            and id(node) not in fragments
+            and isinstance(node.value, str)
+            and re.search(r"[А-Яа-яІіЇїЄєҐґ]", node.value)
+        )
+    assert keys
+    for language in ("en", "pl", "de"):
+        assert keys <= i18n._catalogs()[language].keys(), (
+            language,
+            sorted(keys - i18n._catalogs()[language].keys()),
+        )
+
+
 def test_concurrent_language_changes_return_only_complete_catalog_values():
     expected = {"Налаштування", "Settings", "Ustawienia", "Einstellungen"}
 

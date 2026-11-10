@@ -152,7 +152,8 @@ def _run_babeldoc(arguments, logfile, settings, control, progress, workers, api=
                     monitor.tick()
                     if control.cancelled.wait(0.2):
                         raise Cancelled("Переклад PDF зупинено. Внутрішній кеш BabelDOC збережено.")
-                    # PDF pausing applies before the next file, not inside the engine.
+                    # The bridge pauses new upstream requests; let in-flight
+                    # responses finish while keeping process cancellation live.
                 while chunk := events.read(65536):
                     monitor.feed(chunk)
                 monitor.feed(b"", final=True)
@@ -191,7 +192,7 @@ def translate_pdf(
         )
     if options.source_language == "auto":
         raise FormaError("Для PDF виберіть мову оригіналу: BabelDOC потребує явної мови.")
-    if settings.api_mode != "chat":
+    if settings.api_mode not in ("chat", "gemini", "anthropic"):
         raise FormaError("BabelDOC використовує Chat Completions. Виберіть режим chat для PDF.")
     start = time.monotonic()
     progress(2, "Перевіряємо PDF")
@@ -235,7 +236,7 @@ def translate_pdf(
             control.max_parallel_requests,
             max(1, settings.max_parallel_requests // settings.parallel_documents),
         )
-        api = resources.enter_context(PDFAPI(settings, workers))
+        api = resources.enter_context(PDFAPI(settings, workers, control=control))
         # Secrets go in a private temporary file, never into process arguments.
         config = {
             "openai": True,

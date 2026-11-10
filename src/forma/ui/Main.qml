@@ -27,6 +27,10 @@ ApplicationWindow {
     property bool performanceOptionsOpen: false
     property bool removeSavedKey: false
     property bool keyVisible: false
+    property string providerPresetId: "custom"
+    readonly property var activeProviderPreset: backend.providerPresets.find(function(item) { return item.id === root.providerPresetId }) || ({})
+    readonly property bool nativeProvider: apiMode.currentText === "gemini" || apiMode.currentText === "anthropic"
+    readonly property bool savedEndpointSelected: baseUrl.text.trim().replace(/\/+$/, "") === (backend.settings.baseUrl || "").trim().replace(/\/+$/, "")
     property double clockNow: Date.now()
     readonly property bool hasPdf: backend.documents.some(function(d) { return d.format === "PDF" })
     readonly property bool needsSourceLanguage: hasPdf && sourceLanguage.currentIndex === 0
@@ -804,27 +808,26 @@ ApplicationWindow {
                                 id: connectionBody
                                 anchors.left: parent.left; anchors.right: parent.right; anchors.top: parent.top; anchors.margins: 20; spacing: 10
                                 Heading { text: qsTr("Підключення до AI") }
-                                Caption { text: qsTr("Вкажіть адресу сервісу, модель і ключ. Налаштування зберігаються на цьому комп’ютері."); wrapMode: Text.WordWrap; Layout.fillWidth: true; Layout.bottomMargin: 8 }
-                                RowLayout {
-                                    Layout.fillWidth: true; spacing: 16
-                                    ColumnLayout {
-                                        Layout.fillWidth: true; Layout.preferredWidth: 3; spacing: 7
-                                        Caption { text: qsTr("Адреса API") }
-                                        Field { id: baseUrl; objectName: "baseUrlField"; Layout.fillWidth: true; placeholderText: "https://api.openai.com/v1"; enabled: !backend.busy; Accessible.name: qsTr("Адреса API"); onTextChanged: backend.clearModels() }
-                                    }
-                                    ColumnLayout {
-                                        Layout.fillWidth: true; Layout.preferredWidth: 2; spacing: 7
-                                        Caption { text: qsTr("Модель перекладу") }
-                                        ModelPicker { id: modelField; objectName: "modelField"; Layout.fillWidth: true; placeholderText: qsTr("Виберіть або введіть назву"); enabled: !backend.busy; Accessible.name: qsTr("Модель перекладу") }
-                                    }
+                                Caption { text: qsTr("Оберіть готове підключення або задайте власне. Додайте API-ключ і збережіть налаштування."); wrapMode: Text.WordWrap; Layout.fillWidth: true; Layout.bottomMargin: 4 }
+                                Caption { text: qsTr("Провайдер і пресет") }
+                                Select {
+                                    id: providerPreset; objectName: "providerPresetSelector"
+                                    Layout.fillWidth: true
+                                    model: backend.providerPresets.map(function(item) { return item.id })
+                                    optionLabels: backend.providerPresets.map(function(item) { return item.label })
+                                    currentIndex: Math.max(0, model.indexOf(root.providerPresetId))
+                                    enabled: !backend.busy && !backend.modelsBusy
+                                    onActivated: function(index) { root.applyProviderPreset(model[index]) }
+                                    Accessible.name: qsTr("Провайдер і пресет")
                                 }
+                                Caption { objectName: "providerPresetDescription"; text: root.activeProviderPreset.description || ""; visible: text.length > 0; wrapMode: Text.WordWrap; Layout.fillWidth: true; Layout.bottomMargin: 6 }
                                 Caption { text: qsTr("API-ключ"); Layout.topMargin: 8 }
                                 RowLayout {
                                     Layout.fillWidth: true; spacing: 8
                                     Field {
                                         id: apiKey; objectName: "apiKeyField"; Layout.fillWidth: true
                                         echoMode: root.keyVisible ? TextInput.Normal : TextInput.Password
-                                        placeholderText: root.removeSavedKey ? qsTr("Ключ буде видалено після збереження") : backend.settings.keyPresent ? qsTr("Ключ задано. Введіть новий, щоб замінити") : qsTr("Вставте API-ключ")
+                                        placeholderText: root.removeSavedKey ? qsTr("Ключ буде видалено після збереження") : root.savedEndpointSelected && backend.settings.keyPresent ? qsTr("Ключ задано. Введіть новий, щоб замінити") : qsTr("Вставте API-ключ")
                                         enabled: !backend.busy; Accessible.name: qsTr("API-ключ")
                                         onTextEdited: { if (text.length > 0) root.removeSavedKey = false; backend.clearModels() }
                                     }
@@ -836,15 +839,28 @@ ApplicationWindow {
                                     Item { Layout.fillWidth: true }
                                     Action {
                                         text: root.removeSavedKey ? qsTr("Скасувати видалення") : qsTr("Видалити ключ"); iconName: root.removeSavedKey ? "undo" : "trash"; subtle: true; danger: !root.removeSavedKey; implicitHeight: 30
-                                        visible: !!backend.settings.keyPresent; enabled: !backend.busy
+                                        visible: root.savedEndpointSelected && !!backend.settings.keyPresent; enabled: !backend.busy
                                         onClicked: { root.removeSavedKey = !root.removeSavedKey; apiKey.clear(); root.keyVisible = false }
                                     }
                                 }
-                                Caption { text: root.removeSavedKey ? qsTr("Ключ буде видалено після натискання «Зберегти».") : backend.settings.credentialStatus || qsTr("Ключ не відображається після збереження."); wrapMode: Text.WordWrap; Layout.fillWidth: true; color: root.removeSavedKey ? "#9b4c22" : root.muted }
+                                Caption { objectName: "credentialStatusCaption"; text: root.removeSavedKey ? qsTr("Ключ буде видалено після натискання «Зберегти».") : !root.savedEndpointSelected ? qsTr("Введіть ключ для вибраного провайдера. Ключ іншого сервісу не переноситься.") : backend.settings.credentialStatus || qsTr("Ключ не відображається після збереження."); wrapMode: Text.WordWrap; Layout.fillWidth: true; color: root.removeSavedKey ? "#9b4c22" : root.muted }
+                                RowLayout {
+                                    Layout.fillWidth: true; spacing: 16; Layout.topMargin: 6
+                                    ColumnLayout {
+                                        Layout.fillWidth: true; Layout.preferredWidth: 3; spacing: 7
+                                        Caption { text: qsTr("Адреса API") }
+                                        Field { id: baseUrl; objectName: "baseUrlField"; Layout.fillWidth: true; placeholderText: "https://api.openai.com/v1"; enabled: !backend.busy; Accessible.name: qsTr("Адреса API"); onTextChanged: backend.clearModels(); onTextEdited: { root.providerPresetId = "custom"; root.clearDraftKey() } }
+                                    }
+                                    ColumnLayout {
+                                        Layout.fillWidth: true; Layout.preferredWidth: 2; spacing: 7
+                                        Caption { text: qsTr("Модель перекладу") }
+                                        ModelPicker { id: modelField; objectName: "modelField"; Layout.fillWidth: true; placeholderText: qsTr("Виберіть або введіть назву"); enabled: !backend.busy; Accessible.name: qsTr("Модель перекладу") }
+                                    }
+                                }
                                 RowLayout {
                                     Layout.fillWidth: true; spacing: 12; Layout.topMargin: 4
                                     Caption { text: backend.modelsBusy ? qsTr("Отримуємо доступні моделі…") : backend.modelsMessage || qsTr("Оновіть список моделей із сервісу або введіть назву вручну."); objectName: "modelsMessage"; Layout.fillWidth: true; wrapMode: Text.WordWrap }
-                                    Action { text: backend.modelsBusy ? qsTr("Оновлюємо…") : qsTr("Оновити моделі"); iconName: "refresh"; objectName: "refreshModelsButton"; implicitHeight: 36; enabled: !backend.busy && !backend.modelsBusy && !root.removeSavedKey && baseUrl.text.trim().length > 0; onClicked: backend.refreshModels({baseUrl: baseUrl.text, apiKey: apiKey.text}) }
+                                    Action { text: backend.modelsBusy ? qsTr("Оновлюємо…") : qsTr("Оновити моделі"); iconName: "refresh"; objectName: "refreshModelsButton"; implicitHeight: 36; enabled: !backend.busy && !backend.modelsBusy && !root.removeSavedKey && baseUrl.text.trim().length > 0; onClicked: backend.refreshModels({baseUrl: baseUrl.text, apiKey: apiKey.text, apiMode: apiMode.currentText}) }
                                 }
                                 Divider { Layout.topMargin: 9 }
                                 Action { text: qsTr("Додаткові параметри підключення"); iconName: root.connectionOptionsOpen ? "chevron-down" : "chevron-right"; subtle: true; implicitHeight: 32; Layout.leftMargin: -10; onClicked: root.connectionOptionsOpen = !root.connectionOptionsOpen }
@@ -854,7 +870,7 @@ ApplicationWindow {
                                     ModelPicker { id: reviewModel; objectName: "reviewModelField"; Layout.fillWidth: true; placeholderText: qsTr("Порожньо — та сама модель"); enabled: !backend.busy; Accessible.name: qsTr("Окрема модель редактора") }
                                     RowLayout {
                                         Layout.fillWidth: true; spacing: 16
-                                        ColumnLayout { Layout.fillWidth: true; Layout.preferredWidth: 1; Caption { text: qsTr("Протокол API") } Select { id: apiMode; model: ["chat", "responses"]; Layout.fillWidth: true; enabled: !backend.busy } }
+                                        ColumnLayout { Layout.fillWidth: true; Layout.preferredWidth: 1; Caption { text: qsTr("Протокол API") } Select { id: apiMode; objectName: "apiModeSelector"; model: ["chat", "responses", "gemini", "anthropic"]; Layout.fillWidth: true; enabled: !backend.busy; onActivated: { root.providerPresetId = "custom"; backend.clearModels(); if (root.nativeProvider) reasoning.currentIndex = 0 } } }
                                         ColumnLayout { Layout.fillWidth: true; Layout.preferredWidth: 1; Caption { text: qsTr("Формат відповіді") } Select { id: responseFormat; model: ["auto", "strict", "json", "plain"]; Layout.fillWidth: true; enabled: !backend.busy } }
                                     }
 
@@ -869,15 +885,15 @@ ApplicationWindow {
                                 RowLayout {
                                     Heading { text: qsTr("Швидкість і ліміти") }
                                     Item { Layout.fillWidth: true }
-                                    Caption { text: qsTr("%1 документи · %2 запити").arg(backend.settings.parallelDocuments || 2).arg(backend.settings.maxParallelRequests || 8) }
+                                    Caption { text: qsTr("%1 документи · %2 запити").arg(parallelDocuments.text || "2").arg(parallelRequests.text || "8") }
                                     Action { text: root.performanceOptionsOpen ? qsTr("Згорнути") : qsTr("Змінити"); iconName: root.performanceOptionsOpen ? "chevron-down" : "settings"; objectName: "performanceOptionsButton"; subtle: true; implicitHeight: 32; onClicked: root.performanceOptionsOpen = !root.performanceOptionsOpen }
                                 }
-                                Caption { text: qsTr("Рівень міркування: %1. Кількість запитів впливає на швидкість і навантаження на API.").arg(root.reasoningLabels[Math.max(0, root.reasoningCodes.indexOf(backend.settings.reasoningEffort || ""))]); wrapMode: Text.WordWrap; Layout.fillWidth: true }
+                                Caption { text: Number(requestsPerMinute.text) > 0 ? qsTr("Не більше %1 запитів за хвилину. Ліміти провайдера можуть бути нижчими.").arg(requestsPerMinute.text) : qsTr("Кількість паралельних запитів впливає на швидкість і навантаження на API."); wrapMode: Text.WordWrap; Layout.fillWidth: true }
                                 ColumnLayout {
                                     visible: root.performanceOptionsOpen; Layout.fillWidth: true; spacing: 12
                                     RowLayout {
                                         Layout.fillWidth: true; spacing: 16
-                                        ColumnLayout { Layout.fillWidth: true; Layout.preferredWidth: 1; Caption { text: qsTr("Рівень міркування") } Select { id: reasoning; objectName: "reasoningSelect"; model: root.reasoningCodes; optionLabels: root.reasoningLabels; Layout.fillWidth: true; enabled: !backend.busy } }
+                                        ColumnLayout { visible: !root.nativeProvider; Layout.fillWidth: true; Layout.preferredWidth: 1; Caption { text: qsTr("Рівень міркування") } Select { id: reasoning; objectName: "reasoningSelect"; model: root.reasoningCodes; optionLabels: root.reasoningLabels; Layout.fillWidth: true; enabled: !backend.busy } }
                                         ColumnLayout { Layout.fillWidth: true; Layout.preferredWidth: 1; Caption { text: qsTr("Очікування відповіді, с") } Field { id: timeoutField; Layout.fillWidth: true; inputMethodHints: Qt.ImhDigitsOnly; enabled: !backend.busy } }
                                         ColumnLayout { Layout.fillWidth: true; Layout.preferredWidth: 1; Caption { text: qsTr("Ліміт вихідних токенів") } Field { id: maxTokens; Layout.fillWidth: true; inputMethodHints: Qt.ImhDigitsOnly; enabled: !backend.busy } }
                                     }
@@ -887,6 +903,8 @@ ApplicationWindow {
                                         ColumnLayout { Layout.fillWidth: true; Layout.preferredWidth: 1; Caption { text: qsTr("Документів одночасно, 1–4") } Field { id: parallelDocuments; objectName: "parallelDocumentsField"; Layout.fillWidth: true; inputMethodHints: Qt.ImhDigitsOnly; validator: IntValidator { bottom: 1; top: 4 } enabled: !backend.busy } }
                                         ColumnLayout { Layout.fillWidth: true; Layout.preferredWidth: 1; Caption { text: qsTr("Запитів до API загалом, 1–16") } Field { id: parallelRequests; objectName: "parallelRequestsField"; Layout.fillWidth: true; inputMethodHints: Qt.ImhDigitsOnly; validator: IntValidator { bottom: 1; top: 16 } enabled: !backend.busy } }
                                     }
+                                    Caption { text: qsTr("Запитів за хвилину, 0 — без обмеження") }
+                                    Field { id: requestsPerMinute; objectName: "requestsPerMinuteField"; Layout.fillWidth: true; inputMethodHints: Qt.ImhDigitsOnly; validator: IntValidator { bottom: 0; top: 6000 } enabled: !backend.busy }
                                     Caption { text: qsTr("Ліміт запитів спільний для всіх документів. Більше паралельних запитів допомагає, доки сервіс не обмежує їхню частоту."); wrapMode: Text.WordWrap; Layout.fillWidth: true }
                                 }
                             }
@@ -1004,8 +1022,9 @@ ApplicationWindow {
 
     function saveConfig() {
         var saved = backend.saveSettings({baseUrl: baseUrl.text, model: modelField.text, reviewModel: reviewModel.text,
+            providerPreset: root.providerPresetId, requestsPerMinute: requestsPerMinute.text,
             apiMode: apiMode.currentText, responseFormat: responseFormat.currentText, babeldocPath: babeldocPath.text,
-            reasoningEffort: root.reasoningCodes[reasoning.currentIndex],
+            reasoningEffort: root.nativeProvider ? "" : root.reasoningCodes[reasoning.currentIndex],
             maxOutputTokens: maxTokens.text, timeout: timeoutField.text,
             parallelDocuments: parallelDocuments.text, maxParallelRequests: parallelRequests.text,
             apiKey: apiKey.text, rememberKey: rememberKey.checked, removeKey: root.removeSavedKey})
@@ -1018,17 +1037,44 @@ ApplicationWindow {
         return saved
     }
     function loadConfig() {
+        root.providerPresetId = backend.settings.providerPreset || "custom"
         baseUrl.text = backend.settings.baseUrl || "https://api.openai.com/v1"
         modelField.text = backend.settings.model || ""
         reviewModel.text = backend.settings.reviewModel || ""
         babeldocPath.text = backend.settings.babeldocPath || ""
-        apiMode.currentIndex = backend.settings.apiMode === "responses" ? 1 : 0
+        apiMode.currentIndex = Math.max(0, apiMode.model.indexOf(backend.settings.apiMode || "chat"))
         responseFormat.currentIndex = Math.max(0, responseFormat.model.indexOf(backend.settings.responseFormat || "auto"))
         reasoning.currentIndex = Math.max(0, root.reasoningCodes.indexOf(backend.settings.reasoningEffort || ""))
         timeoutField.text = String(backend.settings.timeout || 180)
         maxTokens.text = String(backend.settings.maxOutputTokens || 0)
         parallelDocuments.text = String(backend.settings.parallelDocuments || 2)
         parallelRequests.text = String(backend.settings.maxParallelRequests || 8)
+        requestsPerMinute.text = String(backend.settings.requestsPerMinute || 0)
+    }
+
+    function clearDraftKey() {
+        apiKey.clear()
+        root.keyVisible = false
+        root.removeSavedKey = false
+    }
+
+    function applyProviderPreset(identifier) {
+        var preset = backend.providerPresets.find(function(item) { return item.id === identifier })
+        if (!preset || backend.busy) return
+        root.providerPresetId = identifier
+        root.clearDraftKey()
+        backend.clearModels()
+        if (identifier === "custom") return
+        baseUrl.text = preset.baseUrl
+        apiMode.currentIndex = Math.max(0, apiMode.model.indexOf(preset.apiMode))
+        modelField.text = preset.model || ""
+        reviewModel.text = preset.reviewModel || ""
+        responseFormat.currentIndex = Math.max(0, responseFormat.model.indexOf(preset.responseFormat || "auto"))
+        reasoning.currentIndex = Math.max(0, root.reasoningCodes.indexOf(preset.reasoningEffort || ""))
+        maxTokens.text = String(preset.maxOutputTokens || 0)
+        parallelRequests.text = String(preset.maxParallelRequests || 1)
+        parallelDocuments.text = String(preset.parallelDocuments || 1)
+        requestsPerMinute.text = String(preset.requestsPerMinute || 0)
     }
 
     function duration(seconds) {

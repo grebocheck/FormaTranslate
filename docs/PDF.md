@@ -9,7 +9,7 @@ babeldoc --warmup
 
 If `babeldoc` is not in PATH, enter its full executable path in Settings. Warmup prepares resources that otherwise may be downloaded during the first job. BabelDOC has its own system requirements, models, fonts and AGPL-3.0 license; see its upstream documentation.
 
-Choose an explicit source language and the `chat` API mode for PDF. FormaTranslate passes the configured request limits, timeout and supported reasoning settings through a temporary authenticated local adapter. The real provider key stays in FormaTranslate and is not written into the child-process command line or its configuration file.
+Choose an explicit source language and the `chat`, `gemini` or `anthropic` API mode for PDF. The native Gemini/Claude presets work through the same local bridge; `responses` remains unsupported for PDF. FormaTranslate passes the configured request limits, timeout and supported reasoning settings through a temporary authenticated local adapter. The real provider key stays in FormaTranslate and is not written into the child-process command line or its configuration file.
 
 Progress includes layout analysis, terminology, paragraph translation, fonts and export. Local layout analysis may take time even when many API requests can run in parallel. Fatal API errors and incomplete responses stop export instead of silently producing unchanged text. Heuristic output checks do not replace a bilingual review.
 

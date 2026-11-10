@@ -12,16 +12,28 @@ import concurrent.futures
 import hashlib
 import hmac
 import json
+import math
 import secrets
 import socket
 import threading
 import time
 from collections import Counter
+from email.utils import parsedate_to_datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import httpx
 
+from forma.api_protocol import (
+    adapt_chat_request,
+    api_base,
+    native_retry_delay,
+    normalize_response,
+    rate_limit_key,
+    request_headers,
+    terminal_quota_error,
+)
 from forma.models import FormaError
+from forma.provider import JobControl, retry_delay
 
 MAX_BODY = 4 * 1024 * 1024
 MAX_RESPONSE = 8 * 1024 * 1024
@@ -92,6 +104,28 @@ def _redact(data, secret):
     except (ValueError, RecursionError):
         # Non-JSON error pages may echo arbitrary escaped authentication data.
         return b'{"error":{"message":"Invalid response from PDF provider"}}'
+
+
+def _retry_headers(headers):
+    """Only valid retry durations/dates may reach the local engine or its logs."""
+    result = {}
+    for key in ("retry-after", "retry-after-ms"):
+        value = headers.get(key)
+        if not value or len(value) > 128 or "\n" in value or "\r" in value:
+            continue
+        try:
+            numeric = float(value)
+            valid = math.isfinite(numeric) and numeric >= 0
+        except ValueError:
+            try:
+                valid = key == "retry-after" and math.isfinite(
+                    parsedate_to_datetime(value).timestamp()
+                )
+            except (ValueError, TypeError, OverflowError):
+                valid = False
+        if valid:
+            result[key] = value
+    return result
 
 
 class _Server(ThreadingHTTPServer):
@@ -201,11 +235,14 @@ class _Handler(BaseHTTPRequestHandler):
 
 
 class PDFAPI:
-    def __init__(self, settings, workers):
+    def __init__(self, settings, workers, *, control=None):
         self.settings, self.workers = settings, workers
+        self.control = control if control is not None else JobControl(workers)
+        self.native = settings.api_mode in ("gemini", "anthropic")
         self.closing = False
         self.fatal_error = ""
-        self.upstream_base = provider_base(settings.base_url)
+        self.upstream_base = api_base(settings) if self.native else provider_base(settings.base_url)
+        self.rate_limit_key = rate_limit_key(settings)
         self.token = secrets.token_urlsafe(32)
         self.loop = asyncio.new_event_loop()
         self.thread = threading.Thread(target=self.loop.run_forever, daemon=True)
@@ -216,15 +253,20 @@ class PDFAPI:
         self.statuses = Counter()
         # BabelDOC's cache does not include the upstream URL or our request
         # overrides. Partition it without sending this synthetic ID upstream.
+        identity = {
+            "protocol": 1,
+            "base_url": self.upstream_base,
+            "model": settings.model,
+            "reasoning_effort": settings.reasoning_effort,
+            "max_output_tokens": settings.max_output_tokens,
+        }
+        if self.native:
+            identity.update(protocol=2, api_mode=settings.api_mode)
+        # Keep previous Chat cache identities: pacing and the new provider UI
+        # do not change those translations or justify paying to recreate them.
         fingerprint = hashlib.sha256(
             json.dumps(
-                {
-                    "protocol": 1,
-                    "base_url": self.upstream_base,
-                    "model": settings.model,
-                    "reasoning_effort": settings.reasoning_effort,
-                    "max_output_tokens": settings.max_output_tokens,
-                },
+                identity,
                 sort_keys=True,
             ).encode()
         ).hexdigest()[:16]
@@ -262,6 +304,8 @@ class PDFAPI:
         self.tasks.add(task)
         try:
             async with self.semaphore:
+                if not await self._wait_for_request():
+                    return 422, b'{"error":{"message":"PDF translation stopped"}}', {}
                 started = time.monotonic()
                 with self.lock:
                     self.calls += 1
@@ -273,15 +317,21 @@ class PDFAPI:
                     {},
                 )
                 try:
-                    authorization = (
-                        {"Authorization": f"Bearer {self.settings.api_key}"}
-                        if self.settings.api_key
-                        else {}
-                    )
+                    body = completion_body(original, self.settings)
+                    if self.native:
+                        endpoint, body = adapt_chat_request(self.settings, body)
+                        authorization = request_headers(self.settings)
+                    else:
+                        endpoint = self.upstream_base + "/chat/completions"
+                        authorization = (
+                            {"Authorization": f"Bearer {self.settings.api_key}"}
+                            if self.settings.api_key
+                            else {}
+                        )
                     async with self.client.stream(
                         "POST",
-                        self.upstream_base + "/chat/completions",
-                        json=completion_body(original, self.settings),
+                        endpoint,
+                        json=body,
                         headers=authorization,
                     ) as response:
                         content = bytearray()
@@ -290,10 +340,24 @@ class PDFAPI:
                                 raise ValueError("Response limit exceeded")
                             content.extend(chunk)
                         status, data = response.status_code, bytes(content)
-                        for key in ("retry-after", "retry-after-ms"):
-                            value = response.headers.get(key)
-                            if value and "\n" not in value and "\r" not in value:
-                                headers[key] = value
+                        headers = _retry_headers(response.headers)
+                    if status == 429:
+                        try:
+                            error = json.loads(data)
+                        except (ValueError, UnicodeError):
+                            error = {}
+                        if self.native and terminal_quota_error(self.settings, error):
+                            with self.lock:
+                                self.fatal_error = (
+                                    "Вичерпано квоту API для PDF-перекладу. "
+                                    "Перевірте ліміти проєкту та повторіть пізніше."
+                                )
+                        else:
+                            hint = native_retry_delay(error) if self.native else None
+                            delay = retry_delay(httpx.Headers(headers), 0, fallback=hint)
+                            if hint is not None and not headers:
+                                headers["retry-after"] = str(hint)
+                            self.control.defer_requests(self.rate_limit_key, delay)
                     fatal = {
                         400: "API відхилив параметри PDF-запиту. Перевірте модель, ліміт відповіді та режим міркування.",
                         401: "API відхилив ключ для PDF-перекладу. Перевірте ключ у налаштуваннях.",
@@ -303,6 +367,25 @@ class PDFAPI:
                     if fatal:
                         with self.lock:
                             self.fatal_error = fatal
+                    if self.native:
+                        if 200 <= status < 300:
+                            try:
+                                normalized = normalize_response(self.settings, json.loads(data))
+                                data = json.dumps(normalized, ensure_ascii=False).encode()
+                            except (ValueError, TypeError, FormaError):
+                                with self.lock:
+                                    self.fatal_error = (
+                                        "API повернув некоректну відповідь PDF-перекладу. "
+                                        "Перевірте модель і режим API."
+                                    )
+                                status, data = (
+                                    502,
+                                    b'{"error":{"message":"Invalid response from PDF provider"}}',
+                                )
+                        else:
+                            # Native error objects can contain echoed headers, text
+                            # or URLs. BabelDOC only needs an OpenAI-shaped error.
+                            data = b'{"error":{"message":"PDF provider request failed"}}'
                     data = _redact(data, self.settings.api_key)
                     self._usage(data)
                     incomplete = completion_error(data) if 200 <= status < 300 else ""
@@ -316,8 +399,8 @@ class PDFAPI:
                         )
                 except httpx.TimeoutException:
                     status, data = 504, b'{"error":{"message":"PDF provider request timed out"}}'
-                except (httpx.HTTPError, ValueError):
-                    pass
+                except (httpx.HTTPError, ValueError, FormaError):
+                    status, data = 502, b'{"error":{"message":"PDF provider request failed"}}'
                 finally:
                     with self.lock:
                         self.active -= 1
@@ -326,6 +409,25 @@ class PDFAPI:
                 return status, data, headers
         finally:
             self.tasks.discard(task)
+
+    async def _wait_for_request(self):
+        # The external pool already owns weighted concurrency slots. Reserve
+        # only the shared start-rate gate here, without acquiring those again.
+        while True:
+            if self.closing or self.control.cancelled.is_set():
+                raise asyncio.CancelledError
+            with self.lock:
+                if self.fatal_error:
+                    return False
+            if self.control.paused.is_set():
+                await asyncio.sleep(0.1)
+                continue
+            delay = self.control.request_delay(
+                self.rate_limit_key, self.settings.requests_per_minute
+            )
+            if delay <= 0:
+                return True
+            await asyncio.sleep(min(delay, 0.1))
 
     def _usage(self, data):
         try:

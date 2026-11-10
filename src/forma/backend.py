@@ -30,6 +30,7 @@ from forma.models import FormaError, Options, plain_text
 from forma.ooxml import OfficeDocument
 from forma.pdf import find_babeldoc, inspect_pdf
 from forma.provider import JobControl, Provider
+from forma.provider_presets import provider_presets
 from forma.quick_controller import QuickTranslator
 from forma.review import actionable_count, build_review, load_report
 from forma.review_store import ReviewStore
@@ -892,7 +893,11 @@ class Backend(QObject):
                         key = load_api_key(base)
                     except CredentialError:
                         key = ""  # Local compatible providers may not need authentication.
-            settings = self._settings.with_overrides(base_url=base, api_key=key or "")
+            settings = self._settings.with_overrides(
+                base_url=base,
+                api_key=key or "",
+                api_mode=str(values.get("apiMode", self._settings.api_mode)),
+            )
             settings.validate(require_connection=False)
         except (FormaError, CredentialError) as exc:
             self._models_message = str(exc)
@@ -1172,6 +1177,8 @@ class Backend(QObject):
             "timeout": s.timeout,
             "maxParallelRequests": s.max_parallel_requests,
             "parallelDocuments": s.parallel_documents,
+            "providerPreset": s.provider_preset,
+            "requestsPerMinute": s.requests_per_minute,
             "babeldocPath": s.babeldoc_path,
             "envPath": str(s.env_path),
             "keyPresent": bool(s.api_key),
@@ -1179,6 +1186,10 @@ class Backend(QObject):
             "credentialStatus": tr(s.credential_status),
             "pdfReady": bool(find_babeldoc(s.babeldoc_path)),
         }
+
+    @Property("QVariantList", notify=languageChanged)
+    def providerPresets(self):
+        return provider_presets()
 
     @Property(bool, notify=changed)
     def busy(self):
@@ -1430,6 +1441,7 @@ class Backend(QObject):
                     ("review_model", "reviewModel"),
                     ("babeldoc_path", "babeldocPath"),
                     ("reasoning_effort", "reasoningEffort"),
+                    ("provider_preset", "providerPreset"),
                 )
             }
             raw_timeout = values.get("timeout", old.timeout)
@@ -1442,6 +1454,7 @@ class Backend(QObject):
             for key, ui in (
                 ("max_parallel_requests", "maxParallelRequests"),
                 ("parallel_documents", "parallelDocuments"),
+                ("requests_per_minute", "requestsPerMinute"),
             ):
                 prefs[key] = int(str(values.get(ui, getattr(old, key))))
             candidate = old.with_overrides(**prefs)

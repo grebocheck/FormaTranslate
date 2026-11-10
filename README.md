@@ -11,7 +11,7 @@
   </p>
 </div>
 
-FormaTranslate is an open-source desktop document translator for **Windows and Linux**, built with Python and Qt Quick. Connect an OpenAI or compatible API, choose a model, add documents, and translate them into another language. API usage is billed by your provider; FormaTranslate itself has no subscription.
+FormaTranslate is an open-source desktop translator for **Windows and Linux**, built with Python and Qt Quick. Connect OpenAI, Google Gemini, Anthropic Claude or a compatible API, choose a model, and translate documents, text or photos. API usage follows your provider's pricing and quotas; FormaTranslate itself has no subscription.
 
 The interface supports **English, Ukrainian, Polish and German**, follows the system language, and can be changed in Settings. The interface language and document translation languages are independent.
 
@@ -19,13 +19,19 @@ The interface supports **English, Ukrainian, Polish and German**, follows the sy
 
 ## Download and start
 
-Get the package for your platform from **[GitHub Releases](https://github.com/grebocheck/FormaTranslate/releases/latest)**. Extract it and launch the executable. Python and a `.env` file are not needed for the packaged app. On Linux, make the executable runnable with `chmod +x Forma-linux-x86_64` if necessary. The 0.2.0 Linux binary requires **glibc 2.43 or newer** (built on Ubuntu 26.04); use the source installation on older distributions. See each release's platform validation notes; macOS is not supported yet.
+Get the package for your platform from **[GitHub Releases](https://github.com/grebocheck/FormaTranslate/releases/latest)**. Extract it and launch the executable. Python and a `.env` file are not needed for the packaged app. On Linux, make the executable runnable with `chmod +x Forma-linux-x86_64` if necessary. The 0.3.0 Linux binary requires **glibc 2.43 or newer** (built on Ubuntu 26.04); use the source installation on older distributions. See each release's platform validation notes; macOS is not supported yet.
 
 1. Open **Settings** and enter your API address, model and API key. The model list can be loaded from providers that support it, or entered manually.
 2. Add DOCX, XLSX or text-based PDF files and select the source and target languages.
 3. Translate, open the output folder, and use **Review** to inspect the result.
 
 DOCX and XLSX work directly. **PDF requires a separate BabelDOC installation**; see [PDF setup](docs/PDF.md). Some OpenAI-compatible providers omit features used by particular API modes; choose the mode and response format supported by yours.
+
+## Gemini and Claude
+
+In **Settings**, choose **Google Gemini — Free Tier**, **Google Gemini**, or **Anthropic Claude**, enter the corresponding API key and save. The preset fills in the address, native API mode, model and request limits; you can edit them or load the provider's available models. Preset selection alone makes no requests and does not save a key.
+
+The Gemini Free Tier preset starts with Flash-Lite, one request at a time and a local limit of five requests per minute. Actual model access, token/daily quotas and billing depend on your Google AI Studio project. Selecting this preset **does not disable billing** on a paid project or guarantee free access to another model. Google's free-service data handling differs from paid service; check the linked terms before using sensitive material. [Provider setup and current references](docs/PROVIDERS.md).
 
 ## Text and photo translation
 

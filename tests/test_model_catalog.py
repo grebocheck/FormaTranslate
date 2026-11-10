@@ -167,3 +167,120 @@ def test_client_timeout_is_capped_and_network_error_does_not_leak(monkeypatch):
     assert captured["timeout"] == 20 and captured["follow_redirects"] is False
     assert "private-fixture-key" not in str(caught.value)
     assert "secret-provider" not in str(caught.value)
+
+
+def native_catalog(monkeypatch, responder):
+    original = httpx.Client
+    requests = []
+
+    def handle(request):
+        requests.append(request)
+        return responder(request, len(requests))
+
+    monkeypatch.setattr(
+        "forma.model_catalog.httpx.Client",
+        lambda **kwargs: original(transport=httpx.MockTransport(handle), **kwargs),
+    )
+    return requests
+
+
+def test_gemini_catalog_pages_filter_generation_and_use_header_key(monkeypatch):
+    def respond(request, count):
+        if count == 1:
+            return httpx.Response(
+                200,
+                json={
+                    "models": [
+                        {
+                            "name": "models/gemini-a",
+                            "supportedGenerationMethods": ["generateContent"],
+                        },
+                        {
+                            "name": "models/embedding-a",
+                            "supportedGenerationMethods": ["embedContent"],
+                        },
+                    ],
+                    "nextPageToken": "opaque+/=?cursor",
+                },
+            )
+        assert request.url.params["pageToken"] == "opaque+/=?cursor"
+        return httpx.Response(
+            200,
+            json={
+                "models": [
+                    {"name": "models/gemini-b", "supportedGenerationMethods": ["generateContent"]},
+                ]
+            },
+        )
+
+    requests = native_catalog(monkeypatch, respond)
+    result = list_models(
+        Settings(
+            api_mode="gemini",
+            base_url="https://google.example/v1beta",
+            api_key="fixture-native-key",
+        )
+    )
+    assert result == ["gemini-a", "gemini-b"]
+    assert all(r.headers.get("x-goog-api-key") == "fixture-native-key" for r in requests)
+    assert all("fixture-native-key" not in str(r.url) for r in requests)
+    assert len(requests) == 2
+
+
+def test_anthropic_catalog_pagination_and_retired_models(monkeypatch):
+    def respond(request, count):
+        if count == 1:
+            return httpx.Response(
+                200,
+                json={
+                    "data": [
+                        {"id": "claude-a", "lifecycle": "active"},
+                        {"id": "retired", "lifecycle": "retired"},
+                    ],
+                    "has_more": True,
+                    "last_id": "claude-a",
+                },
+            )
+        assert request.url.params["after_id"] == "claude-a"
+        return httpx.Response(200, json={"data": [{"id": "claude-b"}], "has_more": False})
+
+    requests = native_catalog(monkeypatch, respond)
+    result = list_models(
+        Settings(
+            api_mode="anthropic", base_url="https://claude.example/v1", api_key="fixture-native-key"
+        )
+    )
+    assert result == ["claude-a", "claude-b"]
+    assert all(r.headers.get("authorization") == "Bearer fixture-native-key" for r in requests)
+    assert all(r.headers.get("anthropic-version") == "2026-10-21" for r in requests)
+
+
+def test_catalog_repeated_cursor_fails_without_following_url(monkeypatch):
+    requests = native_catalog(
+        monkeypatch,
+        lambda *_: httpx.Response(
+            200, json={"models": [], "nextPageToken": "https://external.invalid/private"}
+        ),
+    )
+    with pytest.raises(FormaError, match="некоректний список"):
+        list_models(Settings(api_mode="gemini", base_url="https://google.example/v1beta"))
+    assert len(requests) == 2
+    assert all(r.url.host == "google.example" for r in requests)
+
+
+def test_catalog_total_pagination_size_is_bounded(monkeypatch):
+    counter = iter(range(100))
+    requests = native_catalog(
+        monkeypatch,
+        lambda *_: httpx.Response(
+            200,
+            json={
+                "models": [],
+                "nextPageToken": str(next(counter)),
+                "padding": " " * (MAX_RESPONSE_BYTES // 2),
+            },
+        ),
+    )
+    with pytest.raises(FormaError, match="розмір"):
+        list_models(Settings(api_mode="gemini", base_url="https://google.example/v1beta"))
+    assert len(requests) == 2
