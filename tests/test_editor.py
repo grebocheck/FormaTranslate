@@ -38,8 +38,8 @@ def rewrite_part(path, part, change):
             archive.writestr(info, data[info.filename])
 
 
-def write_translation(source, *, legacy_ids=False):
-    office = OfficeDocument(source)
+def write_translation(source, *, legacy_ids=False, extraction_profile=2):
+    office = OfficeDocument(source, extraction_profile=extraction_profile)
     replacements = {
         "Потужність ": "Power of ",
         "насоса": "pump",
@@ -59,7 +59,8 @@ def write_translation(source, *, legacy_ids=False):
         translations[segment.id] = translated
     output = source.with_name(source.stem + ".en" + source.suffix)
     office.write(translations, output, decimal_comma_to_point=True)
-    result = TranslationResult(source, output, office.segments, translations, office.issues)
+    result = TranslationResult(source, output, office.segments, translations, office.issues,
+                               extraction_profile=office.extraction_profile)
     write_translation_report(
         result, Options(source_language="uk", target_language="en"), "test-original-model"
     )
@@ -342,7 +343,7 @@ def shared_translation(tmp_path):
     with ZipFile(source, "w") as archive:
         for name, content in parts.items():
             archive.writestr(name, content)
-    output, report = write_translation(source)
+    output, report = write_translation(source, extraction_profile=1)
     previous = load_report(report)[0]
     segment = previous.segments[0]
     markup = edit_translation_markup(previous.translations[segment.id], "Power of efficient pump")
@@ -355,11 +356,36 @@ def test_shared_string_edit_preserves_reuse_and_all_worksheet_bytes(shared_trans
     result = export_reviewed_copy(source, output, report, {segment_id: markup})
     after = package(result.output)
     assert after["xl/worksheets/sheet1.xml"] == before["xl/worksheets/sheet1.xml"]
-    actual = OfficeDocument(result.output)
+    actual = OfficeDocument(result.output, extraction_profile=1)
     first = next(
         segment for segment in actual.segments if segment.plain == "Power of efficient pump"
     )
     assert first.location == "Data!A1, Data!B1"
+
+
+def test_per_cell_shared_string_edit_does_not_change_another_use(shared_translation):
+    from forma.documents.ooxml import S
+
+    source = shared_translation[0].with_name("per-cell.xlsx")
+    source.write_bytes(shared_translation[0].read_bytes())
+    output, report = write_translation(source)
+    previous, _ = load_report(report)
+    assert previous.extraction_profile == 2
+    segment = next(item for item in previous.segments if item.location == "Data!A1")
+    edited = edit_translation_markup(previous.translations[segment.id], "Power of efficient pump")
+    result = export_reviewed_copy(source, output, report, {segment.id: edited})
+    # Resolve actual persisted cell references independently from application IDs.
+    archive = package(result.output)
+    strings = etree.fromstring(archive["xl/sharedStrings.xml"])
+    values = ["".join(item.itertext()) for item in strings.findall(f"{{{S}}}si")]
+    sheet = etree.fromstring(archive["xl/worksheets/sheet1.xml"])
+    actual = {cell.get("r"): values[int(cell.findtext(f"{{{S}}}v"))]
+              for cell in sheet.iter(f"{{{S}}}c") if cell.get("t") == "s"}
+    assert actual == {"A1": "Power of efficient pump", "B1": "Power of pump", "C1": "Flow"}
+    reopened, _ = load_report(result.report)
+    assert reopened.extraction_profile == 2
+    again = export_reviewed_copy(source, result.output, result.report, {segment.id: edited})
+    assert package(again.output)["xl/worksheets/sheet1.xml"] == archive["xl/worksheets/sheet1.xml"]
 
 
 @pytest.mark.parametrize("remapping", ["shared_reference", "sheet_name"])

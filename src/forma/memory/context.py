@@ -141,11 +141,10 @@ def _xlsx_contexts(document):
                 # selected neighbors. Invalidate on any worksheet change.
                 full["worksheet_fallback"] = worksheet_identity
             identity = _digest(full)
+            result[cell] = identity
             if cell.get("t") == "s":
                 index = document._shared_index(cell, shared_values)
                 usages.setdefault(index, []).append((name, record[0], identity))
-            else:
-                result[cell] = identity
     for index, uses in usages.items():
         result[shared_items[index]] = _digest(sorted(uses))
     cached = result, _digest(sorted(worksheets))
@@ -157,6 +156,10 @@ def segment_role(document: OfficeDocument, segment: Segment) -> str:
     target = document.targets[segment.id]
     part = re.sub(r"\d+(?=\.xml$)", "", target.part)
     role = {"format": document.path.suffix.lower(), "part": part}
+    if document.path.suffix.lower() == ".xlsx" and getattr(document, "extraction_profile", 1) == 2:
+        role["extraction_profile"] = 2
+        if getattr(target, "worksheet_part", None):
+            role["part"] = re.sub(r"\d+(?=\.xml$)", "", target.worksheet_part)
     role["markers"] = [(node.tag, sorted(node.attrib.items())) for node in target.markers]
     node = target.nodes[0]
     if document.path.suffix.lower() == ".docx":
@@ -188,6 +191,10 @@ def segment_context(document: OfficeDocument, segment: Segment) -> str:
         indices = {item.id: index for index, item in enumerate(document.segments)}
         document._memory_segment_indices = indices
     target = document.targets[segment.id]
+    if document.path.suffix.lower() == ".xlsx" and getattr(document, "extraction_profile", 1) == 2 and getattr(target, "cell", None) is not None:
+        contexts, fallback = _xlsx_contexts(document)
+        full = {"local": segment.context, "worksheet_context": contexts.get(target.cell, fallback)}
+        return json.dumps({"context": segment.context, "full_context_sha256": _digest(full)}, ensure_ascii=False, sort_keys=True)
     full = {"local": segment.context}
     cell = _ancestor(target.nodes[0], "tc") if document.path.suffix.lower() == ".docx" else None
     if cell is not None:
@@ -234,11 +241,14 @@ def scoped_segment_context(document: OfficeDocument, segment: Segment) -> str:
         # selected row/column captions and every use of each shared string.
         scope = Scope(_digest({"version": 2, "worksheet": previous["full_context_sha256"]}), segment.context)
     role = segment_role(document, segment)
-    return json.dumps({
+    value = {
         "memory_context_version": 2, "context": readable,
         "scope_sha256": scope.sha256, "scope_prompt": scope.prompt, "role_sha256": role,
         "full_context_sha256": _digest({"version": 2, "local": previous["full_context_sha256"], "selected": selected, "scope": scope.sha256, "role": role}),
-    }, ensure_ascii=False, sort_keys=True)
+    }
+    if document.path.suffix.lower() == ".xlsx" and getattr(document, "extraction_profile", 1) == 2:
+        value["extraction_profile"] = 2
+    return json.dumps(value, ensure_ascii=False, sort_keys=True)
 
 
 def request_context(context: str) -> str:

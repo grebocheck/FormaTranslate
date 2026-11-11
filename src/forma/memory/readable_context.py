@@ -137,10 +137,9 @@ def _xlsx_contexts(document):
                 for key, value in full.items()
             }
             value = _digest(full), json.dumps(rendered, ensure_ascii=False, sort_keys=True)
+            cache[cell] = _packed(value[0], rendered)
             if cell.get("t") == "s":
                 uses.setdefault(document._shared_index(cell, shared), []).append(value)
-            else:
-                cache[cell] = _packed(value[0], rendered)
     for index, values in uses.items():
         # Bind every occurrence even when only bounded examples fit the request.
         values.sort(key=lambda value: value[1])
@@ -157,6 +156,8 @@ def readable_context(document, segment) -> str:
     if document.path.suffix.lower() == ".docx":
         return _word_context(document, segment)
     target = document.targets[segment.id]
+    if getattr(target, "cell", None) is not None and getattr(document, "extraction_profile", 1) == 2:
+        return _xlsx_contexts(document).get(target.cell, segment.context)
     container = next(target.nodes[0].iterancestors(f"{{{S}}}c"), None)
     if container is None:
         container = next(target.nodes[0].iterancestors(f"{{{S}}}si"), None)

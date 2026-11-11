@@ -159,8 +159,19 @@ def parse_report_data(data: dict, path: Path) -> tuple[TranslationResult, Option
         engine = data.get("engine", "forma-ooxml")
         if engine not in ("forma-ooxml", "forma-corpus", "babeldoc"):
             raise ValueError
+        extraction_profile = data.get("extraction_profile", 1)
+        if type(extraction_profile) is not int or extraction_profile not in {1, 2}:
+            raise ValueError("extraction profile")
+        if extraction_profile == 2 and engine != "forma-ooxml":
+            raise ValueError("extraction engine")
+        if extraction_profile == 2 and (
+            not isinstance(data.get("source"), str)
+            or PureWindowsPath(data["source"]).suffix.lower() != ".xlsx"
+        ):
+            raise ValueError("extraction format")
         result = TranslationResult(
-            path, None, segments, translations, issues, engine=engine, report=path
+            path, None, segments, translations, issues, engine=engine, report=path,
+            extraction_profile=extraction_profile,
         )
         result.preparation = _parse_preparation(data, options)
         if result.preparation:

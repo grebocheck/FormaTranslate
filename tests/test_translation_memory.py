@@ -256,6 +256,30 @@ def test_provenance_is_allowlisted_and_never_serializes_arbitrary_settings(memor
     assert secret not in stored and "api_key" not in stored
 
 
+def test_profile_one_probe_skips_small_modern_projects_and_keeps_unknown_history(memory, project, record, profile):
+    snapshot = memory.snapshot(project.id)
+
+    def probe():
+        return memory.may_have_profile_one_references(snapshot, record["policy"], (profile,))
+
+    assert not probe()
+    modern = {**record, "context": json.dumps({"memory_context_version": 2, "extraction_profile": 2})}
+    modern["key"] = exact_fingerprint(modern["policy"], modern["source_markup"], modern["context"], modern["role"])
+    hit = memory.save_machine(project.id, **modern, generation_profile=profile)
+    assert not probe()
+    for damaged in ("not JSON", "x" * 16385):
+        with memory._connect(write=True) as database:
+            database.execute("UPDATE entries SET context=? WHERE id=?", (damaged, hit.entry_id))
+        assert probe()
+    with memory._connect(write=True) as database:
+        database.execute("UPDATE entries SET context=? WHERE id=?", (modern["context"], hit.entry_id))
+    for index in range(64):
+        value = {**modern, "source_markup": f"<r0>Energy {index}</r0>", "target": f"<r0>Енергія {index}</r0>"}
+        value["key"] = exact_fingerprint(value["policy"], value["source_markup"], value["context"], value["role"])
+        memory.save_machine(project.id, **value, generation_profile=profile)
+    assert probe()  # The 65th row means the bounded probe cannot rule legacy work out.
+
+
 def test_default_store_is_separate_and_readable_errors_do_not_recreate_corruption(tmp_path, monkeypatch):
     monkeypatch.setenv("FORMA_DATA_DIR", str(tmp_path / "data"))
     memory = TranslationMemory()

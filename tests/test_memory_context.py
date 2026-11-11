@@ -20,9 +20,11 @@ from forma.memory.context import (
 )
 
 
-def identity(path, text="Energy"):
-    document = OfficeDocument(path)
-    segment = next(item for item in document.segments if item.plain == text)
+def identity(path, text="Energy", *, extraction_profile=2, cell_address=None):
+    document = OfficeDocument(path, extraction_profile=extraction_profile)
+    segment = next(item for item in document.segments if item.plain == text and (
+        cell_address is None or document.targets[item.id].cell is not None and document.targets[item.id].cell.get("r") == cell_address
+    ))
     return (
         segment.source, segment.context, segment_context(document, segment), segment_role(document, segment),
         scoped_segment_context(document, segment),
@@ -72,10 +74,14 @@ def shared_workbook(path, last_value):
 
 
 def test_xlsx_shared_string_includes_uses_beyond_three_prompt_examples(tmp_path):
-    before = identity(shared_workbook(tmp_path / "before.xlsx", 10))
-    after = identity(shared_workbook(tmp_path / "after.xlsx", 20))
+    first = shared_workbook(tmp_path / "before.xlsx", 10)
+    second = shared_workbook(tmp_path / "after.xlsx", 20)
+    before = identity(first, extraction_profile=1)
+    after = identity(second, extraction_profile=1)
     assert before[:2] == after[:2]
     assert before[2] != after[2]
+    assert identity(first, cell_address="A1") == identity(second, cell_address="A1")
+    assert identity(first, cell_address="A4")[4] != identity(second, cell_address="A4")[4]
 
 
 def test_xlsx_implicit_cell_addresses_use_conservative_worksheet_identity(tmp_path):

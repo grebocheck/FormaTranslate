@@ -296,5 +296,7 @@
   "Фрагмент завеликий для одного запиту. Перегляньте звіт про проблемні фрагменти.": "El segmento es demasiado grande para una sola solicitud. Consulte el informe de segmentos problemáticos.",
   "Символів тексту: {plain}; символів розмітки: {markup}; позначок форматування: {spans}.": "Caracteres de texto: {plain}; caracteres de marcado: {markup}; marcadores de formato: {spans}.",
   "Фрагмент ще не надсилали до API.": "El segmento aún no se ha enviado a la API.",
-  "Не вдалося безпечно поділити фрагмент. Перегляньте звіт про проблемні фрагменти.": "No se ha podido dividir el segmento de forma segura. Consulte el informe de segmentos problemáticos."
+  "Не вдалося безпечно поділити фрагмент. Перегляньте звіт про проблемні фрагменти.": "No se ha podido dividir el segmento de forma segura. Consulte el informe de segmentos problemáticos.",
+  "Некоректна таблиця спільних рядків XLSX.": "La tabla de cadenas compartidas XLSX no es válida.",
+  "Некоректне посилання на спільний рядок XLSX.": "La referencia a una cadena compartida XLSX no es válida."
 }

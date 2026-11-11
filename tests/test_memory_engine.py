@@ -161,7 +161,7 @@ def test_v1_machine_and_approved_wording_get_one_scoped_review_then_v2_exact_reu
     generation = generation_fingerprint(settings, protocol=PROTOCOL_VERSION, review=True, context_version=1)
     assert generation not in run.legacy_generations and generation in run.revalidation_generations
     originals = []
-    for word, target in (("Charge", "Плата"), ("Current", "Поточний"), ("Power 15 kW", "Потужність 99 kW")):
+    for word, target in (("Charge", "Плата 99 kWh"), ("Current", "Поточний 999 kWh"), ("Power 15 kW", "Потужність 99 kW")):
         segment = next(item for item in office.segments if item.plain == word)
         context, role = segment_context(office, segment), segment_role(office, segment)
         record = dict(key=exact_fingerprint(run.policy, segment.source, context, role), source_markup=segment.source, target=f"<r0>{target}</r0>", context=context, role=role, policy=run.policy)
@@ -258,6 +258,104 @@ def test_unstyled_document_lead_disambiguates_without_binding_unrelated_later_bo
     assert translate("financial", "Financial domain", "Original later body") == ("<r0>Плата</r0>", 1)
     assert translate("electrical", "Electrical domain", "Original later body") == ("<r0>Заряд</r0>", 1)
     assert translate("unrelated", "Electrical domain", "Changed unrelated later body") == ("<r0>Заряд</r0>", 0)
+
+
+def shared_scope_workbook(path, finance_unit="UAH"):
+    from zipfile import ZipFile
+
+    from lxml import etree
+    from openpyxl import Workbook
+
+    from forma.documents.ooxml import S
+
+    book = Workbook()
+    book.active.title = "Finance"
+    book.create_sheet("Flow")
+    book.properties.description = path.name
+    for sheet, unit in ((book["Finance"], finance_unit), (book["Flow"], "m³/h")):
+        sheet.append(["Назва", "Одиниця"])
+        sheet.append(["Витрата", unit])
+    book.save(path)
+    with ZipFile(path) as archive:
+        parts = {name: archive.read(name) for name in archive.namelist()}
+    for part in ("xl/worksheets/sheet1.xml", "xl/worksheets/sheet2.xml"):
+        tree = etree.fromstring(parts[part])
+        cell = tree.find(f".//{{{S}}}c[@r='A2']")
+        cell.set("t", "s")
+        for child in list(cell):
+            cell.remove(child)
+        etree.SubElement(cell, f"{{{S}}}v").text = "0"
+        parts[part] = etree.tostring(tree)
+    parts["xl/sharedStrings.xml"] = f'<sst xmlns="{S}" count="2" uniqueCount="1"><si><t>Витрата</t></si></sst>'.encode()
+    types = etree.fromstring(parts["[Content_Types].xml"])
+    etree.SubElement(types, f"{{{types.nsmap[None]}}}Override", PartName="/xl/sharedStrings.xml", ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sharedStrings+xml")
+    parts["[Content_Types].xml"] = etree.tostring(types)
+    relations = etree.fromstring(parts["xl/_rels/workbook.xml.rels"])
+    etree.SubElement(relations, f"{{{relations.nsmap[None]}}}Relationship", Id="rIdSharedScope", Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/sharedStrings", Target="/xl/sharedStrings.xml")
+    parts["xl/_rels/workbook.xml.rels"] = etree.tostring(relations)
+    with ZipFile(path, "w") as archive:
+        for name, data in parts.items():
+            archive.writestr(name, data)
+    return path
+
+
+def test_shared_string_legacy_reference_is_revalidated_per_use_then_reused_by_cell(tmp_path):
+    from openpyxl import load_workbook
+
+    from forma.core.models import plain_text
+    from forma.memory.context import scoped_segment_context, segment_role
+    from forma.memory.store import exact_fingerprint
+
+    store = TranslationMemory()
+    project = store.create_project("Shared physical uses", "uk", "en")
+    settings = Settings(base_url="http://127.0.0.1:1/v1", api_key="offline", model="offline", max_parallel_requests=1, parallel_documents=1)
+    options = Options("uk", "en", review=True, auto_glossary=False, memory_project_id=project.id)
+    source = shared_scope_workbook(tmp_path / "shared.xlsx")
+    previous = OfficeDocument(source, extraction_profile=1)
+    old_segment = next(item for item in previous.segments if item.plain == "Витрата")
+    run = MemoryRun(options, settings, protocol=PROTOCOL_VERSION, memory=store)
+    old_context, old_role = scoped_segment_context(previous, old_segment), segment_role(previous, old_segment)
+    old = store.save_machine(project.id, exact_fingerprint(run.policy, old_segment.source, old_context, old_role), old_segment.source, "<r0>Expenditure</r0>", old_context, old_role, run.policy, run.generation)
+
+    class PerUseProvider:
+        input_tokens = output_tokens = 0
+
+        def __init__(self):
+            self.uses = []
+            self.calls = 0
+
+        def complete(self, instruction, payload, schema, **kwargs):
+            self.calls += 1
+            values = []
+            for item in payload["segments"]:
+                visible = plain_text(item["text"])
+                if visible == "Витрата":
+                    scope = json.loads(item["neighboring_context"])
+                    facts = json.loads(scope["context"])["facts"]
+                    assert scope["extraction_profile"] == 2
+                    self.uses.append((facts["sheet"], item["id"] in payload.get("drafts", {})))
+                    readable = json.dumps(facts, ensure_ascii=False)
+                    assert "m³/h" in readable or "UAH" in readable or "EUR" in readable
+                    target = "Flow rate" if "m³/h" in readable else "Expenditure"
+                else:
+                    target = {"Назва": "Name", "Одиниця": "Unit"}.get(visible, visible)
+                values.append({"id": item["id"], "text": f"<r0>{target}</r0>"})
+            return {"segments": values}
+
+    provider = PerUseProvider()
+    result = TranslationEngine(settings, provider=provider).translate(source, tmp_path / "out", options)
+    assert sorted(provider.uses) == [("Finance", True), ("Flow", True)]  # One editor pass per physical use.
+    assert result.extraction_profile == 2 and result.adapted_segments == 2
+    book = load_workbook(result.output)
+    assert book["Finance"]["A2"].value == "Expenditure" and book["Flow"]["A2"].value == "Flow rate"
+    with store._connect() as database:
+        assert database.execute("SELECT status FROM entries WHERE id=?", (old.entry_id,)).fetchone()[0] == "machine_final"
+    repeated = PerUseProvider()
+    TranslationEngine(settings, provider=repeated).translate(shared_scope_workbook(tmp_path / "repeat.xlsx"), tmp_path / "out", options)
+    assert not repeated.uses and repeated.calls == 0
+    changed = PerUseProvider()
+    TranslationEngine(settings, provider=changed).translate(shared_scope_workbook(tmp_path / "finance-changed.xlsx", "EUR"), tmp_path / "out", options)
+    assert changed.uses and all(sheet == "Finance" for sheet, _draft in changed.uses)
 
 
 def test_parallel_owners_finish_before_waiting_even_with_reversed_claims_and_one_slot(case, tmp_path):
@@ -425,7 +523,7 @@ def test_manual_copy_retains_policy_but_only_explicit_preference_changes_future_
 
 
 def test_legacy_checkpoint_identity_stays_compatible_without_memory():
-    options, settings = Options(), Settings()
+    options, settings = Options(auto_glossary=False), Settings()
     old_options = asdict(options)
     old_options.pop("memory_project_id")
     old_options.pop("pdf_mode")  # Routing was absent from the original protocol-5 checkpoint.

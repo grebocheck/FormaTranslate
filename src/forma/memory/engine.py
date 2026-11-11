@@ -16,6 +16,7 @@ from forma.memory.context import (
     segment_context,
     segment_role,
 )
+from forma.memory.legacy import profile_one_projection
 from forma.memory.session import MemoryRun
 from forma.memory.similarity import eligible_source
 from forma.memory.store import exact_fingerprint, generation_fingerprint, policy_fingerprint
@@ -77,7 +78,7 @@ def translate_with_memory(engine, source, folder, options, progress):
     fragment_plans = validate_segment_sizes(document.segments)
     checkpoint, state = load_checkpoint(
         source_hash, options, settings, memory_policy=run.policy, memory_generation=run.generation,
-        legacy_generations=run.legacy_generations,
+        legacy_generations=run.legacy_generations, document_profile=document.extraction_profile,
     )
     translations, drafts, kinds, references = {}, {}, {}, {}
     draft_hits = set()
@@ -194,12 +195,32 @@ def translate_with_memory(engine, source, folder, options, progress):
     try:
         progress(3, "Шукаємо точні переклади в пам’яті проєкту")
         available = run.lookup_many(groups, include_draft=options.review)
-        legacy = run.legacy_revalidation_many({
+        legacy_records = {
             key: (members[0].source, legacy_contexts[key], roles[key])
             for key, members in groups.items()
             if options.review and key not in available
             and not any(member.id in translations or member.id in drafts for member in members)
-        }) if options.review else {}
+        }
+        previous_records = {}
+        if legacy_records and document.path.suffix.lower() == ".xlsx" and document.extraction_profile == 2:
+            legacy_records = {}
+            if run.needs_profile_one_projection():
+                previous, projection = profile_one_projection(document, source_hash)
+                for key, members in groups.items():
+                    if key in available or any(member.id in translations or member.id in drafts for member in members):
+                        continue
+                    old = projection.get(members[0].id)
+                    if old is not None:
+                        role = segment_role(previous, old)
+                        legacy_records[key] = old.source, segment_context(previous, old), role
+                        previous_records[key] = old.source, scoped_segment_context(previous, old), role
+                control.check()
+        legacy = run.legacy_revalidation_many(legacy_records) if options.review else {}
+        for key, hit in run.legacy_revalidation_many(previous_records, context_version=2).items():
+            current = legacy.get(key)
+            priority = {"draft": 0, "machine_final": 1, "human_approved": 2}
+            if current is None or (priority[hit.status], hit.entry_id) > (priority[current.status], current.entry_id):
+                legacy[key] = hit
         for key, members in groups.items():
             control.check()
             representative = members[0]
@@ -256,7 +277,7 @@ def translate_with_memory(engine, source, folder, options, progress):
                 )
                 if previous is not None and not blocking_issues(
                     Segment("reference", "", previous.source_markup), previous.target, options,
-                    draft=key in legacy and previous.status == "draft",
+                    draft=key in legacy,
                 ):
                     adaptations[representative.id] = previous
                     if key in legacy:
@@ -392,6 +413,7 @@ def translate_with_memory(engine, source, folder, options, progress):
             effective_glossary=dict(run.glossary),
             source_sha256=source_hash,
             output_sha256=file_digest(output),
+            extraction_profile=document.extraction_profile,
         )
         from forma.translation.reports import write_translation_report
 

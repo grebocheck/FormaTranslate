@@ -86,7 +86,7 @@ def test_never_overwrites_existing_output(docx_file, tmp_path):
     assert output.read_bytes() == b"important file"
 
 
-def test_shared_strings_are_translated_once(tmp_path):
+def test_legacy_shared_strings_are_translated_once(tmp_path):
     path = tmp_path / "shared.xlsx"
     parts = {
         "[Content_Types].xml": b'<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"/>',
@@ -98,7 +98,7 @@ def test_shared_strings_are_translated_once(tmp_path):
     with ZipFile(path, "w", ZIP_DEFLATED) as archive:
         for name, value in parts.items():
             archive.writestr(name, value)
-    document = OfficeDocument(path)
+    document = OfficeDocument(path, extraction_profile=1)
     assert len(document.segments) == 1
     assert "A1" in document.segments[0].location and "B1" in document.segments[0].location
     output = tmp_path / "shared.uk.xlsx"
@@ -106,6 +106,107 @@ def test_shared_strings_are_translated_once(tmp_path):
     with ZipFile(output) as archive:
         assert archive.read("xl/worksheets/sheet1.xml") == parts["xl/worksheets/sheet1.xml"]
         assert archive.read("xl/media/image1.bin") == parts["xl/media/image1.bin"]
+
+
+def test_shared_string_uses_keep_independent_context_outputs_and_untouched_references(tmp_path):
+    from openpyxl import Workbook, load_workbook
+    from openpyxl.styles import Font
+
+    from forma.documents.ooxml import R, S
+
+    source = tmp_path / "shared-context.xlsx"
+    book = Workbook()
+    for index, (name, value, unit) in enumerate((("Flow", 12.5, "м³/год"), ("Finance", 2500, "грн"))):
+        sheet = book.active if index == 0 else book.create_sheet()
+        sheet.title = name
+        sheet.append(("Показник", "Значення", "Одиниця", "Подвоєне значення"))
+        sheet.append(("Витрата", value, unit, "=B2*2"))
+        sheet["A2"].font = Font(bold=True, color="003366")
+        sheet["B2"].number_format = "#,##0.00"
+    book["Flow"]["A3"] = book["Flow"]["A4"] = "Витрата"
+    book.save(source)
+    with ZipFile(source) as archive:
+        parts = {name: archive.read(name) for name in archive.namelist()}
+    for index, addresses, cached in ((1, ("A2", "A3", "A4"), "25"), (2, ("A2",), "5000")):
+        part = f"xl/worksheets/sheet{index}.xml"
+        tree = etree.fromstring(parts[part])
+        for address in addresses:
+            cell = tree.find(f'.//{{{S}}}c[@r="{address}"]')
+            cell.remove(cell.find(f"{{{S}}}is"))
+            cell.set("t", "s")
+            etree.SubElement(cell, f"{{{S}}}v").text = "0"
+        tree.find(f'.//{{{S}}}c[@r="D2"]/{{{S}}}v').text = cached
+        if index == 1:
+            row = tree.find(f'.//{{{S}}}row[@r="2"]')
+            cell = etree.SubElement(row, f"{{{S}}}c", r="E2", t="s")
+            etree.SubElement(cell, f"{{{S}}}f").text = "A4"
+            etree.SubElement(cell, f"{{{S}}}v").text = "0"
+        parts[part] = etree.tostring(tree)
+    rel_ns = "http://schemas.openxmlformats.org/package/2006/relationships"
+    rels = etree.fromstring(parts["xl/_rels/workbook.xml.rels"])
+    etree.SubElement(rels, f"{{{rel_ns}}}Relationship", Id="sharedText", Type=R + "/sharedStrings", Target="sharedStrings.xml")
+    parts["xl/_rels/workbook.xml.rels"] = etree.tostring(rels)
+    type_ns = "http://schemas.openxmlformats.org/package/2006/content-types"
+    types = etree.fromstring(parts["[Content_Types].xml"])
+    etree.SubElement(types, f"{{{type_ns}}}Override", PartName="/xl/sharedStrings.xml", ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sharedStrings+xml")
+    parts["[Content_Types].xml"] = etree.tostring(types)
+    parts["xl/sharedStrings.xml"] = (
+        f'<sst xmlns="{S}" count="5" uniqueCount="1"><si><r><rPr><b/></rPr><t>Ви</t></r>'
+        '<r><t>трата</t></r></si><extLst/></sst>'
+    ).encode()
+    with ZipFile(source, "w", ZIP_DEFLATED) as archive:
+        for name, value in parts.items():
+            archive.writestr(name, value)
+
+    office = OfficeDocument(source)
+    legacy = OfficeDocument(source, extraction_profile=1)
+    assert office.extraction_profile == 2 and legacy.extraction_profile == 1
+    assert not {item.id for item in office.segments} & {item.id for item in legacy.segments}
+    assert all(item.id.startswith("xlsx-v2:") for item in office.segments)
+    uses = {item.location: item for item in office.segments if item.plain == "Витрата"}
+    assert set(uses) == {"Flow!A2", "Flow!A3", "Flow!A4", "Finance!A2"}
+    assert "C2=м³/год" in uses["Flow!A2"].context and "C2=грн" in uses["Finance!A2"].context
+    assert all(office.targets[item.id].original_shared_index == 0 for item in uses.values())
+    translations = {item.id: item.source for item in office.segments}
+    for location in ("Flow!A2", "Flow!A3"):
+        translations[uses[location].id] = "<r0>Flow</r0><r1> rate</r1>"
+    translations[uses["Finance!A2"].id] = "<r0>Expen</r0><r1>diture</r1>"
+    broken = {**translations, uses["Finance!A2"].id: "<r0>Broken</r0>"}
+    with pytest.raises(FormaError):
+        office.write(broken, tmp_path / "broken.xlsx")
+    assert not (tmp_path / "broken.xlsx").exists()
+    output = tmp_path / "translated.xlsx"
+    office.write(translations, output)
+    reopened = load_workbook(output)
+    cached = load_workbook(output, data_only=True)
+    assert reopened["Flow"]["A2"].value == reopened["Flow"]["A3"].value == "Flow rate"
+    assert reopened["Finance"]["A2"].value == "Expenditure"
+    assert reopened["Flow"]["A4"].value == cached["Flow"]["E2"].value == "Витрата"
+    assert reopened["Flow"]["E2"].value == "=A4"
+    metrics = compare_files(source, [output])["candidates"][0]
+    assert metrics["structure_ok"] and metrics["formulas_preserved"] and metrics["numbers_preserved"]
+    with ZipFile(output) as archive:
+        for name, value in parts.items():
+            if name not in {"xl/sharedStrings.xml", "xl/worksheets/sheet1.xml", "xl/worksheets/sheet2.xml"}:
+                assert archive.read(name) == value
+        shared = etree.fromstring(archive.read("xl/sharedStrings.xml"))
+        original = etree.fromstring(parts["xl/sharedStrings.xml"])
+        assert etree.tostring(shared[0]) == etree.tostring(original[0])
+        assert len(shared.findall(f"{{{S}}}si")) == 3  # Equal translated uses share one clone.
+        assert shared.get("count") == "5" and shared.get("uniqueCount") == "3"
+        assert shared[-1].tag == f"{{{S}}}extLst"
+        for index, replacements in ((1, {"A2": "1", "A3": "1"}), (2, {"A2": "2"})):
+            part = f"xl/worksheets/sheet{index}.xml"
+            expected = etree.fromstring(parts[part])
+            for address, shared_index in replacements.items():
+                expected.find(f'.//{{{S}}}c[@r="{address}"]/{{{S}}}v').text = shared_index
+            assert etree.tostring(expected) == etree.tostring(etree.fromstring(archive.read(part)))
+    # Export stages never modify shared prototypes, original cell indexes or later exports.
+    assert all(office.targets[item.id].cell.find(f"{{{S}}}v").text == "0" for item in uses.values())
+    identity = tmp_path / "identity-after-translation.xlsx"
+    office.write({item.id: item.source for item in office.segments}, identity)
+    with ZipFile(identity) as archive:
+        assert all(archive.read(name) == value for name, value in parts.items())
 
 
 def test_nested_textbox_is_not_translated_twice(docx_file, tmp_path):
@@ -266,13 +367,17 @@ def test_shared_strings_use_named_worksheet_context_not_storage_order(tmp_path):
         for name, value in parts.items():
             archive.writestr(name, value)
     office = OfficeDocument(path)
-    shared = next(s for s in office.segments if s.plain == "Load")
+    legacy = OfficeDocument(path, extraction_profile=1)
+    shared = next(s for s in legacy.segments if s.plain == "Load")
     assert shared.location == "Electrical!A2, Shipping!A2"
     assert "Worksheet: Electrical; cell A2" in shared.context
     assert "B2=42.5" in shared.context and "A1=Equipment" in shared.context
     assert "Worksheet: Shipping; cell A2" in shared.context
     assert "Warehouse action" in shared.context and "Pallets" in shared.context
     assert "Unrelated cached text" not in shared.context
+    separate = [s for s in office.segments if s.plain == "Load"]
+    assert [s.location for s in separate] == ["Electrical!A2", "Shipping!A2"]
+    assert "Warehouse action" not in separate[0].context and "Power in kW" not in separate[1].context
     power = next(s for s in office.segments if s.plain == "Power in kW")
     assert power.location == "Electrical!B1"
     assert "B2=42.5" in power.context
@@ -280,7 +385,7 @@ def test_shared_strings_use_named_worksheet_context_not_storage_order(tmp_path):
     office.write({s.id: s.source.replace("Load", "Навантаження") for s in office.segments}, output)
     with ZipFile(output) as archive:
         for part in parts:
-            if part != "xl/sharedStrings.xml":
+            if part not in {"xl/sharedStrings.xml", "xl/worksheets/custom.xml", "xl/worksheets/sheet2.xml"}:
                 assert archive.read(part) == parts[part].encode()
 
 
@@ -335,7 +440,8 @@ def test_xlsx_comments_follow_relationships_and_preserve_other_parts(tmp_path, r
                 archive.writestr(name, value)
     office = OfficeDocument(source)
     comment = next(s for s in office.segments if s.plain == "Об'єм рідини за одиницю часу")
-    assert comment.id.startswith(comment_part)
+    assert office.targets[comment.id].part == comment_part
+    assert comment.id.startswith("xlsx-v2:")
     assert comment.location == "Примітка Показники!A1"
     assert "Worksheet: Показники; comment on cell A1" in comment.context
     output = tmp_path / "comments.en.xlsx"

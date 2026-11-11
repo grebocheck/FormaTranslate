@@ -109,7 +109,7 @@ def _fingerprint(path: Path) -> str:
     return digest.hexdigest()
 
 
-def _shape(document: OfficeDocument, part: str) -> list[tuple]:
+def _shape(document: OfficeDocument, part: str, *, shared_cells=frozenset()) -> list[tuple]:
     """Text/control topology, ignoring run styles and current translated text."""
     content_tags = {
         **dict.fromkeys(
@@ -158,7 +158,8 @@ def _shape(document: OfficeDocument, part: str) -> list[tuple]:
         if node.tag == f"{{{S}}}c":
             attributes = tuple((key, node.get(key, "")) for key in ("r", "t"))
             if node.get("t") == "s":
-                reference = node.findtext(f"{{{S}}}v", "")
+                if (part, node.get("r")) not in shared_cells or node.find(f"{{{S}}}f") is not None:
+                    reference = node.findtext(f"{{{S}}}v", "")
         elif node.tag == f"{{{S}}}row":
             attributes = (("r", node.get("r", "")),)
         elif node.tag == f"{{{S}}}comment":
@@ -181,6 +182,32 @@ def _shape(document: OfficeDocument, part: str) -> list[tuple]:
 
 
 def _locate_target(original: OfficeDocument, current: OfficeDocument, target: Target) -> Target:
+    if original.extraction_profile == 2 and target.cell is not None:
+        worksheet = original._tree(target.worksheet_part)
+        current_worksheet = current._tree(target.worksheet_part)
+        namespaces = {key: value for key, value in worksheet.getroot().nsmap.items() if key}
+        cells = current_worksheet.xpath(worksheet.getpath(target.cell), namespaces=namespaces)
+        if (len(cells) != 1 or cells[0].tag != target.cell.tag
+                or cells[0].get("r") != target.cell.get("r") or cells[0].get("t") != target.cell.get("t")):
+            raise FormaError("Структура перекладеного документа змінилася; зіставлення редактури небезпечне.")
+        cell = cells[0]
+        if target.original_shared_index is not None:
+            items = list(current._tree(target.part).iter(f"{{{S}}}si"))
+            values = ["".join(node.text or "" for node in current._spreadsheet_text_nodes(item)) for item in items]
+            index = current._shared_index(cell, values)
+            original_item = next(target.nodes[0].iterancestors(f"{{{S}}}si"))
+            item = items[index]
+
+            def topology(node):
+                tree = node.getroottree()
+                prefix = tree.getpath(node)
+                return [(tree.getpath(child).removeprefix(prefix), child.tag)
+                        for child in node.iter() if child.tag in {f"{{{S}}}r", f"{{{S}}}t"}]
+
+            if topology(original_item) != topology(item):
+                raise FormaError("Структура перекладеного документа змінилася; зіставлення редактури небезпечне.")
+            return Target(target.part, current._spreadsheet_text_nodes(item),
+                          cell=cell, worksheet_part=target.worksheet_part, original_shared_index=index)
     tree, current_tree = original._tree(target.part), current._tree(target.part)
     namespaces = {key: value for key, value in tree.getroot().nsmap.items() if key}
 
@@ -197,7 +224,9 @@ def _locate_target(original: OfficeDocument, current: OfficeDocument, target: Ta
         return matches[0]
 
     return Target(
-        target.part, [locate(n) for n in target.nodes], [locate(n) for n in target.markers]
+        target.part, [locate(n) for n in target.nodes], [locate(n) for n in target.markers],
+        cell=cell if original.extraction_profile == 2 and target.cell is not None else None,
+        worksheet_part=target.worksheet_part, original_shared_index=target.original_shared_index,
     )
 
 
@@ -311,7 +340,8 @@ def _export(source, output, report, edits, folder, expected_report_fingerprint, 
     source_hash, output_hash = _fingerprint(source), _fingerprint(output)
     if metadata.get("source_sha256", source_hash) != source_hash:
         raise FormaError("Оригінал змінився після створення звіту.")
-    original, current = OfficeDocument(source), OfficeDocument(output)
+    original = OfficeDocument(source, extraction_profile=previous.extraction_profile)
+    current = OfficeDocument(output, extraction_profile=previous.extraction_profile)
     by_source = defaultdict(list)
     for segment in original.segments:
         by_source[(segment.location, segment.source)].append(segment)
@@ -352,8 +382,24 @@ def _export(source, output, report, edits, folder, expected_report_fingerprint, 
                 part, "comments"
             ):
                 raise FormaError("Змінилися посилання на примітки книги; редактуру не застосовано.")
+    shared_cells = frozenset(
+        (target.worksheet_part, target.cell.get("r")) for target in original.targets.values()
+        if original.extraction_profile == 2 and target.cell is not None and target.original_shared_index is not None
+    )
+    shared_part = "xl/sharedStrings.xml"
     for part in parts:
-        if part not in current.parts or _shape(original, part) != _shape(current, part):
+        if part == shared_part and original.extraction_profile == 2:
+            # Per-use output appends rich-text clones. Original SI entries,
+            # including values used by formula caches, must stay untouched.
+            before = list(original._tree(part).iter(f"{{{S}}}si"))
+            after = list(current._tree(part).iter(f"{{{S}}}si")) if part in current.parts else []
+            same = len(after) >= len(before) and all(
+                etree.tostring(left, method="c14n") == etree.tostring(right, method="c14n")
+                for left, right in zip(before, after, strict=False)
+            )
+        else:
+            same = part in current.parts and _shape(original, part, shared_cells=shared_cells) == _shape(current, part, shared_cells=shared_cells)
+        if not same:
             raise FormaError(
                 "Структура перекладеного документа змінилася; збережіть редактуру в редакторі Office."
             )
@@ -408,6 +454,7 @@ def _export(source, output, report, edits, folder, expected_report_fingerprint, 
                 {**previous.preparation, "prepared_source": str(source.resolve())}
                 if previous.preparation else {}
             ),
+              extraction_profile=previous.extraction_profile,
         )
         # Unknown legacy glossary provenance stays unknown. Manual edits never
         # become preferred memory entries without the separate explicit action.
@@ -416,6 +463,11 @@ def _export(source, output, report, edits, folder, expected_report_fingerprint, 
             isinstance(key, str) and isinstance(value, str) for key, value in glossary.items()
         ):
             result.effective_glossary = dict(glossary)
+        automatic = metadata.get("automatic_glossary")
+        if metadata.get("automatic_glossary_policy") == 2 and isinstance(automatic, dict) and all(
+            isinstance(key, str) and isinstance(value, str) for key, value in automatic.items()
+        ):
+            result.automatic_glossary = dict(automatic)
         revision = metadata.get("memory_revision")
         if type(revision) is int and revision >= 0:
             result.memory_revision = revision

@@ -50,6 +50,6 @@ The first commands generate synthetic fixtures or exercise fake APIs. `check_qua
 
 For the optional installed PDF engine, `uv run python scripts/smoke_pdf.py` uses a local fake API and a synthetic PDF. It checks integration, not translation quality.
 
-## Spreadsheet storage limitation
+## Spreadsheet storage checks
 
-A shared-string XLSX entry can currently represent cells with different meanings, including the same label under flow-rate and financial contexts. The extractor binds all uses, but one shared-string translation still gives those cells one identical output. Independent per-use targets and rich-text-preserving shared-string clones require an extraction/report/import contract change; context hashing alone does not solve that representational limitation. Test that change with a real shared-string workbook and independently reopened cells, not only an inline-string fixture.
+Current XLSX extraction creates independent targets for physical cells even when their source text uses the same shared-string entry. Changed outputs use rich-text-preserving clones; original shared strings, formula caches, numeric values and unedited cells stay intact. The report records extraction profile 2; missing profile metadata means the older aggregate profile 1. Compare logical cells and rich-text properties rather than raw storage indexes or shared-string counts. Use a real shared-string workbook and independently reopen both cells: the same source label under flow-rate and financial contexts must be able to produce different output. Include a manual edit of only one use, an unchanged repeat export and a legacy-profile report.

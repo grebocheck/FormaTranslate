@@ -141,6 +141,8 @@ class TranslationResult:
     source_sha256: str = ""
     output_sha256: str = ""
     preparation: dict = field(default_factory=dict)
+    extraction_profile: int = 1
+    automatic_glossary: dict[str, str] | None = None
 
     def serializable(self) -> dict:
         result = {
@@ -165,6 +167,11 @@ class TranslationResult:
             result["output_sha256"] = self.output_sha256
         if self.preparation:
             result["preparation"] = dict(self.preparation)
+        if self.extraction_profile != 1:
+            result["extraction_profile"] = self.extraction_profile
+        if self.automatic_glossary is not None:
+            result["automatic_glossary"] = dict(self.automatic_glossary)
+            result["automatic_glossary_policy"] = 2
         if self.memory_project_id:
             result.update(
                 memory_project_id=self.memory_project_id,

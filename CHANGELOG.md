@@ -2,8 +2,10 @@
 
 Versions follow semantic versioning. Changes before 1.0 may evolve as document compatibility improves.
 
-## Unreleased
+## 0.11.0 — 2026-11-12
 
+- Translate shared-string XLSX cells independently using their real worksheet contexts; clone only changed rich-text outputs while preserving original strings, numeric cells, formulas and caches. Version reports/checkpoints and retain legacy review/export and one-pass memory migration.
+- Treat automatically generated document terminology as contextual suggestions while preserving explicit user terms as binding. Record their separate provenance and isolate checkpoints from the previous mandatory automatic-glossary policy.
 - Bind project-memory requests and exact/fuzzy identities to the same explicit Word Title/Subtitle/section or worksheet context, with full identity hashes and useful head/tail excerpts. Retain old entries as one-pass editorial migration references instead of silently adopting them under the new scope.
 - Automatically divide supported long paragraphs into reversible private pieces, persist draft/editorial progress across interruptions and reconstruct/validate the original formatting stream before accepting the parent. Measure the complete serialized stage input when sizing batches.
 - Detect known quantity/unit scale and type changes, including standalone unit cells; accept localized aliases and cubic-unit notation without relaxing identifier/number checks.
@@ -11,7 +13,7 @@ Versions follow semantic versioning. Changes before 1.0 may evolve as document c
 - Adapt changed DOCX table passages through one bilingual editing pass using a separate structural reference context, while retaining exact-memory identities and checks on peer cells, headers and hidden surrounding paragraphs.
 - Split pending Office batches after explicitly recognized provider context/output limits; preserve accepted fragments, drafts and cancellation boundaries, and stop at a single segment rather than retrying an unchanged oversized request.
 - Reject obvious prose loss hidden behind retained numbers or identifiers, and avoid repeatedly persisting already accepted fragments during repairs.
-- Remove 16 duplicate or obsolete test cases, yield during desktop test waits so Python workers can run without starvation, and verify selected logic assertions against intentional runtime faults. Document a focused translation-quality evaluation plan and the remaining document-wide context/cache-scope limitation.
+- Remove 16 duplicate or obsolete test cases, yield during desktop test waits so Python workers can run without starvation, and verify selected logic assertions against intentional runtime faults. Document a focused translation-quality evaluation plan and the limits of structural checks and context selection.
 
 ## 0.10.0 — 2026-11-11
 

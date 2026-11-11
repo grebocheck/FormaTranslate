@@ -296,6 +296,8 @@
   "Фрагмент завеликий для одного запиту. Перегляньте звіт про проблемні фрагменти.": "Fragment jest zbyt duży dla jednego zapytania. Sprawdź raport o problematycznych fragmentach.",
   "Символів тексту: {plain}; символів розмітки: {markup}; позначок форматування: {spans}.": "Znaki tekstu: {plain}; znaki znaczników: {markup}; znaczniki formatowania: {spans}.",
   "Фрагмент ще не надсилали до API.": "Fragment nie został jeszcze wysłany do API.",
-  "Не вдалося безпечно поділити фрагмент. Перегляньте звіт про проблемні фрагменти.": "Nie udało się bezpiecznie podzielić fragmentu. Sprawdź raport o problematycznych fragmentach."
+  "Не вдалося безпечно поділити фрагмент. Перегляньте звіт про проблемні фрагменти.": "Nie udało się bezpiecznie podzielić fragmentu. Sprawdź raport o problematycznych fragmentach.",
+  "Некоректна таблиця спільних рядків XLSX.": "Nieprawidłowa tabela współdzielonych ciągów XLSX.",
+  "Некоректне посилання на спільний рядок XLSX.": "Nieprawidłowe odwołanie do współdzielonego ciągu XLSX."
 }
 

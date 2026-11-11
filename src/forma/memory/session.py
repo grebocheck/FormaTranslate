@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import threading
 from concurrent.futures import Future
 
@@ -46,6 +47,7 @@ class MemoryRun:
         )))
         self._lock = threading.Lock()
         self._work: dict[str, Future] = {}
+        self._profile_one_possible = None
         self._candidate_lock = threading.RLock()
         self._candidate_index = None
 
@@ -75,21 +77,32 @@ class MemoryRun:
             },
         )
 
-    def legacy_revalidation_many(self, records):
+    def legacy_revalidation_many(self, records, *, context_version=1):
         """Exact old local/source proof permits one paid review, never output."""
         expected = {
             exact_fingerprint(self.policy, source, context, role): (source, context, role)
             for source, context, role in records.values()
         }
+        generations = self.revalidation_generations
+        if context_version == 2:
+            # Only a real profile-one projection may use the former scoped
+            # generation as a reference. Current per-use records stay excluded.
+            for _source, context, _role in records.values():
+                value = json.loads(context)
+                if value.get("memory_context_version") != 2 or value.get("extraction_profile", 1) != 1:
+                    raise FormaError("Запис пам’яті не відповідає поточному фрагменту. Перевірте цілісність бази пам’яті.")
+            generations = (self.generation, *self.legacy_generations)
+        elif context_version != 1:
+            raise ValueError("Unsupported legacy context profile")
         found = {}
-        for generation in self.revalidation_generations:
+        for generation in generations:
             pending = [key for key in expected if key not in found or found[key].status != "human_approved"]
             for key, hit in self.memory.lookup_many(self.snapshot, pending, generation, include_draft=True).items():
                 source, context, role = expected[key]
                 if (hit.project_id != self.snapshot.project_id or hit.policy != self.policy
                         or hit.source_markup != source or hit.context != context or hit.role != role
                         or hit.status not in {"human_approved", "machine_final", "draft"}
-                        or hit.status != "human_approved" and hit.generation_profile not in self.revalidation_generations):
+                        or hit.status != "human_approved" and hit.generation_profile not in generations):
                     raise FormaError("Запис пам’яті не відповідає поточному фрагменту. Перевірте цілісність бази пам’яті.")
                 previous = found.get(key)
                 priority = {"draft": 0, "machine_final": 1, "human_approved": 2}
@@ -99,6 +112,15 @@ class MemoryRun:
             current: found[key] for current, (source, context, role) in records.items()
             if (key := exact_fingerprint(self.policy, source, context, role)) in found
         }
+
+    def needs_profile_one_projection(self):
+        with self._lock:
+            if self._profile_one_possible is None:
+                self._profile_one_possible = self.memory.may_have_profile_one_references(
+                    self.snapshot, self.policy,
+                    (*self.revalidation_generations, self.generation, *self.legacy_generations),
+                )
+            return self._profile_one_possible
 
     def similar(self, source_markup, role, context, *, adaptation_context=None):
         """Share one bounded-search index across the queue's document workers."""

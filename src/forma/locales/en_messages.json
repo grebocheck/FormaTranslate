@@ -296,6 +296,8 @@
   "Фрагмент завеликий для одного запиту. Перегляньте звіт про проблемні фрагменти.": "The segment is too large for one request. See the report of problematic segments.",
   "Символів тексту: {plain}; символів розмітки: {markup}; позначок форматування: {spans}.": "Text characters: {plain}; markup characters: {markup}; formatting markers: {spans}.",
   "Фрагмент ще не надсилали до API.": "The segment has not been sent to the API yet.",
-  "Не вдалося безпечно поділити фрагмент. Перегляньте звіт про проблемні фрагменти.": "The segment could not be split safely. See the report of problematic segments."
+  "Не вдалося безпечно поділити фрагмент. Перегляньте звіт про проблемні фрагменти.": "The segment could not be split safely. See the report of problematic segments.",
+  "Некоректна таблиця спільних рядків XLSX.": "Invalid XLSX shared-string table.",
+  "Некоректне посилання на спільний рядок XLSX.": "Invalid XLSX shared-string reference."
 }
 

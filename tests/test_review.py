@@ -106,6 +106,8 @@ def test_reading_moved_report_is_local_and_does_not_require_source_or_output(
         {"options": {"source_language": "uk", "target_language": "private-invalid-code!"}},
         {"options": {"source_language": False, "target_language": "en"}},
         {"engine": "unknown-private-provider"},
+        {"extraction_profile": True},
+        {"extraction_profile": 3},
     ],
 )
 def test_malformed_schema_raises_only_safe_forma_error(tmp_path, data):

@@ -5,6 +5,7 @@ from __future__ import annotations
 import io
 import posixpath
 import re
+from copy import deepcopy
 from dataclasses import dataclass, field
 from pathlib import Path
 from xml.sax.saxutils import escape
@@ -43,10 +44,13 @@ class Target:
     part: str
     nodes: list[etree._Element]
     markers: list[etree._Element] = field(default_factory=list)
+    cell: etree._Element | None = None
+    worksheet_part: str | None = None
+    original_shared_index: int | None = None
 
 
 class OfficeDocument:
-    def __init__(self, path: Path):
+    def __init__(self, path: Path, *, extraction_profile: int = 2):
         self.path = Path(path)
         self.parts: dict[str, bytes] = {}
         self.trees: dict[str, etree._ElementTree] = {}
@@ -56,6 +60,9 @@ class OfficeDocument:
         self.issues: list[Issue] = []
         if self.path.suffix.lower() not in (".docx", ".xlsx"):
             raise FormaError("Цей рушій підтримує DOCX і XLSX.")
+        if type(extraction_profile) is not int or extraction_profile not in {1, 2}:
+            raise ValueError("Unsupported document extraction profile")
+        self.extraction_profile = extraction_profile if self.path.suffix.lower() == ".xlsx" else 1
         try:
             with ZipFile(self.path) as archive:
                 infos = archive.infolist()
@@ -96,6 +103,9 @@ class OfficeDocument:
         markers: list | None = None,
         *,
         context: str = "",
+        cell: etree._Element | None = None,
+        worksheet_part: str | None = None,
+        original_shared_index: int | None = None,
     ) -> None:
         if not nodes or not any(c.isalpha() for n in nodes for c in (n.text or "")):
             return
@@ -120,8 +130,10 @@ class OfficeDocument:
         if any(start == 0 and end == len(plain) for start, end, _ in immutable_spans(plain)):
             return
         sid = f"{part}#{len(self.segments)}"
+        if self.extraction_profile == 2:
+            sid = "xlsx-v2:" + sid
         self.segments.append(Segment(sid, location, source, context))
-        self.targets[sid] = Target(part, nodes, marker_nodes)
+        self.targets[sid] = Target(part, nodes, marker_nodes, cell, worksheet_part, original_shared_index)
 
     def _extract(self) -> None:
         if self.path.suffix.lower() == ".docx":
@@ -307,9 +319,22 @@ class OfficeDocument:
                                 address,
                                 self._spreadsheet_text_nodes(inline),
                                 context=contexts[cell],
+                                cell=cell if self.extraction_profile == 2 else None,
+                                worksheet_part=part if self.extraction_profile == 2 else None,
                             )
                     elif cell.get("t") == "s":
                         index = self._shared_index(cell, shared_values)
+                        if self.extraction_profile == 2:
+                            self._add(
+                                shared_part,
+                                address,
+                                self._spreadsheet_text_nodes(shared_items[index]),
+                                context=contexts[cell],
+                                cell=cell,
+                                worksheet_part=part,
+                                original_shared_index=index,
+                            )
+                            continue
                         shared_locations.setdefault(index, []).append(address)
                         examples = shared_contexts.setdefault(index, {}).setdefault(part, [])
                         if len(examples) < 3:
@@ -325,6 +350,7 @@ class OfficeDocument:
                     ", ".join(locations[:4]),
                     self._spreadsheet_text_nodes(item),
                     context="\n\n".join(examples)[:3000],
+                    original_shared_index=index,
                 )
         for part in self.parts:
             if re.fullmatch(r"xl/(drawings|charts)/[^/]+\.xml", part):
@@ -471,16 +497,58 @@ class OfficeDocument:
             raise FormaError("Експорт зупинено: переклад містить не всі фрагменти.")
         # Validate the whole result before changing any XML nodes.
         parsed = {s.id: parse_translation(s.source, translations[s.id]) for s in self.segments}
-        modified = set()
+        # Stage copies so shared prototypes and a second export from this same
+        # document remain independent of earlier translations/cloned SI entries.
+        staged, staged_nodes = {}, {}
+
+        def editable(part, node):
+            if part not in staged:
+                tree = self._tree(part)
+                staged[part] = deepcopy(tree)
+                staged_nodes[part] = list(staged[part].iter())
+                if part not in self._orders:
+                    self._orders[part] = {item: index for index, item in enumerate(tree.iter())}
+            return staged_nodes[part][self._orders[part][node]]
+
+        def replace_text(node, text):
+            node.text = text
+            if text != text.strip():
+                node.set(XML_SPACE, "preserve")
+
+        clones = {}
+        shared_items = None
+        shared_anchor = None
         for segment in self.segments:
             target = self.targets[segment.id]
+            values = tuple(parsed[segment.id][f"r{index}"] for index in range(len(target.nodes)))
+            if values == tuple(node.text or "" for node in target.nodes):
+                continue
+            if target.original_shared_index is not None and target.cell is not None:
+                if shared_items is None:
+                    shared_items = list(self._tree(target.part).iter(f"{{{S}}}si"))
+                key = target.original_shared_index, values
+                if key not in clones:
+                    root = editable(target.part, self._tree(target.part).getroot())
+                    clone = deepcopy(shared_items[target.original_shared_index])
+                    for node, text in zip(self._spreadsheet_text_nodes(clone), values, strict=True):
+                        replace_text(node, text)
+                    if not clones:
+                        last = next(node for node in reversed(root) if node.tag == f"{{{S}}}si")
+                        shared_anchor = last.getnext()
+                    clones[key] = len(shared_items) + len(clones)
+                    if shared_anchor is None:
+                        root.append(clone)
+                    else:
+                        shared_anchor.addprevious(clone)
+                    if "uniqueCount" in root.attrib:
+                        root.set("uniqueCount", str(len(shared_items) + len(clones)))
+                cell = editable(target.worksheet_part, target.cell)
+                cell.find(f"{{{S}}}v").text = str(clones[key])
+                continue
             for index, node in enumerate(target.nodes):
-                text = parsed[segment.id][f"r{index}"]
+                text = values[index]
                 if text != (node.text or ""):
-                    node.text = text
-                    if text != text.strip():
-                        node.set(XML_SPACE, "preserve")
-                    modified.add(target.part)
+                    replace_text(editable(target.part, node), text)
         if decimal_comma_to_point and self.path.suffix.lower() == ".docx":
             # Numeric-only table cells are not language-model segments. Localize their display
             # explicitly for a known decimal-comma source; never reinterpret XLSX numbers.
@@ -492,17 +560,16 @@ class OfficeDocument:
                         numeric_cell.fullmatch(text)
                         and next(node.iterancestors(f"{{{W}}}tc"), None) is not None
                     ):
-                        node.text = text.replace(",", ".")
-                        modified.add(part)
+                        editable(part, node).text = text.replace(",", ".")
         buffer = io.BytesIO()
         with ZipFile(buffer, "w") as archive:
             archive.comment = self.zip_comment
             for info in self.infos:
                 data = self.parts[info.filename]
-                if info.filename in modified:
+                if info.filename in staged:
                     original = data
                     data = etree.tostring(
-                        self.trees[info.filename],
+                        staged[info.filename],
                         encoding="UTF-8",
                         xml_declaration=original.lstrip().startswith(b"<?xml"),
                         standalone=self.trees[info.filename].docinfo.standalone,

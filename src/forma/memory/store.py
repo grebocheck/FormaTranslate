@@ -476,6 +476,44 @@ class TranslationMemory:
                 result.append(hit)
         return result
 
+    def may_have_profile_one_references(self, snapshot, policy, generations) -> bool:
+        """A bounded conservative probe, not a project-wide JSON scan.
+
+        Only small, completely inspected projects can rule out legacy work.
+        The 65th row, oversized/malformed context or unknown shape keeps the
+        ordinary source projection available. No history is deleted or altered.
+        """
+        _digest(policy)
+        generations = frozenset(_digest(value) for value in generations)
+        with self._connect() as db:
+            project = self._project_row(db, snapshot.project_id)
+            if not 0 <= snapshot.approved_revision <= project["approved_revision"]:
+                raise FormaError(_INVALID)
+            rows = list(db.execute(
+                "SELECT policy,generation_profile,status,approved_revision,substr(context,1,16385) AS context "
+                "FROM entries WHERE project_id=? LIMIT 65", (snapshot.project_id,),
+            ))
+        if len(rows) > 64:
+            return True
+        for row in rows:
+            if row["status"] == "human_approved" and (type(row["approved_revision"]) is not int or row["approved_revision"] < 0):
+                return True
+            preferred = row["status"] == "human_approved" and row["approved_revision"] <= snapshot.approved_revision
+            machine = row["status"] in {"machine_final", "draft"} and row["generation_profile"] in generations
+            if row["policy"] != policy or not (preferred or machine):
+                continue
+            if not isinstance(row["context"], str) or len(row["context"]) > 16384:
+                return True
+            try:
+                context = json.loads(row["context"])
+            except (ValueError, TypeError, RecursionError):
+                return True
+            if (not isinstance(context, dict) or type(context.get("extraction_profile")) is not int
+                    or context["extraction_profile"] != 2 or type(context.get("memory_context_version")) is not int
+                    or context["memory_context_version"] != 2):
+                return True
+        return False
+
     @staticmethod
     def _entry(key, source_markup, target, context, role, policy, provenance):
         _digest(key)

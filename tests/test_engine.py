@@ -24,6 +24,9 @@ def test_complete_pipeline_review_glossary_report_and_cache(docx_file, tmp_path)
     assert any("bilingual editor" in call[0] for call in provider.calls)
     translation_call = next(payload for _, payload in provider.calls if "segments" in payload)
     assert translation_call["glossary"]["heat meter"] == "лічильник теплової енергії"
+    assert translation_call["authoritative_glossary"] == options.glossary
+    assert translation_call["automatic_glossary"] == {"heat meter": "лічильник тепла"}
+    assert translation_call["automatic_glossary_policy"] == 2
     assert translation_call["document_context"]
     assert len(result.translations) == len(OfficeDocument(docx_file).segments)
     next_provider = FakeProvider()
@@ -33,9 +36,94 @@ def test_complete_pipeline_review_glossary_report_and_cache(docx_file, tmp_path)
     assert again.output != result.output
     assert again.cached_segments == len(result.segments)
     assert not next_provider.calls
+    assert again.effective_glossary == result.effective_glossary == options.glossary
+    assert again.automatic_glossary == result.automatic_glossary == {"heat meter": "лічильник тепла"}
     data = json.loads(result.report.read_text())
     assert data["model"] == "test-model"
     assert "api_key" not in data
+    assert data["effective_glossary"] == options.glossary
+    assert data["automatic_glossary"] == result.automatic_glossary
+    assert data["automatic_glossary_policy"] == 2
+
+
+def test_automatic_glossary_is_contextual_per_worksheet_and_cannot_adopt_old_policy(tmp_path):
+    import hashlib
+    from dataclasses import asdict
+
+    from openpyxl import Workbook, load_workbook
+
+    from forma.core.models import plain_text
+    from forma.persistence.files import atomic_json
+    from forma.settings.config import data_directory
+    from forma.translation.engine import PROTOCOL_VERSION, checkpoint_fingerprint, file_digest
+
+    source = tmp_path / "table.xlsx"
+    workbook = Workbook()
+    for index, unit in enumerate(("м³/год", "грн")):
+        sheet = workbook.active if index == 0 else workbook.create_sheet()
+        sheet.title = f"Sheet{index + 1}"  # Meaning comes from cells, not names.
+        sheet.append(("Показник", "Значення", "Одиниця"))
+        sheet.append(("Витрата", 12, unit))
+        sheet["D2"] = "=B2*2"
+    workbook.save(source)
+    original = source.read_bytes()
+    settings = local_settings().with_overrides(base_url="http://localhost/v1/chat/completions")
+    options = Options("uk", "en", auto_glossary=True, glossary={"Показник": "Metric"})
+    document = OfficeDocument(source)
+
+    # Reproduce the old URL-specific policy exactly. The old cached translation
+    # is structurally valid but has the wrong meaning in the financial cell.
+    old_options = asdict(options)
+    old_options.pop("pdf_mode")
+    old_options.pop("memory_project_id")
+    old_identity = {"protocol": PROTOCOL_VERSION, "file": file_digest(source), "base": settings.base_url,
+                    "model": settings.model, "mode": settings.api_mode, "format": settings.response_format,
+                    "review_model": settings.review_model, "reasoning_effort": settings.reasoning_effort,
+                    "options": old_options, "extraction_profile": document.extraction_profile}
+    old_fingerprint = hashlib.sha256(json.dumps(old_identity, sort_keys=True, ensure_ascii=False).encode()).hexdigest()
+    old_checkpoint = data_directory() / "checkpoints" / f"{old_fingerprint}.json"
+    stale = {"Витрата": "Flow", "Показник": "Metric", "Значення": "Value", "Одиниця": "Unit", "м³/год": "m³/h", "грн": "UAH"}
+    atomic_json(old_checkpoint, {"glossary": {"Витрата": "Flow"}, "translations": {
+        item.id: f"<r0>{stale[item.plain]}</r0>" for item in document.segments
+    }})
+    assert old_fingerprint != checkpoint_fingerprint(file_digest(source), options, settings, legacy=True,
+                                                     document_profile=document.extraction_profile)
+
+    class ContextualProvider(FakeProvider):
+        def complete(self, instruction, payload, schema, **kwargs):
+            self.calls.append((instruction, payload))
+            if "terms" in schema["properties"]:
+                return {"terms": [{"source": "Витрата", "target": "Flow"},
+                                  {"source": "Показник", "target": "Indicator"}]}
+            assert payload["authoritative_glossary"] == options.glossary
+            assert payload["automatic_glossary"] == {"Витрата": "Flow", "Показник": "Indicator"}
+            assert payload["glossary"] == {"Витрата": "Flow", "Показник": "Metric"}
+            assert payload["automatic_glossary_policy"] == 2
+            assert "context-sensitive suggestions, not mandatory translations" in instruction
+            values = []
+            for item in payload["segments"]:
+                visible = plain_text(item["text"])
+                target = stale[visible]
+                if visible == "Витрата":
+                    context = item["neighboring_context"]
+                    assert "C2=м³/год" in context or "C2=грн" in context
+                    target = "Flow" if "C2=м³/год" in context else "Expense"
+                values.append({"id": item["id"], "text": f"<r0>{target}</r0>"})
+            return {"segments": values}
+
+    provider = ContextualProvider()
+    result = TranslationEngine(settings, provider=provider).translate(source, tmp_path / "out", options)
+    output = load_workbook(result.output)
+    assert output["Sheet1"]["A2"].value == "Flow" and output["Sheet2"]["A2"].value == "Expense"
+    assert all(sheet["A1"].value == "Metric" and sheet["D2"].value == "=B2*2" for sheet in output)
+    assert result.cached_segments == 0 and old_checkpoint.exists()
+    assert source.read_bytes() == original
+    assert sum("segments" not in payload for _, payload in provider.calls) == 1
+    assert any("drafts" in payload for _, payload in provider.calls)
+    metadata = json.loads(result.report.read_text())
+    assert metadata["effective_glossary"] == options.glossary
+    assert metadata["automatic_glossary"] == {"Витрата": "Flow", "Показник": "Indicator"}
+    assert metadata["automatic_glossary_policy"] == 2
 
 
 @pytest.mark.parametrize("damage", ["glossary", "deep-json"])
