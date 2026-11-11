@@ -9,8 +9,9 @@ from dataclasses import replace
 
 from forma.core.models import FormaError, Segment, TranslationResult
 from forma.documents.ooxml import OfficeDocument
-from forma.memory.context import segment_context, segment_role
+from forma.memory.context import adaptation_context, segment_context, segment_role
 from forma.memory.session import MemoryRun
+from forma.memory.similarity import eligible_source
 from forma.memory.store import exact_fingerprint, generation_fingerprint, policy_fingerprint
 from forma.persistence.files import atomic_json, available_output
 from forma.providers.client import Provider
@@ -97,12 +98,14 @@ def translate_with_memory(engine, source, folder, options, progress):
                             "status": entry["status"], "kind": "checkpoint",
                         }
 
-    groups, keys, contexts, roles = {}, {}, {}, {}
+    groups, keys, contexts, roles, retrieval_contexts = {}, {}, {}, {}, {}
     for segment in document.segments:
         context, role = segment_context(document, segment), segment_role(document, segment)
         key = exact_fingerprint(run.policy, segment.source, context, role)
         groups.setdefault(key, []).append(segment)
         keys[segment.id], contexts[key], roles[key] = key, context, role
+        if key not in retrieval_contexts:
+            retrieval_contexts[key] = adaptation_context(document, segment) if options.review and eligible_source(segment.source) else None
 
     lock = threading.RLock()
     owned, borrowed = {}, {}
@@ -153,6 +156,8 @@ def translate_with_memory(engine, source, folder, options, progress):
                 persist()
                 previous = adaptations.get(sid)
                 provenance = {"source_sha256": source_hash, "segment_id": sid, "model": settings.model}
+                if retrieval_contexts[key] is not None:
+                    provenance["adaptation_context_sha256"] = retrieval_contexts[key]
                 if previous is not None:
                     provenance.update(kind="adaptation", source_entry_id=previous.entry_id)
                 hit = run.memory.save_machine(
@@ -206,7 +211,10 @@ def translate_with_memory(engine, source, folder, options, progress):
                 hit = run.memory.save_machine(
                     run.snapshot.project_id, key, representative.source, value,
                     contexts[key], roles[key], run.policy, run.generation,
-                    provenance={"kind": "checkpoint", "source_sha256": source_hash, "segment_id": representative.id},
+                    provenance={
+                        "kind": "checkpoint", "source_sha256": source_hash, "segment_id": representative.id,
+                        **({"adaptation_context_sha256": retrieval_contexts[key]} if retrieval_contexts[key] is not None else {}),
+                    },
                 )
                 for member in members:
                     if member.id not in translations:
@@ -228,7 +236,9 @@ def translate_with_memory(engine, source, folder, options, progress):
                     kinds[member.id] = "draft_memory"
                     draft_hits.add(member.id)
             if options.review and representative.id not in drafts:
-                previous = run.similar(representative.source, roles[key], contexts[key])
+                previous = run.similar(
+                    representative.source, roles[key], contexts[key], adaptation_context=retrieval_contexts[key],
+                )
                 if previous is not None and not blocking_issues(
                     Segment("reference", "", previous.source_markup), previous.target, options,
                 ):

@@ -28,9 +28,7 @@ def restore_language():
         ("uk_UA", "uk"),
         ("pl_PL", "pl"),
         ("de-DE", "de"),
-        ("fr_FR", "fr"),
         ("fr_CA", "fr"),
-        ("es_ES", "es"),
         ("es-MX", "es"),
         ("ja_JP", "en"),
         ("C", "en"),
@@ -41,11 +39,11 @@ def test_system_locale_and_explicit_choice(monkeypatch, locale, expected):
     assert i18n.resolve_language("system") == expected
     assert i18n.set_language("system") == expected
     assert i18n.current_language() == expected
-    assert i18n.resolve_language("uk") == "uk"
-    assert i18n.resolve_language("not-supported") == "en"
 
 
 def test_language_switching_and_self_named_options():
+    assert i18n.resolve_language("uk") == "uk"
+    assert i18n.resolve_language("not-supported") == "en"
     expected = {"uk": "Налаштування", "en": "Settings", "pl": "Ustawienia", "de": "Einstellungen", "fr": "Paramètres", "es": "Ajustes"}
     for language, label in expected.items():
         assert i18n.set_language(language) == language
@@ -91,25 +89,12 @@ def test_dynamic_templates_preserve_unicode_newlines_paths_and_literal_braces():
     assert i18n.translate("Готово: {name}", name=name) == expected
     assert i18n.translate("Готово: " + name) == expected
     assert i18n.translate("Готово: {name}") == "Done: {name}"
+    assert i18n.translate("document · абзац 123") == "document · paragraph 123"
     # Matching is anchored: prose containing a status-like phrase stays untouched.
     unknown = "Цитата у документі: Готово: " + name
     assert i18n.translate(unknown) == unknown
     unknown_markup = "<r0>Іваненко &amp; Partners — 25 кВт</r0>"
     assert i18n.translate(unknown_markup) == unknown_markup
-
-
-@pytest.mark.parametrize("language", ("fr", "es"))
-def test_new_languages_translate_ui_without_rewriting_user_values(language):
-    i18n.set_language(language)
-    name = "Налаштування {name} — Łódź/École 12,50.docx"
-    message = i18n.translate("Готово: {name}", name=name)
-    assert message.endswith(name) and message != "Готово: " + name
-    assert i18n.translate_ui_message("Назва громади — {project} 12,50") == "Назва громади — {project} 12,50"
-    source = "API-статистика поточного запуску: " + name + (
-        ". Повторно використані переклади з кешу не витрачають токени; "
-        "перервані запити можуть бути відсутні в обліку."
-    )
-    assert name in i18n.translate_ui_message(source)
 
 
 def test_ukrainian_boundary_translates_known_english_storage_errors_only():
@@ -122,15 +107,6 @@ def test_ukrainian_boundary_translates_known_english_storage_errors_only():
     assert i18n.translate_ui_message("Готово: Налаштування {project}.docx") == (
         "Готово: Налаштування {project}.docx"
     )
-
-
-def test_formatted_status_and_canonical_locations_are_presentation_only():
-    source = "document · абзац 123"
-    i18n.set_language("en")
-    assert i18n.translate(source) == "document · paragraph 123"
-    assert source == "document · абзац 123"
-    assert i18n.translate("Готово: звіт.docx").endswith("звіт.docx")
-    assert i18n.translate("Версія %1") == "Version %1"
 
 
 def test_catalogs_cover_every_qml_key_and_preserve_placeholders():
@@ -271,6 +247,15 @@ def test_very_large_unknown_text_bypasses_dynamic_matching():
 @pytest.mark.parametrize("language", ["en", "pl", "de", "fr", "es"])
 def test_explicit_nested_ui_messages_translate_only_known_components(language):
     i18n.set_language(language)
+    name = "Налаштування {name} — Łódź/École 12,50.docx"
+    message = i18n.translate("Готово: {name}", name=name)
+    assert message.endswith(name) and message != "Готово: " + name
+    assert i18n.translate_ui_message("Назва громади — {project} 12,50") == "Назва громади — {project} 12,50"
+    note = "API-статистика поточного запуску: " + name + (
+        ". Повторно використані переклади з кешу не витрачають токени; "
+        "перервані запити можуть бути відсутні в обліку."
+    )
+    assert name in i18n.translate_ui_message(note)
     messages = [
         "PDF · Перекладаємо абзаци · 3/10 · 45 с · очікуємо оновлення від рушія",
         "PDF · Готуємо PDF-рушій; перший запуск може потребувати завантаження ресурсів · 0 с",

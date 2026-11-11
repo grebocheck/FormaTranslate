@@ -43,8 +43,15 @@ class OfflineEditor:
             if source.startswith("Службова примітка"):
                 ending = "permission is prohibited" if "НЕ дозволена" in source else "permission is granted"
                 target = "Administrative note " * 80 + ending
-            else:
+                if "Зеленівської" in source or "Березівської" in source:
+                    target += " Berezivka community." if "Березівської" in source else " Zelenivka community."
+            elif source.startswith("Комісія"):
                 target = TARGET
+                if "Зеленівської" in source or "Березівської" in source:
+                    target = target.replace("project committee", "Berezivka community committee" if "Березівської" in source else "Zelenivka community committee")
+                    target += " Quantity: 20." if "Кількість: 20" in source else " Quantity: 15."
+            else:
+                target = "Reference condition"
             values.append({"id": item["id"], "text": f"<r0>{target}</r0>"})
         return {"segments": values}
 
@@ -88,3 +95,61 @@ def test_changed_source_with_unchanged_full_neighbors_can_be_adapted(tmp_path):
     assert len(calls) == 1
     assert segment.id in calls[0]["drafts"] and segment.id in calls[0]["memory_references"]
     assert result.adapted_segments == 1
+
+
+def table_file(path, *, changed_source=False, changed_peer=False, own_neighbor=False):
+    document = Document()
+    table = document.add_table(rows=1, cols=2)
+    text = SOURCE.replace("проєкту", "Зеленівської громади") + " Кількість: 15."
+    table.cell(0, 0).text = text.replace("Зеленівської", "Березівської").replace("15", "20") if changed_source else text
+    note = "Службова примітка " * 80 + ("вимога НЕ дозволена" if changed_peer else "вимога дозволена")
+    # The same community name occurs elsewhere too. Only target XML nodes may
+    # be excluded; removing matching words globally would conceal this change.
+    note += " Березівської громади" if changed_peer else " Зеленівської громади"
+    if own_neighbor:
+        table.cell(0, 0).add_paragraph(note)
+        table.cell(0, 1).text = "Контрольна умова"
+    else:
+        table.cell(0, 1).text = note
+    document.save(path)
+    return path
+
+
+def test_table_own_source_can_be_edited_but_other_full_context_remains_binding(tmp_path):
+    memory = TranslationMemory()
+    project = memory.create_project("Synthetic table adaptation", "uk", "en")
+    settings = Settings(base_url="http://127.0.0.1:1/v1", model="offline", api_key="fake-offline", max_parallel_requests=1, parallel_documents=1)
+    options = Options("uk", "en", review=True, auto_glossary=False, memory_project_id=project.id)
+    original = table_file(tmp_path / "table.docx")
+    baseline = TranslationEngine(settings, provider=OfflineEditor()).translate(original, tmp_path / "out", options)
+    assert any(entry.provenance.get("adaptation_context_sha256") for entry in memory.list_entries(project.id))
+    from forma.memory.importing import import_reference
+
+    import_reference(memory, project.id, baseline.source, baseline.output, baseline.report, preferred=True)
+    for changed_peer in (False, True):
+        source = table_file(tmp_path / f"table-{changed_peer}.docx", changed_source=True, changed_peer=changed_peer)
+        provider = OfflineEditor()
+        result = TranslationEngine(settings, provider=provider).translate(source, tmp_path / "out", options)
+        segment = result.segments[0]
+        calls = [payload for payload in provider.calls if any(item["id"] == segment.id for item in payload["segments"])]
+        if changed_peer:
+            assert len(calls) == 2 and all(segment.id not in p.get("memory_references", {}) for p in calls)
+            assert result.adapted_segments == 0
+        else:
+            assert len(calls) == 1 and segment.id in calls[0]["memory_references"]
+            assert calls[0]["drafts"][segment.id] == baseline.translations[baseline.segments[0].id]
+            assert result.adapted_segments == 1
+            # Exact fingerprints remain distinct: this was a real paid editor
+            # pass against the complete changed source, never direct reuse.
+            assert "Березівської" in calls[0]["segments"][0]["text"]
+            assert "Berezivka" in result.translations[segment.id] and "20" in result.translations[segment.id]
+    # Another paragraph in the *same* cell is still context, even beyond the
+    # prompt excerpt. Omitting the whole cell would incorrectly hide this.
+    own = table_file(tmp_path / "own.docx", own_neighbor=True)
+    TranslationEngine(settings, provider=OfflineEditor()).translate(own, tmp_path / "out", options)
+    changed = table_file(tmp_path / "own-changed.docx", changed_source=True, changed_peer=True, own_neighbor=True)
+    provider = OfflineEditor()
+    result = TranslationEngine(settings, provider=provider).translate(changed, tmp_path / "out", options)
+    sid = result.segments[0].id
+    calls = [p for p in provider.calls if any(item["id"] == sid for item in p["segments"])]
+    assert len(calls) == 2 and all(sid not in p.get("memory_references", {}) for p in calls)

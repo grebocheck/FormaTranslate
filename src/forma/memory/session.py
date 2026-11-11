@@ -64,7 +64,7 @@ class MemoryRun:
             },
         )
 
-    def similar(self, source_markup, role, context):
+    def similar(self, source_markup, role, context, *, adaptation_context=None):
         """Share one bounded-search index across the queue's document workers."""
         from forma.memory.similarity import MemoryCandidateIndex, eligible_source
 
@@ -79,7 +79,7 @@ class MemoryRun:
                     for hit in self.memory.candidate_pool(self.snapshot, self.policy, generation):
                         candidates.setdefault(hit.entry_key, hit)
                 self._candidate_index = MemoryCandidateIndex(candidates.values())
-            return self._candidate_index.find(source_markup, role, context=context)
+            return self._candidate_index.find(source_markup, role, context=context, adaptation_context=adaptation_context)
 
     def claim(self, key: str) -> tuple[bool, Future]:
         with self._lock:

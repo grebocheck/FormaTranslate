@@ -113,6 +113,7 @@ class MemoryCandidateIndex:
         self._entries: list[tuple[MemoryHit, _Source]] = []
         self._postings: dict[tuple, dict[str, set[int]]] = defaultdict(lambda: defaultdict(set))
         self._contexts: dict[str, set[int]] = defaultdict(set)
+        self._adaptation_contexts: dict[str, set[int]] = defaultdict(set)
         self._sources: dict[str, set[int]] = defaultdict(set)
         self._seen_entry_ids: set[int] = set()
         for hit in hits:
@@ -138,11 +139,14 @@ class MemoryCandidateIndex:
         context = _context_digest(hit.context)
         if context is not None:
             self._contexts[context].add(index)
+        retrieval = hit.provenance.get("adaptation_context_sha256") if isinstance(hit.provenance, dict) else None
+        if isinstance(retrieval, str) and _DIGEST.fullmatch(retrieval):
+            self._adaptation_contexts[retrieval].add(index)
         postings = self._postings[(hit.role, source.markers)]
         for word in source.words:
             postings[word].add(index)
 
-    def find(self, source_markup, role, *, context=None) -> MemoryHit | None:
+    def find(self, source_markup, role, *, context=None, adaptation_context=None) -> MemoryHit | None:
         source = _source(source_markup)
         if source is None:
             return None
@@ -154,7 +158,9 @@ class MemoryCandidateIndex:
             digest = _context_digest(context)
             if digest is None:
                 return None
-            allowed = self._contexts.get(digest)
+            allowed = set(self._contexts.get(digest, ()))
+            if isinstance(adaptation_context, str) and _DIGEST.fullmatch(adaptation_context):
+                allowed.update(self._adaptation_contexts.get(adaptation_context, ()))
             if not allowed:
                 return None
         excluded = self._sources.get(source_markup, ())

@@ -273,6 +273,25 @@ def check_segment(source: str, translated: str, segment_id: str = "") -> list[Is
     unprotected = before
     for start, end, _ in reversed(immutable_spans(before)):
         unprotected = unprotected[:start] + unprotected[end:]
+    translated_prose = after
+    for start, end, _ in reversed(immutable_spans(after)):
+        translated_prose = translated_prose[:start] + translated_prose[end:]
+    # Numbers or a retained URL are not a usable replacement for a sentence.
+    # Keep compact labels ("No. 5" -> "№ 5"), symbols and notation out of this
+    # deliberately narrow structural guard; it is not a semantic quality score.
+    if (
+        sum(c.isalpha() for c in unprotected) >= 30
+        and not any(c.isalpha() for c in translated_prose)
+        and not _unchanged_notation(before)
+    ):
+        issues.append(
+            Issue(
+                "missing_text",
+                "У перекладі зник текст: залишилися лише числа, символи або захищені значення.",
+                segment_id,
+                "error",
+            )
+        )
     if (
         before.strip() == after.strip()
         and any(c.isalpha() for c in unprotected)

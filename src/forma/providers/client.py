@@ -13,7 +13,7 @@ from email.utils import parsedate_to_datetime
 import httpx
 
 from forma.accounting.usage import record_attempt
-from forma.core.models import Cancelled, FormaError
+from forma.core.models import Cancelled, CapacityError, FormaError
 from forma.providers.protocol import (
     RATE_LIMIT_SCOPE_PREFIX,
     adapt_chat_request,
@@ -425,6 +425,7 @@ class Provider:
                 raise
             if response.status_code == 400:
                 self.control.check()
+                error_data = None
                 try:
                     error_data = response.json()
                     error = (
@@ -434,6 +435,10 @@ class Provider:
                     )
                 except (ValueError, RecursionError):
                     error = ""
+                if self.settings.api_mode in {"chat", "responses"} and isinstance(error_data, dict):
+                    details = error_data.get("error")
+                    if isinstance(details, dict) and details.get("code") == "context_length_exceeded":
+                        raise CapacityError("context")
                 if images and _unsupported_vision(error):
                     raise FormaError(
                         "Модель або сервер не підтримує зображення. Оберіть модель із підтримкою зображень у налаштуваннях."
@@ -610,6 +615,12 @@ class Provider:
     def _text(self, data: dict) -> str:
         if self.settings.api_mode == "responses":
             if data.get("status") != "completed":
+                details = data.get("incomplete_details")
+                if data.get("status") == "incomplete" and isinstance(details, dict) and details.get("reason") == "max_output_tokens":
+                    raise CapacityError("output")
+                error = data.get("error")
+                if isinstance(error, dict) and error.get("code") == "context_length_exceeded":
+                    raise CapacityError("context")
                 raise FormaError(
                     "Відповідь моделі неповна. Зменште фрагменти або перевірте ліміт токенів провайдера."
                 )
@@ -623,6 +634,8 @@ class Provider:
         message = choice["message"]
         if message.get("refusal"):
             raise FormaError("Модель відмовилась перекладати цей фрагмент.")
+        if choice.get("finish_reason") == "length":
+            raise CapacityError("context" if choice.get("capacity_limit") == "context" else "output")
         if choice.get("finish_reason") not in ("stop", None):
             raise FormaError(
                 "Відповідь моделі обірвалася. Перевірте ліміт вихідних токенів провайдера."

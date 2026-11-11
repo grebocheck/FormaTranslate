@@ -7,7 +7,7 @@ import json
 import re
 
 from forma.core.models import Segment
-from forma.documents.ooxml import OfficeDocument, S, W
+from forma.documents.ooxml import A, OfficeDocument, S, W
 
 _WORD_BOUNDARIES = frozenset(
     f"{{{W}}}{name}"
@@ -214,3 +214,106 @@ def segment_context(document: OfficeDocument, segment: Segment) -> str:
                 container = next(target.nodes[0].iterancestors(f"{{{S}}}si"), None)
             full["worksheet_context"] = contexts.get(container, fallback)
     return json.dumps({"context": segment.context, "full_context_sha256": _digest(full)}, ensure_ascii=False, sort_keys=True)
+
+
+def _adaptation_text(node, omitted=()):
+    """Visible XML structure with actual target nodes removed, never text matches."""
+    tokens, text = [], []
+    for item in node.iter():
+        if item in omitted or any(parent.tag == f"{{{W}}}del" for parent in item.iterancestors()):
+            continue
+        if item.tag in {f"{{{W}}}t", f"{{{A}}}t"}:
+            text.append(item.text or "")
+        elif item.tag in _WORD_BOUNDARIES or item.tag == f"{{{A}}}p":
+            if text:
+                tokens.append(["text", "".join(text)])
+                text = []
+            tokens.append([item.tag, sorted(item.attrib.items()) if item.tag not in {f"{{{W}}}p", f"{{{A}}}p"} else []])
+    if text:
+        tokens.append(["text", "".join(text)])
+    return tokens
+
+
+def _adaptation_row(document, row, cell, omitted):
+    # Cache peer-cell digests once. Oversized rows remain eligible only for the
+    # existing strict context route; retrieval must not repeatedly scan them.
+    cached = getattr(document, "_memory_adaptation_rows", None)
+    if cached is None:
+        cached = document._memory_adaptation_rows = {}
+    if row not in cached:
+        count = characters = 0
+        for node in row.iter():
+            count += 1
+            characters += len(node.text or "")
+            if count > 16384 or characters > 262144:
+                cached[row] = None
+                break
+        else:
+            properties = row.find(f"{{{W}}}trPr")
+            geometry = [] if properties is None else [
+                (child.tag, sorted(child.attrib.items())) for child in properties
+                if child.tag in {f"{{{W}}}gridBefore", f"{{{W}}}gridAfter"}
+            ]
+            cells, records, node_counts = _cells(row), [], {}
+            for current in cells:
+                properties = current.find(f"{{{W}}}tcPr")
+                spans = [] if properties is None else [
+                    (child.tag, sorted(child.attrib.items())) for child in properties
+                    if child.tag in {f"{{{W}}}gridSpan", f"{{{W}}}vMerge", f"{{{W}}}hMerge"}
+                ]
+                records.append({"geometry": spans, "text": _digest(_adaptation_text(current))})
+                node_counts[current] = sum(1 for _ in current.iter())
+            cached[row] = geometry, cells, records, node_counts
+    value = cached[row]
+    if value is None:
+        return None
+    geometry, cells, records, node_counts = value
+    records = list(records)
+    if cell in cells:
+        uses = getattr(document, "_memory_adaptation_cell_uses", None)
+        if uses is None:
+            uses = document._memory_adaptation_cell_uses = {}
+            for target in document.targets.values():
+                owner = _ancestor(target.nodes[0], "tc")
+                uses[owner] = uses.get(owner, 0) + 1
+        # One dense cell can contain thousands of paragraphs. Bound its total
+        # potential rescan work before any per-segment exclusion, independent
+        # of query order. Its full text still binds other cells' references.
+        if node_counts[cell] * uses.get(cell, 1) > 262144:
+            return None
+        index = cells.index(cell)
+        records[index] = {**records[index], "text": _digest(_adaptation_text(cell, omitted))}
+    return _digest({"geometry": geometry, "cells": records})
+
+
+def adaptation_context(document: OfficeDocument, segment: Segment) -> str | None:
+    """Separate editor-reference scope; exact identities remain byte compatible.
+
+    Only a DOCX table segment's actual XML nodes are excluded. Every other
+    paragraph/occurrence, cell/header, geometry and full immediate neighbor
+    remains binding. This key can select a paid editing reference, never output.
+    """
+    if document.path.suffix.lower() != ".docx":
+        return None
+    target = document.targets[segment.id]
+    cell = _ancestor(target.nodes[0], "tc")
+    row = _ancestor(cell, "tr") if cell is not None else None
+    table = _ancestor(cell, "tbl") if cell is not None else None
+    if row is None or table is None:
+        return None
+    header = next((item for item in table.iter(f"{{{W}}}tr") if _ancestor(item, "tbl") is table), None)
+    omitted = frozenset([*target.nodes, *target.markers])
+    own = _adaptation_row(document, row, cell, omitted)
+    first = _adaptation_row(document, header, cell, omitted) if header is not None else None
+    if own is None or first is None:
+        return None
+    indices = getattr(document, "_memory_segment_indices", None)
+    if indices is None:
+        indices = document._memory_segment_indices = {item.id: index for index, item in enumerate(document.segments)}
+    index = indices[segment.id]
+    neighbors = [
+        document.segments[position].plain for position in (index - 1, index + 1)
+        if 0 <= position < len(document.segments)
+        and document.targets[document.segments[position].id].part == target.part
+    ]
+    return _digest({"version": 1, "row": own, "header": first, "neighbors": neighbors})

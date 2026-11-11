@@ -38,6 +38,18 @@ class ValidationError(FormaError):
     """A translation response that can be repaired by asking the model again."""
 
 
+class CapacityError(FormaError):
+    """An explicit provider context/output limit, safe for smaller-batch recovery."""
+
+    def __init__(self, kind: str):
+        self.kind = kind
+        super().__init__(
+            "Відповідь моделі неповна. Зменште фрагменти або перевірте ліміт токенів провайдера."
+            if kind == "context"
+            else "Відповідь моделі обірвалася. Перевірте ліміт вихідних токенів провайдера."
+        )
+
+
 class TranslationFailure(FormaError):
     """Validated paid work is preserved; unresolved fragments need inspection."""
 

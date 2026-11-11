@@ -4,10 +4,10 @@ import threading
 from pathlib import Path
 
 import pytest
-from PySide6.QtCore import QUrl
+from PySide6.QtCore import QCoreApplication, QUrl
 from PySide6.QtGui import QColor, QImage
-from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QFileDialog
+from support import pump
 
 from forma.core.models import FormaError
 from forma.presentation.backend import Backend
@@ -36,11 +36,7 @@ def controller(qapp, monkeypatch):
 
 
 def wait_for(predicate, limit=300):
-    for _ in range(limit):
-        if predicate():
-            return
-        QTest.qWait(10)
-    assert predicate(), "Worker did not finish"
+    pump(QCoreApplication.instance(), predicate, timeout=limit * 0.01)
 
 
 def test_text_input_clipboard_limit_and_language_invalidation(controller, qapp):

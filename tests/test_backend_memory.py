@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-import time
 from dataclasses import asdict
 from pathlib import Path
 
@@ -12,6 +11,7 @@ from PySide6.QtCore import QCoreApplication, QEvent, QObject, QUrl
 from PySide6.QtQml import QQmlApplicationEngine
 from PySide6.QtQuick import QQuickItem
 from PySide6.QtTest import QTest
+from support import settle
 
 import forma.presentation.backend as backend_module
 from forma.core.models import FormaError, Options
@@ -20,14 +20,6 @@ from forma.localization.catalog import CatalogTranslator
 from forma.presentation import documents_workflow, memory_workflow, settings_workflow
 from forma.presentation.backend import Backend
 from forma.settings.config import ENV_FIELDS, Settings, load_preferences
-
-
-def settle(qapp, backend, timeout=5):
-    deadline = time.monotonic() + timeout
-    while backend._threads and time.monotonic() < deadline:
-        qapp.processEvents()
-        QTest.qWait(10)
-    assert not backend._threads
 
 
 @pytest.fixture

@@ -2,11 +2,11 @@ from __future__ import annotations
 
 import json
 import threading
-import time
 from pathlib import Path
 
 import pytest
 from PySide6.QtTest import QTest
+from support import pump as pump_events
 
 from forma.core.models import Issue, TranslationResult
 from forma.presentation.backend import Backend
@@ -14,11 +14,7 @@ from forma.settings.config import Settings
 
 
 def pump(app, predicate, seconds=5):
-    deadline = time.monotonic() + seconds
-    while not predicate() and time.monotonic() < deadline:
-        app.processEvents()
-        QTest.qWait(5)
-    assert predicate()
+    pump_events(app, predicate, timeout=seconds)
 
 
 def add_history(backend, folder, name="sample"):

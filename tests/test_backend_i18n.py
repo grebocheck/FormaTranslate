@@ -1,7 +1,6 @@
 from pathlib import Path
 from time import monotonic
 
-import pytest
 from PySide6.QtCore import QCoreApplication, QEvent, QPointF, QUrl
 from PySide6.QtQml import QQmlApplicationEngine
 from PySide6.QtQuick import QQuickItem
@@ -13,8 +12,10 @@ from forma.presentation.backend import Backend
 from forma.settings.config import Settings, load_preferences
 
 
-@pytest.mark.parametrize("language", ("de", "fr", "es"))
-def test_switch_language_persists_without_changing_document_or_review_state(qapp, monkeypatch, language):
+def test_switch_language_persists_without_changing_document_or_review_state(qapp, monkeypatch):
+    # The QML switching test below exercises every locale; persistence and the
+    # canonical document/review boundary use one representative translated locale.
+    language = "fr"
     monkeypatch.setattr(Backend, "_read_settings", lambda _: Settings())
     backend = Backend()
     backend._documents = [

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import threading
-import time
 from pathlib import Path
 
 import pytest
@@ -18,11 +17,7 @@ from forma.settings.config import Settings
 
 
 def settled(qapp, backend):
-    deadline = time.monotonic() + 5
-    while backend._worker_probe_running and time.monotonic() < deadline:
-        qapp.processEvents()
-        QTest.qWait(5)
-    assert not backend._worker_probe_running
+    pump(qapp, lambda: not backend._worker_probe_running, timeout=5)
 
 
 def test_slow_path_probe_does_not_run_in_qml_getters_or_document_clicks(qapp, monkeypatch):
@@ -191,27 +186,16 @@ def test_history_and_review_bindings_never_stat_files_on_gui_thread(qapp, monkey
         # One worker remains in flight; repeated bindings do not spawn more.
         assert len(checked) == 1
         release.set()
-        deadline = time.monotonic() + 5
-        while (
-            backend._file_status._inflight or backend._file_status._pending
-        ) and time.monotonic() < deadline:
-            qapp.processEvents()
-            QTest.qWait(5)
+        pump(qapp, lambda: not (backend._file_status._inflight or backend._file_status._pending), timeout=5)
         assert len(checked) == len(set(checked)) == 400
         assert all(row["outputExists"] and row["reportExists"] for row in backend.historyEntries)
         existing = False
         backend.refreshFileAvailability()
-        deadline = time.monotonic() + 5
-        while backend._file_status._inflight and time.monotonic() < deadline:
-            qapp.processEvents()
-            QTest.qWait(5)
+        pump(qapp, lambda: not backend._file_status._inflight, timeout=5)
         assert all(not row["outputExists"] for row in backend.historyEntries)
     finally:
         release.set()
-        deadline = time.monotonic() + 5
-        while backend._file_status._inflight and time.monotonic() < deadline:
-            qapp.processEvents()
-            QTest.qWait(5)
+        pump(qapp, lambda: not backend._file_status._inflight, timeout=5)
 
 
 def test_large_document_presentation_reuses_work_and_updates_for_results_and_language(
@@ -325,15 +309,9 @@ def test_file_status_creation_during_probe_preserves_refresh_or_newer_review_sta
             for _ in range(20):
                 cache.request(("/synthetic/new.docx",), force=True)
         release.set()
-        deadline = time.monotonic() + 5
-        while (cache._inflight or cache._pending) and time.monotonic() < deadline:
-            qapp.processEvents()
-            QTest.qWait(5)
+        pump(qapp, lambda: not (cache._inflight or cache._pending), timeout=5)
         assert cache.is_file("/synthetic/new.docx")
         assert snapshots == ([False] if prime else [False, True])
     finally:
         release.set()
-        deadline = time.monotonic() + 5
-        while cache._inflight and time.monotonic() < deadline:
-            qapp.processEvents()
-            QTest.qWait(5)
+        pump(qapp, lambda: not cache._inflight, timeout=5)

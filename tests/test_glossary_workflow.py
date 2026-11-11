@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import time
 from pathlib import Path
 
 import pytest
@@ -10,19 +9,12 @@ from docx import Document
 from PySide6.QtCore import QCoreApplication, QEvent, QObject
 from PySide6.QtQml import QQmlApplicationEngine
 from PySide6.QtTest import QTest
+from support import settle
 
 import forma.presentation.glossary_controller as glossary_module
 from forma.localization.catalog import CatalogTranslator
 from forma.presentation.backend import Backend
 from forma.settings.config import Settings
-
-
-def settle(qapp, backend):
-    deadline = time.monotonic() + 5
-    while backend._threads and time.monotonic() < deadline:
-        qapp.processEvents()
-        QTest.qWait(10)
-    assert not backend._threads
 
 
 def visual_item(parent, name):

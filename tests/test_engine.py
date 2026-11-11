@@ -238,6 +238,71 @@ def test_interrupted_review_resumes_saved_draft_without_translation(docx_file, t
     assert len(provider.calls[0][1]["drafts"]) == 8
 
 
+def test_capacity_split_preserves_paid_review_and_drafts_when_cancelled(tmp_path):
+    import httpx
+    from docx import Document
+
+    from forma.core.models import CapacityError
+    from forma.providers.client import JobControl, Provider
+
+    source = tmp_path / "limited-review.docx"
+    doc = Document()
+    for index in range(8):
+        doc.add_paragraph(f"Item {index}")
+    doc.save(source)
+    settings = local_settings()
+    control = JobControl(1)
+    calls = []
+
+    def handler(request):
+        payload = json.loads(json.loads(request.content)["messages"][1]["content"])
+        review, segments = "drafts" in payload, payload["segments"]
+        calls.append((review, len(segments)))
+        finish = "stop"
+        if review and len(segments) > 4:
+            finish = "length"
+        elif review and segments[0]["id"].endswith("#4"):
+            # A completed but truncated response may arrive after cancellation.
+            control.cancelled.set()
+            finish = "length"
+        text = json.dumps({"segments": [
+            {"id": segment["id"], "text": segment["text"].replace("Item", "Елемент")}
+            for segment in segments
+        ]})
+        return httpx.Response(200, json={
+            "choices": [{"message": {"content": text}, "finish_reason": finish}],
+            "usage": {"prompt_tokens": 10, "completion_tokens": 5},
+        })
+
+    provider = Provider(settings, control, transport=httpx.MockTransport(handler))
+    options = Options(auto_glossary=False)
+    try:
+        with pytest.raises(Cancelled):
+            TranslationEngine(settings, control, provider=provider).translate(source, tmp_path / "out", options)
+        assert calls == [(False, 8), (True, 8), (True, 4), (True, 4)]
+        assert provider.output_tokens == 20  # Include both billed truncated responses.
+    finally:
+        provider.close()
+    state = json.loads(next((tmp_path / "appdata/checkpoints").glob("*.json")).read_text())
+    assert len(state["translations"]) == 4 and len(state["drafts"]) == 8
+    resumed = FakeProvider()
+    result = TranslationEngine(settings, provider=resumed).translate(source, tmp_path / "out", options)
+    assert result.cached_segments == 4 and len(result.translations) == 8
+    assert len(resumed.calls) == 1 and len(resumed.calls[0][1]["drafts"]) == 4
+
+    class SingleLimit(FakeProvider):
+        def complete(self, instruction, payload, schema, **kwargs):
+            self.calls.append(payload)
+            raise CapacityError("context")
+
+    single = SingleLimit()
+    with pytest.raises(CapacityError):
+        TranslationEngine(settings)._stage(
+            result.segments[:1], {}, options, single, lambda _: pytest.fail("Saved incomplete response"),
+        )
+    assert len(single.calls) == 1
+
+
 def test_unchanged_foreign_prose_is_flagged_in_report_with_location(tmp_path):
     from docx import Document
 
@@ -276,9 +341,10 @@ def test_reviewer_can_correct_usable_but_inaccurate_primary_draft(tmp_path):
         def complete(self, instruction, payload, schema, **kwargs):
             self.calls.append((instruction, payload))
             if "drafts" not in payload:
-                text = payload["segments"][0]["text"].replace("24", "240")
+                text = "<r0>240</r0>"
             else:
                 assert payload["draft_issues"]
+                assert any("текст" in issue for issue in payload["draft_issues"])
                 text = "<r0>The warranty period is 24 months and starts on the date the customer signs the equipment acceptance certificate.</r0>"
             return {"segments": [{"id": payload["segments"][0]["id"], "text": text}]}
 
@@ -483,11 +549,23 @@ def test_partial_review_keeps_valid_ids_and_repairs_only_ambiguous_segment(tmp_p
                 values.append({"id": "unrequested-id", "text": "<r0>Injected text 999</r0>"})
             return {"segments": list(reversed(values))}
 
+    saved = []
+
+    class RecordingEngine(TranslationEngine):
+        def _stage(self, batch, common, options, provider, save, **kwargs):
+            def record(values):
+                saved.append(("drafts" in kwargs, tuple(values)))
+                save(values)
+
+            return super()._stage(batch, common, options, provider, record, **kwargs)
+
     provider = PartialProvider()
-    result = TranslationEngine(local_settings(), provider=provider).translate(
+    result = RecordingEngine(local_settings(), provider=provider).translate(
         source, tmp_path / "out", Options(auto_glossary=False)
     )
     assert [len(payload["segments"]) for _, payload in provider.calls] == [8, 8, 1]
+    assert [(review, len(ids)) for review, ids in saved] == [(False, 8), (True, 7), (True, 1)]
+    assert not set(saved[1][1]) & set(saved[2][1])
     retry = provider.calls[-1][1]
     assert retry["segments"][0]["id"].endswith("#7")
     assert set(retry["drafts"]) == {retry["segments"][0]["id"]}

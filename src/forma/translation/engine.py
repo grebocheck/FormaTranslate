@@ -10,6 +10,7 @@ from dataclasses import asdict, replace
 from pathlib import Path
 
 from forma.core.models import (
+    CapacityError,
     FormaError,
     Issue,
     Options,
@@ -327,6 +328,20 @@ class TranslationEngine:
                     ),
                     pending,
                 )
+            except CapacityError:
+                self.control.check()
+                if len(pending) <= 1:
+                    raise
+                midpoint = len(pending) // 2
+                # Every child is strictly smaller. Keep all content and stage
+                # inputs; only explicit provider limits justify extra requests.
+                for subset in (pending[:midpoint], pending[midpoint:]):
+                    self.control.check()
+                    accepted.update(self._stage(
+                        subset, common, options, provider, save, drafts=drafts,
+                        memory_references=memory_references, progress=progress,
+                    ))
+                return accepted
             except ValidationError as exc:
                 errors = [str(exc)]
                 previous = {}
@@ -335,6 +350,7 @@ class TranslationEngine:
             else:
                 errors, previous = [], response
                 failed_candidates, failed_issues = {}, []
+                newly_accepted = {}
                 for segment in pending:
                     if segment.id not in response:
                         errors.append(f"{segment.id}: {response_errors[segment.id]}")
@@ -354,8 +370,10 @@ class TranslationEngine:
                         failed_candidates[segment.id] = candidate
                         failed_issues.extend(issues)
                     else:
-                        accepted[segment.id] = candidate
-                save(accepted)
+                        newly_accepted[segment.id] = candidate
+                accepted.update(newly_accepted)
+                if newly_accepted:
+                    save(newly_accepted)
                 pending = [s for s in pending if s.id not in accepted]
                 previous = {s.id: response[s.id] for s in pending if s.id in response}
                 if not pending:

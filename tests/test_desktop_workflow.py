@@ -2,24 +2,19 @@ from __future__ import annotations
 
 import json
 import threading
-import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 from PySide6.QtCore import QCoreApplication, QEvent, QUrl
 from PySide6.QtQml import QQmlApplicationEngine
-from PySide6.QtTest import QTest
+from support import pump as pump_events
 
 from forma.presentation.backend import Backend
 from forma.settings.config import Settings
 
 
 def pump(app, predicate, seconds=10):
-    deadline = time.monotonic() + seconds
-    while not predicate() and time.monotonic() < deadline:
-        app.processEvents()
-        QTest.qWait(10)
-    assert predicate(), "Timed out waiting for desktop operation"
+    pump_events(app, predicate, timeout=seconds)
 
 
 class LocalAPI(BaseHTTPRequestHandler):

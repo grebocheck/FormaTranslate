@@ -245,9 +245,12 @@ def test_provenance_is_allowlisted_and_never_serializes_arbitrary_settings(memor
     secret = "credential-must-not-reach-sqlite-9281"
     hit = memory.save_machine(project.id, **record, generation_profile=profile, provenance={
         "model": "test-model", "segment_id": "word/document.xml#4", "report_fingerprint": "d" * 64,
+        "adaptation_context_sha256": "a" * 64,
         "api_key": secret, "settings": {"api_key": secret}, "report": {"secret": secret}, "unknown": secret,
     })
-    assert set(hit.provenance) == {"model", "segment_id", "report_fingerprint"}
+    assert set(hit.provenance) == {"model", "segment_id", "report_fingerprint", "adaptation_context_sha256"}
+    invalid = memory.approve(project.id, **record, provenance={"adaptation_context_sha256": 123})
+    assert "adaptation_context_sha256" not in invalid.provenance
     with sqlite3.connect(memory.path) as db:
         stored = db.execute("SELECT provenance FROM entries").fetchone()[0]
     assert secret not in stored and "api_key" not in stored

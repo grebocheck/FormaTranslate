@@ -127,6 +127,14 @@ def test_changed_prose_requires_the_same_full_surrounding_context_when_supplied(
     assert index.find(current, "body", context=changed_context) is None
     assert index.find(current, "body", context="not canonical JSON") is None
     assert index.find(current, "body", context='{"context":"short excerpt only"}') is None
+    # New table scopes can select only an editorial reference. Legacy rows and
+    # malformed provenance retain the strict full-context rule.
+    retrieval = "a" * 64
+    assert index.find(current, "body", context=changed_context, adaptation_context=retrieval) is None
+    scoped = replace(previous, provenance={"adaptation_context_sha256": retrieval})
+    assert MemoryCandidateIndex([scoped]).find(current, "body", context=changed_context, adaptation_context=retrieval) == scoped
+    corrupt = replace(previous, provenance={"adaptation_context_sha256": "not a digest"})
+    assert MemoryCandidateIndex([corrupt]).find(current, "body", context=changed_context, adaptation_context="not a digest") is None
 
 
 def test_identical_marked_source_cannot_bypass_an_exact_context_miss():
@@ -139,8 +147,8 @@ def test_identical_marked_source_cannot_bypass_an_exact_context_miss():
 
 def test_context_filter_applies_before_the_shortlist_cutoff():
     stable = _context("Actual stable surroundings")
-    distractors = [hit(SOURCE.replace("Alpha", f"Name{index}"), index=index + 1, context=_context(f"Other surroundings {index}")) for index in range(100)]
-    previous = hit(context=stable, index=200)
+    distractors = [hit(SOURCE.replace("Alpha", f"Name{index}"), index=index + 2, context=_context(f"Other surroundings {index}")) for index in range(100)]
+    previous = hit(context=stable, index=1)
     index = MemoryCandidateIndex([*distractors, previous])
     assert index.find(SOURCE.replace("Alpha", "Bravo").replace("45", "60"), "body", context=stable) == previous
 
@@ -182,8 +190,8 @@ def test_long_repetitive_or_oversized_sources_are_bounded():
     assert similarity._score("a" * 4000 + "b" * 4000, "c" * 4000 + "d" * 4000) is None
 
 
-def test_lexical_index_caps_expensive_matching_for_4000_entries_and_50_changed_paragraphs(monkeypatch):
-    previous = [hit(SOURCE.replace("Alpha", f"District{index}"), index=index + 1) for index in range(4000)]
+def test_lexical_index_bounds_matching_beyond_the_shortlist(monkeypatch):
+    previous = [hit(SOURCE.replace("Alpha", f"District{index}"), index=index + 1) for index in range(256)]
     index = MemoryCandidateIndex(previous)
     calls = []
     original = similarity.SequenceMatcher
@@ -194,12 +202,12 @@ def test_lexical_index_caps_expensive_matching_for_4000_entries_and_50_changed_p
         return original(*args, **kwargs)
 
     monkeypatch.setattr(similarity, "SequenceMatcher", matcher)
-    for current in range(50):
+    for current in (0, 128, 255):
         before = len(calls)
         candidate = index.find(SOURCE.replace("Alpha", f"District{current}").replace("45 calendar", "60 calendar"), "body")
         assert candidate == previous[current]
         assert 0 < len(calls) - before <= similarity.MAX_SHORTLIST
-    assert len(calls) <= 50 * similarity.MAX_SHORTLIST
+    assert len(calls) <= 3 * similarity.MAX_SHORTLIST
 
 
 def _record(policy, source=SOURCE, *, context="Building heating", role="body", target=None):

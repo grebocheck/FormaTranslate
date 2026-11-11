@@ -11,7 +11,7 @@ from lxml import etree
 from openpyxl import Workbook
 
 from forma.documents.ooxml import OfficeDocument, S
-from forma.memory.context import segment_context, segment_role
+from forma.memory.context import adaptation_context, segment_context, segment_role
 
 
 def identity(path, text="Energy"):
@@ -117,6 +117,7 @@ def test_docx_full_table_context_preserves_boundaries_beyond_prompt_excerpt(tmp_
 
 def test_docx_merged_cells_preserve_logical_header_mapping(tmp_path):
     identities = []
+    retrieval = []
     for first_span in (False, True):
         document = Document()
         table = document.add_table(rows=2, cols=3)
@@ -131,10 +132,41 @@ def test_docx_merged_cells_preserve_logical_header_mapping(tmp_path):
         path = tmp_path / f"{first_span}.docx"
         document.save(path)
         identities.append(identity(path))
+        parsed = OfficeDocument(path)
+        segment = next(item for item in parsed.segments if item.plain == "Energy")
+        exact = segment_context(parsed, segment)
+        retrieval.append(adaptation_context(parsed, segment))
+        assert segment_context(parsed, segment) == exact  # Retrieval does not alter exact identities.
     before, after = identities
     assert before[:2] == after[:2]
     assert before[3] == after[3]  # Physical second cell in both rows.
     assert before[2] != after[2]  # Its logical column/span changed.
+    assert retrieval[0] != retrieval[1]
+
+
+def test_oversized_or_dense_table_context_keeps_strict_retrieval_fallback(tmp_path):
+    document = Document()
+    table = document.add_table(rows=1, cols=2)
+    table.cell(0, 0).text = "Energy"
+    table.cell(0, 1).text = "Long reference " * 20000
+    path = tmp_path / "wide-context.docx"
+    document.save(path)
+    parsed = OfficeDocument(path)
+    segment = next(item for item in parsed.segments if item.plain == "Energy")
+    assert adaptation_context(parsed, segment) is None
+    # This cell fits both row limits, but rescanning it for every paragraph
+    # would still grow quadratically. It must take the same strict fallback.
+    document = Document()
+    table = document.add_table(rows=1, cols=2)
+    table.cell(0, 0).text = "Energy"
+    for _ in range(400):
+        table.cell(0, 0).add_paragraph("Another item")
+    table.cell(0, 1).text = "Peer context"
+    path = tmp_path / "dense-context.docx"
+    document.save(path)
+    parsed = OfficeDocument(path)
+    segment = next(item for item in parsed.segments if item.plain == "Energy")
+    assert adaptation_context(parsed, segment) is None
 
 
 def test_docx_xml_comments_and_processing_instructions_do_not_change_identity(tmp_path):

@@ -10,12 +10,12 @@ from forma.settings.config import Settings
 
 
 def pump(app, predicate, timeout=8):
-    from PySide6.QtTest import QTest
-
     deadline = time.monotonic() + timeout
     while not predicate() and time.monotonic() < deadline:
         app.processEvents()
-        QTest.qWait(5)
+        # Let Python workers acquire the GIL between Qt event-loop passes.
+        # QTest.qWait can otherwise starve QThread tasks doing Python work.
+        time.sleep(0.001)
     assert predicate(), "Desktop operation did not finish"
 
 

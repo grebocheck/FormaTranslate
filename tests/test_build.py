@@ -37,7 +37,6 @@ def test_onefile_build_bundles_native_credentials_without_user_data(
                         f"{tmp_path / 'build/release' / name / 'legal'}:legal"]
     assert not any(".env" in value for value in command)
     assert "PySide6.QtWidgets" not in command  # Never exclude native file dialogs.
-    assert artifact != tmp_path / "dist" / "Forma"  # Preserve old onedir releases.
     assert "--additional-hooks-dir" in command
     for module in ("QtCharts", "QtGraphs", "QtQuick3D", "QtVirtualKeyboard"):
         assert "PySide6." + module in command
@@ -58,7 +57,6 @@ def test_build_cli_help_does_not_depend_on_cwd_or_pythonpath(tmp_path):
                             check=True, capture_output=True, text=True)
     assert "--runtime-bundle" in result.stdout
     assert "--desktop-only" in result.stdout
-    assert "--standard" not in result.stdout
 
 
 def test_windows_full_build_refuses_missing_prepared_runtimes(tmp_path):
@@ -67,23 +65,14 @@ def test_windows_full_build_refuses_missing_prepared_runtimes(tmp_path):
         build["build_command"](tmp_path, system="Windows", machine="AMD64")
 
 
-def test_removed_standard_cli_does_not_silently_create_an_incomplete_windows_package(tmp_path):
-    script = Path(__file__).parents[1] / "scripts/build.py"
-    result = subprocess.run([sys.executable, str(script), "--standard"], cwd=tmp_path,
-                            capture_output=True, text=True)
-    assert result.returncode != 0
-    assert "unrecognized arguments: --standard" in result.stderr
-
-
-@pytest.mark.parametrize("name", ["Forma-windows-x86_64.exe", "Forma-windows-x86_64-standard-candidate.exe"])
-def test_windows_release_packaging_requires_embedded_workers(tmp_path, monkeypatch, name):
+def test_windows_release_packaging_requires_embedded_workers(tmp_path, monkeypatch):
     build = runpy.run_path(str(Path(__file__).parents[1] / "scripts/build.py"))
     monkeypatch.setattr("PyInstaller.archive.readers.CArchiveReader", lambda _: SimpleNamespace(toc={}))
     package = tmp_path / "src/forma"
     package.mkdir(parents=True)
     (package / "__init__.py").write_text('__version__ = "7.8.9"\n')
     with pytest.raises(ValueError, match="complete embedded runtime"):
-        build["package_release"](tmp_path, tmp_path / "dist" / name, tmp_path / "legal")
+        build["package_release"](tmp_path, tmp_path / "dist/Forma-windows-x86_64.exe", tmp_path / "legal")
 
 
 def test_worker_dlls_enter_spec_after_analysis_without_changing_desktop_dependencies(

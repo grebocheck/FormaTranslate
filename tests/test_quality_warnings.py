@@ -89,3 +89,25 @@ def test_length_warnings_and_script_evidence_remain_reviewable():
         ("untranslated_prose", "warning")
     ]
     assert not check_language(marked("ТН-42"), marked("Station ТН-42"), "uk", "en")
+
+
+@pytest.mark.parametrize(
+    ("source", "target", "missing"),
+    [
+        ("The amount payable before the completion deadline is 25000", "25000", True),
+        ("Передайте підписаний примірник договору на acceptance@example.org", "acceptance@example.org", True),
+        ("No. 5", "№ 5", False),
+        ("Amount in euros: 5", "€ 5", False),
+        ("Належить сплатити 25000", "Amount payable: 25000", False),
+    ],
+)
+def test_remaining_numbers_or_identifiers_do_not_hide_lost_prose(source, target, missing):
+    from forma.core.models import Options, Segment
+    from forma.translation.engine import blocking_issues
+
+    segment = Segment("s1", "paragraph", marked(source))
+    result = marked(target)
+    errors = blocking_issues(segment, result, Options())
+    assert any(issue.code == "missing_text" for issue in errors) is missing
+    # The bilingual editorial pass may repair an incomplete, structurally usable draft.
+    assert not blocking_issues(segment, result, Options(), draft=True)

@@ -271,8 +271,10 @@ def normalize_response(settings, data: dict) -> dict:
             reason, refusal = "content_filter", True
         elif finish in {"end_turn", "stop_sequence"}:
             reason = "stop"
-        elif finish in {"max_tokens", "model_context_window_exceeded", "pause_turn"}:
+        elif finish in {"max_tokens", "model_context_window_exceeded"}:
             reason = "length"
+        elif finish == "pause_turn":
+            reason = "pause_turn"
         else:
             raise ValueError("Incomplete Claude response")
         for block in blocks:
@@ -305,6 +307,8 @@ def normalize_response(settings, data: dict) -> dict:
             {
                 "message": {"role": "assistant", "content": text, "refusal": refusal},
                 "finish_reason": reason,
+                **({"capacity_limit": "context" if finish == "model_context_window_exceeded" else "output"}
+                   if reason == "length" else {}),
             }
         ],
         "usage": {

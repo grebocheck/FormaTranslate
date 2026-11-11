@@ -224,7 +224,8 @@ def _policy(verified: _Verified, snapshot, preferred: bool) -> tuple[str, bool]:
 
 
 def _entries(verified: _Verified, policy: str, known_policy: bool, overrides=None) -> list[dict]:
-    from forma.memory.context import segment_context, segment_role
+    from forma.memory.context import adaptation_context, segment_context, segment_role
+    from forma.memory.similarity import eligible_source
     from forma.memory.store import exact_fingerprint
 
     entries = []
@@ -250,6 +251,9 @@ def _entries(verified: _Verified, policy: str, known_policy: bool, overrides=Non
                 "report_sha256": verified.report_hash, "policy_complete": known_policy,
             },
         })
+        retrieval = adaptation_context(verified.original, segment) if eligible_source(segment.source) else None
+        if retrieval is not None:
+            entries[-1]["provenance"]["adaptation_context_sha256"] = retrieval
     return entries
 
 

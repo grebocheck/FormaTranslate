@@ -217,7 +217,7 @@ def test_native_response_hides_thoughts_and_preserves_billed_usage(mode):
         ("gemini", "RECITATION", "content_filter"),
         ("anthropic", "max_tokens", "length"),
         ("anthropic", "refusal", "content_filter"),
-        ("anthropic", "pause_turn", "length"),
+        ("anthropic", "pause_turn", "pause_turn"),
         ("anthropic", "model_context_window_exceeded", "length"),
     ],
 )
@@ -225,6 +225,9 @@ def test_native_terminal_statuses_preserve_usage_for_callers(mode, finish, expec
     normalized = normalize_response(config(mode), response(mode, finish=finish))
     assert normalized["choices"][0]["finish_reason"] == expected
     assert normalized["choices"][0]["message"]["refusal"] == (expected == "content_filter")
+    assert normalized["choices"][0].get("capacity_limit") == (
+        "context" if finish == "model_context_window_exceeded" else "output" if expected == "length" else None
+    )
     assert normalized["usage"]["completion_tokens"] == 9
 
 

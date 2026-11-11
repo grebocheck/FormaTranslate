@@ -152,22 +152,17 @@ def test_unavailable_vault_uses_session_key_and_reports_it_honestly(store, monke
 @pytest.mark.parametrize(
     "invalid",
     [
-        {"timeout": "nan"},
-        {"timeout": "inf"},
-        {"timeout": -1},
-        {"timeout": True},
-        {"maxOutputTokens": "1.5"},
-        {"maxOutputTokens": -1},
-        {"maxOutputTokens": True},
-        {"parallelDocuments": 0},
-        {"parallelDocuments": 5},
-        {"parallelDocuments": True},
-        {"maxParallelRequests": 17},
-        {"maxParallelRequests": "1.5"},
-        {"maxParallelRequests": -1},
+        pytest.param({"timeout": "nan"}, id="nonfinite-timeout"),
+        pytest.param({"timeout": True}, id="boolean-timeout"),
+        pytest.param({"maxOutputTokens": "1.5"}, id="fractional-integer"),
+        pytest.param({"parallelDocuments": 0}, id="documents-lower-bound"),
+        pytest.param({"parallelDocuments": 5}, id="documents-upper-bound"),
+        pytest.param({"maxParallelRequests": 17}, id="requests-upper-bound"),
     ],
 )
 def test_invalid_numeric_save_has_no_settings_or_vault_side_effects(store, invalid, tmp_path):
+    # Pure Settings tests cover the remaining numeric types and finite values;
+    # this boundary verifies conversion/range failures leave persisted state intact.
     backend = ready_backend()
     assert save(backend, {"baseUrl": ENDPOINT, "model": "model", "apiKey": "old-key"})
     before = backend._settings

@@ -2,6 +2,13 @@
 
 Versions follow semantic versioning. Changes before 1.0 may evolve as document compatibility improves.
 
+## Unreleased
+
+- Adapt changed DOCX table passages through one bilingual editing pass using a separate structural reference context, while retaining exact-memory identities and checks on peer cells, headers and hidden surrounding paragraphs.
+- Split pending Office batches after explicitly recognized provider context/output limits; preserve accepted fragments, drafts and cancellation boundaries, and stop at a single segment rather than retrying an unchanged oversized request.
+- Reject obvious prose loss hidden behind retained numbers or identifiers, and avoid repeatedly persisting already accepted fragments during repairs.
+- Remove 16 duplicate or obsolete test cases, yield during desktop test waits so Python workers can run without starvation, and verify selected logic assertions against intentional runtime faults. Document a focused translation-quality evaluation plan and the remaining document-wide context/cache-scope limitation.
+
 ## 0.10.0 — 2026-11-11
 
 - Persist validated OCR preparation across interruptions and application restarts. Reuse it only while the PDF, recognized DOCX, manifest, source language and bounded OCR installation identity still match; an explicit retry resumes paid translation checkpoints.

@@ -36,6 +36,7 @@ _STATUSES = frozenset({"draft", "machine_final", "human_approved", "reference"})
 _PROVENANCE_KEYS = frozenset({
     "kind", "origin", "model", "segment_id", "document_id", "import_id", "source_entry_id",
     "source_sha256", "output_sha256", "report_sha256", "report_fingerprint", "revision",
+    "adaptation_context_sha256",
 })
 
 
@@ -230,6 +231,8 @@ def _provenance(value) -> str:
     safe = {}
     for key in _PROVENANCE_KEYS.intersection(value):
         item = value[key]
+        if key == "adaptation_context_sha256" and (not isinstance(item, str) or not _DIGEST.fullmatch(item)):
+            continue
         if type(item) is int and 0 <= item <= 2**63 - 1:
             safe[key] = item
         elif isinstance(item, str) and len(item) <= 500 and "\n" not in item:

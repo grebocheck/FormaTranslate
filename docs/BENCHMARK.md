@@ -2,6 +2,12 @@
 
 Use the same source documents, languages, glossary and domain for every candidate. Record the model, provider, date, settings, elapsed time, token usage and actual provider charges. A small synthetic sample cannot establish general professional quality.
 
+## What automated tests establish
+
+The offline suite tests program behavior with synthetic documents and fake providers: preservation of numbers/formatting, protocol handling, cancellation, cache boundaries and persistence. Its collected count includes parameterized inputs. Neither a high count nor a provider stub returning expected words establishes linguistic accuracy. Retain distinct failure boundaries; remove repeated UI/database setup for malformed values already covered by pure validators. A useful test must fail for a relevant behavioral fault, rather than a renamed helper or a different temporary path.
+
+Current automatic checks catch numeric/identifier changes and obvious lost prose, but they cannot generally establish that units, negation, named entities or obligations were translated correctly. For example, a fluent sentence that changes `5 kW` to `5 MW` keeps its numeric value and can still pass structural checks. The bilingual editorial pass is another model output, not human approval.
+
 ## Structural checks
 
 ```sh
@@ -15,6 +21,18 @@ The CLI compares non-text OOXML structure, formulas and numeric values. For PDF 
 Use bilingual reviewers where possible and hide the system/model names during scoring. Score accuracy, terminology, naturalness and layout separately. Count critical errors independently: changed numbers or units, negations, missing text, invented content and broken formulas. Include headings, tables, mixed formatting, repeated terms and longer paragraphs.
 
 Use [the template](../examples/benchmark-template.csv). Open output documents in Word/LibreOffice or a PDF viewer to inspect clipping, page breaks and fonts. Keep private documents and assessments outside Git.
+
+Prioritize a small set of contrasting technical/business examples over more generic success cases:
+
+- Positive/negative obligations: the supplier must act; the customer is not obliged to accept; absence of objections is not acceptance.
+- Quantities and units: `kW` versus `MW`, power versus energy, decimal precision, flow versus financial expenditure, and values associated with different table rows.
+- Template variants: change a community/name, a number and an entire sentence separately; check both consistency of unchanged wording and correct adaptation of the changed meaning.
+- Context: ambiguous headings, table headers, merged cells, an adjacent exception clause and relevant context beyond the displayed excerpt.
+- Long material: batch boundaries and an output/context limit during translation or editing; measure retained work and every billed attempt independently from language quality.
+
+Use fresh isolated checkpoints for a cold baseline, then measure retry and exact/fuzzy reuse separately. Compare first drafts and edited results from the same run. Record critical meaning errors before fluency preferences, including whether an editor introduced a new error. Keep provider requests, tokens, elapsed time and actual charges separate from those judgments. Source changes, model/prompt changes and cache hits must be visible in any comparison.
+
+This review approach follows document-context error annotation in [Freitag et al., 2021](https://aclanthology.org/2021.tacl-1.87/). [Tan et al., 2026](https://aclanthology.org/2026.acl-long.268/) found that refinement gains in their literary-translation setting came mainly from fluency, with limited adequacy gains. That result does not establish performance on Forma's technical documents; it motivates measuring meaning and fluency separately here rather than assuming a second pass fixes accuracy.
 
 ## Reproducible local experiments
 

@@ -9,7 +9,7 @@ from concurrent.futures import ThreadPoolExecutor
 import httpx
 import pytest
 
-from forma.core.models import Cancelled, FormaError
+from forma.core.models import Cancelled, CapacityError, FormaError
 from forma.providers.client import (
     MAX_IMAGE_INPUTS,
     MAX_IMAGE_PAYLOAD_BYTES,
@@ -312,14 +312,31 @@ def test_responses_api_body_and_refusal():
     provider.close()
 
 
-def test_truncated_output_is_not_accepted():
-    response = {"choices": [{"message": {"content": '{"segments":[]}'}, "finish_reason": "length"}]}
+@pytest.mark.parametrize("mode", ["chat", "responses"])
+def test_explicit_capacity_limits_are_typed_without_accepting_partial_output(mode):
+    response = ({"status": "incomplete", "incomplete_details": {"reason": "max_output_tokens"}}
+                if mode == "responses" else
+                {"choices": [{"message": {"content": '{"segments":[]}'}, "finish_reason": "length"}]})
+    status = 200
     provider = Provider(
-        settings(), transport=httpx.MockTransport(lambda _: httpx.Response(200, json=response))
+        settings(api_mode=mode), transport=httpx.MockTransport(lambda _: httpx.Response(status, json=response))
     )
-    with pytest.raises(FormaError, match="обірвалася"):
-        provider.complete("Translate", {}, TRANSLATION_SCHEMA)
-    provider.close()
+    try:
+        with pytest.raises(CapacityError, match="обірвалася") as caught:
+            provider.complete("Translate", {}, TRANSLATION_SCHEMA)
+        assert caught.value.kind == "output"
+        response.clear()
+        response["error"] = {"code": "context_length_exceeded", "message": "private error text"}
+        status = 400
+        with pytest.raises(CapacityError, match="неповна") as caught:
+            provider.complete("Translate", {}, TRANSLATION_SCHEMA)
+        assert caught.value.kind == "context" and "private" not in str(caught.value)
+        response["error"]["code"] = "bad_request"
+        with pytest.raises(FormaError) as caught:
+            provider.complete("Translate", {}, TRANSLATION_SCHEMA)
+        assert not isinstance(caught.value, CapacityError)
+    finally:
+        provider.close()
 
 
 @pytest.mark.parametrize("retain_completed", [False, True])
@@ -662,7 +679,10 @@ def test_native_json_schema_fallback_retains_image_and_schema_instruction(mode):
     "mode,finish,message",
     [
         ("gemini", "SAFETY", "відмовилась"),
+        ("gemini", "MAX_TOKENS", "обірвалася"),
         ("anthropic", "max_tokens", "обірвалася"),
+        ("anthropic", "model_context_window_exceeded", "неповна"),
+        ("anthropic", "pause_turn", "обірвалася"),
     ],
 )
 def test_native_incomplete_response_is_not_accepted_even_when_json_is_valid(mode, finish, message):
@@ -673,8 +693,9 @@ def test_native_incomplete_response_is_not_accepted_even_when_json_is_valid(mode
         ),
     )
     try:
-        with pytest.raises(FormaError, match=message):
+        with pytest.raises(FormaError, match=message) as caught:
             provider.complete("Translate", {}, TRANSLATION_SCHEMA)
+        assert isinstance(caught.value, CapacityError) == (finish in {"MAX_TOKENS", "max_tokens", "model_context_window_exceeded"})
         assert provider.output_tokens == 8
     finally:
         provider.close()
