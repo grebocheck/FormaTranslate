@@ -6,7 +6,6 @@ Backend owns the Qt metaobject and supplies the shared desktop session state.
 
 from __future__ import annotations
 
-import json
 import time
 import uuid
 from pathlib import Path
@@ -15,12 +14,10 @@ from PySide6.QtCore import QUrl
 from PySide6.QtGui import QDesktopServices
 
 from forma.core.models import (
-    Cancelled,
     FormaError,
     Options,
     plain_text,
 )
-from forma.documents.ocr import convert_scan_pdf
 from forma.documents.ooxml import OfficeDocument
 from forma.documents.pdf import inspect_pdf
 from forma.documents.review import actionable_count
@@ -30,50 +27,6 @@ from forma.providers.client import JobControl
 from forma.settings.config import load_preferences, save_preferences
 from forma.translation.engine import TranslationEngine
 from forma.translation.jobs import DocumentQueue, run_documents
-
-
-def _scan_review_warnings(output: Path) -> list[str]:
-    """Expose only known OCR findings; never display arbitrary manifest content."""
-    try:
-        with output.with_suffix(".ocr.json").open("rb") as stream:
-            raw = stream.read(50 * 1024 * 1024 + 1)
-        if len(raw) > 50 * 1024 * 1024:
-            return []
-        data = json.loads(raw)
-        pages = data.get("pages") if isinstance(data, dict) else None
-        if not isinstance(pages, list):
-            return []
-    except (OSError, ValueError, UnicodeError, RecursionError):
-        return []
-    codes = {
-        warning
-        for page in pages
-        if isinstance(page, dict) and isinstance(page.get("warnings"), list)
-        for warning in page["warnings"]
-        if isinstance(warning, str)
-    }
-    recovered = any(
-        isinstance(page, dict)
-        and type(page.get("recovered_lines")) is int
-        and page["recovered_lines"] > 0
-        for page in pages
-    )
-    messages = []
-    if "table_structure_unresolved" in codes:
-        messages.append(
-            "Частину таблиць збережено зображеннями та текстом, бо структуру не відновлено. "
-            "Виправте їх у DOCX перед перекладом."
-        )
-    if recovered or "unassigned_ocr_lines_recovered" in codes:
-        messages.append(
-            "Відновлені поза структурою рядки виділено жовтим у DOCX. "
-            "Перевірте порядок і дублювання."
-        )
-    if "low_ocr_confidence" in codes:
-        messages.append(
-            "Є фрагменти з низькою впевненістю OCR. Звірте їх зі сканом, особливо числа та коди."
-        )
-    return messages
 
 
 class DocumentWorkflow:
@@ -192,77 +145,6 @@ class DocumentWorkflow:
 
             self._inspect_document(self._documents[-1])
         self._persist_queue()
-        self.changed.emit()
-
-    def recognizeSelectedPdf(self, source_language):
-        if self.busy or self._closing or self._review_editing or self._review_saving:
-            return
-        document = next((d for d in self._documents if d["id"] == self._selected), None)
-        if not document or document.get("format") != "PDF" or document["status"] == "loading":
-            return
-        if source_language == "auto":
-            self._notice("Для розпізнавання PDF виберіть мову оригіналу.", "warning")
-            return
-        self._busy, self._scan_active = True, True
-        self._scan_progress = 0
-        self._scan_message = "Готуємо розпізнавання PDF"
-        self._message = ""
-        self._control = JobControl(1)
-        source = Path(document["path"])
-        folder = Path(self._folder)
-        configured = self._settings.scan_converter_path
-        control = self._control
-        converted = []
-
-        def run(emit):
-            try:
-                output = convert_scan_pdf(
-                    source,
-                    folder,
-                    source_language,
-                    configured,
-                    control,
-                    lambda percent, message: emit("scan_progress", (percent, message)),
-                )
-                emit("scan_result", (output, _scan_review_warnings(output)))
-            except Cancelled:
-                emit("scan_cancelled", None)
-
-        def receive(kind, payload):
-            if self._closing:
-                return
-            if kind == "scan_progress":
-                self._scan_progress, self._scan_message = payload
-                self.changed.emit()
-            elif kind == "scan_result":
-                converted.append(payload)
-            elif kind == "scan_cancelled":
-                self._notice("Розпізнавання PDF зупинено. Оригінал залишився без змін.")
-            else:
-                self._notice(payload, "error")
-
-        def finish():
-            self._busy, self._scan_active = False, False
-            self._scan_progress = 0
-            self._scan_message = ""
-            if converted and not self._closing:
-                output, warnings = converted[0]
-                self.removeDocument(document["id"])
-                self.addFiles([str(output)])
-                prepared = next(
-                    (d for d in self._documents if d["path"] == str(output.resolve())), None
-                )
-                if prepared:
-                    self.selectDocument(prepared["id"])
-                self._notice(
-                    "DOCX після OCR додано до черги. Відкрийте оригінал, перевірте текст і таблиці, "
-                    "потім натисніть «Перекласти».",
-                    "warning",
-                    details=warnings,
-                )
-            self.changed.emit()
-
-        self._launch(run, handler=receive, done=finish)
         self.changed.emit()
 
     def _restore_queue(self):

@@ -1,6 +1,15 @@
 # Однофайлова збірка
 
-На Windows у каталозі проєкту:
+На Windows у каталозі проєкту можна зібрати стандартну легку версію для встановленого ABBYY або зовнішніх рушіїв:
+
+```powershell
+uv sync --locked --group build
+uv run --group build python scripts/build.py --standard
+```
+
+Результат: `dist/Forma-windows-x86_64-standard.exe`. Робота зі звичайним ABBYY проходить через його редактор і явний імпорт перевіреного DOCX; [налаштування ABBYY](ABBYY.md).
+
+Для повної версії з локальними моделями:
 
 Спочатку підготуйте повний комплект OCR, моделей, Tesseract і BabelDOC та перевірте його за [WINDOWS-RUNTIME.md](WINDOWS-RUNTIME.md). Типова збірка вимагає цей комплект; `--desktop-only` створює окремо названий варіант лише для розробки.
 

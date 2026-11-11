@@ -22,6 +22,9 @@ STRING_PREFERENCES = {
     "review_model",
     "babeldoc_path",
     "scan_converter_path",
+    "scan_provider",
+    "abbyy_path",
+    "ui_theme",
     "reasoning_effort",
     "credential_mode",
     "output_folder",
@@ -37,6 +40,7 @@ NUMBER_PREFERENCES = {
     "parallel_documents",
     "requests_per_minute",
 }
+BOOL_PREFERENCES = {"abbyy_extended_cli_confirmed"}
 ENV_FIELDS = {
     "base_url": "OPENAI_BASE_URL",
     "model": "OPENAI_MODEL",
@@ -48,6 +52,8 @@ ENV_FIELDS = {
     "timeout": "FORMA_REQUEST_TIMEOUT",
     "babeldoc_path": "FORMA_BABELDOC_PATH",
     "scan_converter_path": "FORMA_SCAN_CONVERTER_PATH",
+    "scan_provider": "FORMA_SCAN_PROVIDER",
+    "abbyy_path": "FORMA_ABBYY_PATH",
     "max_parallel_requests": "FORMA_MAX_PARALLEL_REQUESTS",
     "parallel_documents": "FORMA_PARALLEL_DOCUMENTS",
     "provider_preset": "FORMA_PROVIDER_PRESET",
@@ -86,6 +92,9 @@ class Settings:
     requests_per_minute: int = 0
     babeldoc_path: str = ""
     scan_converter_path: str = ""
+    scan_provider: str = "auto"
+    abbyy_path: str = ""
+    abbyy_extended_cli_confirmed: bool = False
     env_path: Path = field(default_factory=default_env_path)
     key_source: str = ""
     key_stored: bool = False
@@ -113,6 +122,7 @@ class Settings:
         fields["base_url"] = preferences.get("base_url", environment_base)
         fields["translation_instructions"] = preferences.get("translation_instructions", "")
         fields["memory_project_id"] = preferences.get("memory_project_id", "")
+        fields["abbyy_extended_cli_confirmed"] = preferences.get("abbyy_extended_cli_confirmed", False)
         try:
             timeout = float(fields["timeout"])
             if not math.isfinite(timeout) or timeout <= 0:
@@ -204,6 +214,12 @@ class Settings:
         from forma.settings.credentials import canonical_endpoint
 
         validate_instructions(self.translation_instructions)
+        if self.scan_provider not in {"auto", "forma", "abbyy", "abbyy_extended"}:
+            raise FormaError("Оберіть спосіб розпізнавання PDF у налаштуваннях OCR.")
+        if type(self.abbyy_extended_cli_confirmed) is not bool:
+            raise FormaError("Підтвердження ліцензії ABBYY має бути явним вибором.")
+        if self.scan_provider == "abbyy_extended" and not self.abbyy_extended_cli_confirmed:
+            raise FormaError("Автоматичне збереження DOCX потребує окремої ліцензії ABBYY Extended CLI. Використайте звичайний режим ABBYY або підтвердьте її наявність.")
         if self.provider_preset not in PRESET_IDS:
             raise FormaError("Невідомий пресет провайдера. Оберіть його знову в налаштуваннях.")
         if (
@@ -281,7 +297,9 @@ def save_preferences(values: dict) -> None:
 def _safe_preferences(values: dict) -> dict:
     safe = {}
     for key, value in values.items():
-        if key in STRING_PREFERENCES and isinstance(value, str):
+        if key in BOOL_PREFERENCES and type(value) is bool:
+            safe[key] = value
+        elif key in STRING_PREFERENCES and isinstance(value, str):
             if key != "credential_mode" or value in {"keyring", "session", "none"}:
                 safe[key] = value
         elif (

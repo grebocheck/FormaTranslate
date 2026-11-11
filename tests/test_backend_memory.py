@@ -291,8 +291,13 @@ def test_preferred_dialog_async_close_preserves_conflict_and_replacement(
         replacement = window.findChild(QQuickItem, "replacementMemoryWordingText")
         assert previous.property("text") == "Pump power 16 kW"
         assert replacement.property("text") == "Rated pump power 16 kW"
-        assert previous.property("color").name() == "#1a2b42"
-        assert replacement.property("color").name() == "#1a2b42"
+        original_theme = backend.uiTheme
+        for theme in ("light", "dark"):
+            backend.setUiTheme(theme)
+            QTest.qWait(100)
+            assert previous.property("color") == window.property("ink")
+            assert replacement.property("color") == window.property("ink")
+        backend.setUiTheme(original_theme)
         tokens = (
             backend.memoryConflict["expected_revision"],
             backend.memoryConflict["expected_glossary_revision"],

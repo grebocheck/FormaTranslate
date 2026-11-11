@@ -8,7 +8,7 @@ from pathlib import Path
 
 from PySide6.QtTest import QTest
 
-import forma.presentation.documents_workflow as backend_module
+import forma.presentation.ocr_workflow as backend_module
 from forma.core.models import Cancelled, FormaError
 from forma.localization.catalog import translate
 from forma.presentation.backend import Backend

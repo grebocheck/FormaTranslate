@@ -44,7 +44,7 @@ def test_tabs_are_clickable_and_buttons_stay_legible_at_minimum_window_size(qapp
         QTest.qWait(50)
         start = window.findChild(QQuickItem, "translateButton")
         assert not start.property("enabled")
-        assert contrast(start.property("foreground"), "#edf0f4") >= 4.5
+        assert contrast(start.property("foreground"), start.property("background").property("color")) >= 4.5
         for index, name in enumerate(
             ("translationTab", "reviewTab", "settingsButton", "historyTab")
         ):

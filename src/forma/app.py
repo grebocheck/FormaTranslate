@@ -13,7 +13,7 @@ from PySide6.QtCore import (
     QTranslator,
     QUrl,
 )
-from PySide6.QtGui import QIcon
+from PySide6.QtGui import QFont, QFontDatabase, QIcon
 from PySide6.QtQml import QQmlApplicationEngine
 from PySide6.QtQuickControls2 import QQuickStyle
 from PySide6.QtWidgets import QApplication
@@ -45,6 +45,9 @@ def main(files: list[str] | None = None, screenshot: str | None = None) -> int:
     app.setApplicationName("Forma")
     app.setApplicationVersion(__version__)
     app.setOrganizationName("Forma")
+    font_path = resource_path("ui", "fonts", "InterVariable.ttf")
+    if font_path.is_file() and QFontDatabase.addApplicationFont(str(font_path)) >= 0:
+        app.setFont(QFont("Inter", 10))
     app.setWindowIcon(QIcon(str(resource_path("ui", "forma.svg"))))
     backend = Backend()
     translator = install_qt_translations(app)

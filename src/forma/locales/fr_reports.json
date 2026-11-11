@@ -1,0 +1,9 @@
+{
+  "Forma — звіт перекладу": "Forma — rapport de traduction",
+  "forma. / Звіт перекладу": "forma. / Rapport de traduction",
+  "Автоматичні перевірки пройдено.": "Contrôles automatiques réussis.",
+  "Використання токенів зовнішнім рушієм не обліковано.": "L’utilisation des jetons du moteur externe n’a pas été enregistrée.",
+  "Перевірки структури й чисел не є оцінкою точності перекладу. Верстку та зміст слід перевірити на характерних документах.": "Les contrôles structurels et numériques n’évaluent pas l’exactitude de la traduction. Vérifiez la mise en page et le contenu de documents représentatifs.",
+  "Токени: {input_tokens} вхід / {output_tokens} вихід. Із кешу: {cached_segments} фрагментів.": "Jetons : {input_tokens} en entrée / {output_tokens} en sortie. Segments en cache : {cached_segments}.",
+  "Тривалість: {seconds} с": "Durée : {seconds} s"
+}

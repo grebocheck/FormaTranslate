@@ -39,6 +39,7 @@ source modifications are applied by FormaTranslate.
 | Pillow, when collected through pypdf's optional image support | MIT-CMU, with the complete bundled-library notices in `licenses/pillow/LICENSE`. The FreeType License option is selected for FreeType; portions of this software are based on the work of the FreeType Project (https://www.freetype.org/). |
 | pytest, Pygments, when optional imports are collected by build hooks | MIT and BSD-2-Clause respectively; individual notices are included in `licenses/`. |
 | certifi | Mozilla Public License 2.0; the included CA data is not modified. |
+| Inter font | Copyright 2020 The Inter Project Authors; SIL Open Font License 1.1. Exact font, license and pinned upstream revision are recorded in `src/forma/ui/fonts/SOURCE.json`; the complete license accompanies packages under `licenses/Inter/OFL.txt`. |
 | idna | BSD-3-Clause. |
 | SQLite | Public domain; distributed through CPython's sqlite3 module. |
 | ICU | Unicode copyright and permission notice; included in the Linux Qt runtime. |

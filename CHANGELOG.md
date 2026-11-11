@@ -2,6 +2,14 @@
 
 Versions follow semantic versioning. Changes before 1.0 may evolve as document compatibility improves.
 
+## 0.8.0 — 2026-11-11
+
+- Add a supported lightweight Windows edition for installed ABBYY or external OCR/PDF engines, alongside the complete embedded edition.
+- Detect installed ABBYY in the background and provide a guided OCR Editor → reviewed DOCX → Forma workflow. Direct automated export requires explicitly confirmed ABBYY Extended CLI capability; ordinary FineReader editions are not assumed to support it.
+- Unify desktop controls, spacing, icons and semantic colors, bundle the Inter font, and add persistent System, Light and Dark appearance with live system-theme following.
+- Add complete French and Spanish interface catalogs alongside Ukrainian, English, Polish and German; retain document text and unsaved review/settings state during live UI changes.
+- Make release downloads explicit and collect development/dependency source materials into one separate archive with an exact checksum inventory.
+
 ## 0.7.0 — 2026-11-11
 
 - Organize implementation into focused translation, document, memory, provider, settings, persistence, accounting, localization and presentation packages; retain the application entry points and existing local data formats.

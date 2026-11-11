@@ -12,12 +12,28 @@ ApplicationWindow {
     title: qsTr("Forma — перекладач")
     color: bg
     font.pixelSize: 14
-    property color bg: "#f4f6fa"
-    property color ink: "#182230"
-    property color muted: "#596779"
-    property color line: "#dce2ea"
-    property color accent: "#2859c5"
-    property color accentLight: "#edf3ff"
+    font.family: Theme.fontFamily
+    property color bg: Theme.canvas
+    property color ink: Theme.ink
+    property color muted: Theme.muted
+    property color line: Theme.line
+    property color accent: Theme.accent
+    property color accentLight: Theme.accentLight
+    palette.window: Theme.canvas
+    palette.windowText: Theme.ink
+    palette.base: Theme.surface
+    palette.alternateBase: Theme.surfaceMuted
+    palette.text: Theme.ink
+    palette.button: Theme.surface
+    palette.buttonText: Theme.ink
+    palette.highlight: Theme.accent
+    palette.highlightedText: Theme.accentText
+    palette.mid: Theme.line
+    palette.dark: Theme.lineStrong
+    palette.light: Theme.surfaceRaised
+    palette.toolTipBase: Theme.ink
+    palette.toolTipText: Theme.canvas
+    Binding { target: Theme; property: "preference"; value: typeof backend.uiTheme === "string" ? backend.uiTheme : "system" }
     property int page: 0
     onPageChanged: {
         if (page === 1) backend.activateReview()
@@ -47,42 +63,50 @@ ApplicationWindow {
     // Canonical domain values are prompt inputs, independent of translated labels.
     property var domainValues: ["Загальна тематика", "Технічна документація", "Ділові документи", "Наукові матеріали", "Юридичні документи"]
     property var domainLabels: [qsTr("Загальна тематика"), qsTr("Технічна документація"), qsTr("Ділові документи"), qsTr("Наукові матеріали"), qsTr("Юридичні документи")]
-    property var uiLanguageCodes: ["system", "uk", "en", "pl", "de"]
+    property var uiLanguageCodes: backend.uiLanguages.map(function(item) { return item.code })
     property var titles: [qsTr("Переклад документів"), qsTr("Перевірка документа"), qsTr("Налаштування"), qsTr("Історія перекладів"), qsTr("Переклад тексту та фото")]
     readonly property var navigationPages: [0, 4, 1, 3, 2]
     readonly property bool hasCompleted: backend.documents.some(function(d) { return d.status === "done" })
     readonly property int reviewEntryIndex: backend.reviewEntries.findIndex(function(entry) { return entry.id === backend.selectedReviewId })
     readonly property bool reviewLocked: backend.reviewEditing || backend.reviewSaving || backend.memoryWorking
     property string languageMemoryProjectId: ""
+    property var themeCodes: ["system", "light", "dark"]
+    property var themeLabels: [qsTr("Як у системі"), qsTr("Світла"), qsTr("Темна")]
+    property var scanProviderCodes: ["auto", "forma", "abbyy", "abbyy_extended"]
+    property var scanProviderLabels: [qsTr("Автоматично"), qsTr("Вбудований / локальний OCR"), qsTr("ABBYY FineReader — вручну"), qsTr("ABBYY Extended CLI")]
+    readonly property bool showLocalOcrSettings: scanProvider.currentIndex === 1 || (scanProvider.currentIndex === 0 && !backend.settings.abbyyReady)
+    readonly property bool manualAbbyy: backend.settings.scanProviderEffective === "abbyy" || backend.settings.scanProvider === "abbyy"
+    readonly property var currentAbbyyHandoff: typeof backend.abbyyHandoff === "object" && backend.abbyyHandoff ? backend.abbyyHandoff : ({})
+    property string abbyyPromptId: ""
 
     onClosing: function(close) { close.accepted = backend.requestClose() }
     Component.onCompleted: { loadConfig(); syncMemoryLanguages() }
     Shortcut { sequences: [StandardKey.Open]; enabled: root.page !== 4 && backend.canAddDocuments && !root.reviewLocked; onActivated: backend.pickDocuments() }
     Timer { interval: 1000; repeat: true; running: backend.translating; onTriggered: root.clockNow = Date.now() }
 
-    component LabelText: Text {
+    component LabelText: Text { font.family: Theme.fontFamily;
         color: root.ink
         font.pixelSize: 14
         textFormat: Text.PlainText
         renderType: Text.NativeRendering
     }
     component Caption: LabelText { color: root.muted; font.pixelSize: 12 }
-    component Heading: LabelText { font.pixelSize: 16; font.weight: Font.DemiBold }
-    component Panel: Rectangle { color: "#ffffff"; border.color: root.line; radius: 10 }
+    component Heading: LabelText { font.pixelSize: 16; font.weight: Font.Medium }
+    component Panel: Rectangle { color: Theme.surface; border.color: root.line; radius: 12 }
     component Divider: Rectangle { color: root.line; implicitHeight: 1; Layout.fillWidth: true }
     component ReadingScrollBar: ScrollBar {
         id: control
-        policy: ScrollBar.AsNeeded; active: true; minimumSize: 0.08
+        policy: ScrollBar.AsNeeded; hoverEnabled: true; minimumSize: 0.08
         orientation: Qt.Vertical; visible: size > 0 && size < 1
         anchors.right: parent.right; anchors.top: parent.top; anchors.bottom: parent.bottom
         width: 8; implicitWidth: 8; padding: 1
-        contentItem: Rectangle { implicitWidth: 6; implicitHeight: 28; radius: 3; color: control.pressed ? "#60799a" : "#a8b5c7" }
-        background: Rectangle { radius: 3; color: "#edf1f6" }
+        contentItem: Rectangle { implicitWidth: 4; implicitHeight: 28; radius: 2; color: control.pressed ? Theme.lineStrong : Theme.scrollbar; opacity: control.active || control.hovered ? 1 : 0.4 }
+        background: null
     }
     component ReadOnlyText: TextArea {
         readOnly: true; selectByMouse: true; persistentSelection: true
         wrapMode: TextEdit.Wrap; textFormat: TextEdit.PlainText
-        color: root.ink; selectionColor: root.accent; selectedTextColor: "#ffffff"
+        color: root.ink; selectionColor: root.accent; selectedTextColor: Theme.accentText
         placeholderTextColor: root.muted; font.pixelSize: 14; padding: 0; rightPadding: 12
         background: null
     }
@@ -114,7 +138,7 @@ ApplicationWindow {
                 Layout.maximumHeight: 64; clip: true; contentWidth: availableWidth
                 ScrollBar.vertical: ReadingScrollBar { }
                 ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
-                ReadOnlyText { id: editErrorText; objectName: textPanel.textObjectName + "Error"; width: editErrorScroll.availableWidth; text: textPanel.editError; color: "#a13434"; font.pixelSize: 12; Accessible.name: qsTr("Помилка збереження правки") }
+                ReadOnlyText { id: editErrorText; objectName: textPanel.textObjectName + "Error"; width: editErrorScroll.availableWidth; text: textPanel.editError; color: Theme.danger; font.pixelSize: 12; Accessible.name: qsTr("Помилка збереження правки") }
             }
             ScrollView {
                 id: textScroll
@@ -132,50 +156,7 @@ ApplicationWindow {
             }
         }
     }
-    component Action: Button {
-        id: control
-        property bool primary: false
-        property bool subtle: false
-        property bool danger: false
-        property string iconName: ""
-        property string hint: ""
-        readonly property color foreground: !enabled ? "#5b6777" : primary ? "#ffffff" : danger ? "#a52e2e" : root.ink
-        implicitHeight: 42
-        implicitWidth: Math.ceil(buttonContent.implicitWidth + leftPadding + rightPadding)
-        Layout.minimumWidth: implicitWidth
-        leftPadding: 12; rightPadding: 12; topPadding: 10; bottomPadding: 10
-        hoverEnabled: true
-        activeFocusOnTab: true
-        ToolTip.visible: hovered && hint.length > 0
-        ToolTip.text: hint
-        ToolTip.delay: 600
-        background: Rectangle {
-            radius: 7
-            color: !control.enabled ? "#edf0f4" : control.primary ? (control.down ? "#173e94" : control.hovered ? "#204eaf" : root.accent) : control.down ? "#dfe7f3" : control.hovered ? "#edf2fa" : control.subtle ? "transparent" : "#ffffff"
-            border.color: !control.enabled ? "#d9dfe7" : control.primary || control.subtle ? "transparent" : "#bdc9d9"
-            Rectangle {
-                anchors.fill: parent; anchors.margins: -3; radius: 9
-                color: "transparent"; border.color: root.accent; border.width: 2
-                visible: control.visualFocus
-            }
-        }
-        contentItem: Item {
-            id: buttonContent
-            implicitWidth: buttonRow.implicitWidth
-            implicitHeight: buttonRow.implicitHeight
-            Row {
-                id: buttonRow
-                anchors.centerIn: parent; spacing: 8
-                Icon { name: control.iconName; color: control.foreground; visible: control.iconName.length > 0; anchors.verticalCenter: parent.verticalCenter }
-                LabelText {
-                    text: control.text; visible: control.text.length > 0
-                    font.pixelSize: 13; font.weight: Font.DemiBold
-                    color: control.foreground
-                    anchors.verticalCenter: parent.verticalCenter
-                }
-            }
-        }
-    }
+    component Action: AppButton { }
     component NavigationTab: TabButton {
         id: control
         property string iconName: "document"
@@ -188,99 +169,20 @@ ApplicationWindow {
             Row {
                 id: tabContent
                 anchors.centerIn: parent; spacing: 9
-                Icon { name: control.iconName; color: !control.enabled ? "#596779" : control.checked ? root.accent : "#43536a"; width: 20; height: 20; anchors.verticalCenter: parent.verticalCenter }
-                LabelText { text: control.text; font.pixelSize: 14; font.weight: Font.DemiBold; color: !control.enabled ? "#596779" : control.checked ? root.accent : "#344255"; anchors.verticalCenter: parent.verticalCenter }
+                Icon { name: control.iconName; color: !control.enabled ? Theme.muted : control.checked ? root.accent : Theme.muted; width: 20; height: 20; anchors.verticalCenter: parent.verticalCenter }
+                LabelText { text: control.text; font.pixelSize: 14; font.weight: Font.Medium; color: !control.enabled ? Theme.muted : control.checked ? root.accent : Theme.muted; anchors.verticalCenter: parent.verticalCenter }
             }
         }
         background: Rectangle {
-            color: control.checked ? "#eaf1ff" : control.hovered ? "#f1f5fb" : "transparent"
+            color: control.hovered ? Theme.hover : "transparent"
             radius: 6
             border.color: control.visualFocus ? root.accent : "transparent"
             border.width: 2
-            Rectangle { anchors.left: parent.left; anchors.right: parent.right; anchors.bottom: parent.bottom; anchors.leftMargin: 12; anchors.rightMargin: 12; height: 3; radius: 1; color: root.accent; visible: control.checked }
+            Rectangle { anchors.left: parent.left; anchors.right: parent.right; anchors.bottom: parent.bottom; anchors.leftMargin: 12; anchors.rightMargin: 12; height: 2; radius: 1; color: root.accent; visible: control.checked }
         }
     }
-    component Field: TextField {
-        id: control
-        implicitHeight: 42
-        leftPadding: 12; rightPadding: 12
-        color: enabled ? root.ink : root.muted
-        placeholderTextColor: "#68778a"
-        selectionColor: root.accent
-        selectedTextColor: "#ffffff"
-        font.pixelSize: 14
-        selectByMouse: true
-        background: Rectangle {
-            color: control.enabled ? "#ffffff" : "#f0f2f6"
-            radius: 6
-            border.color: control.activeFocus ? root.accent : "#c7d0dd"
-            border.width: control.activeFocus ? 2 : 1
-        }
-    }
-    component Select: ComboBox {
-        id: control
-        property var optionLabels: []
-        displayText: currentIndex >= 0 && currentIndex < optionLabels.length ? optionLabels[currentIndex] : currentText
-        implicitHeight: 42
-        leftPadding: 12; rightPadding: 32
-        font.pixelSize: 14
-        background: Rectangle {
-            color: control.enabled ? "#ffffff" : "#f0f2f6"
-            radius: 6
-            border.color: control.visualFocus || control.popup.visible ? root.accent : "#c7d0dd"
-            border.width: control.visualFocus ? 2 : 1
-        }
-        contentItem: LabelText {
-            text: control.displayText
-            color: control.enabled ? root.ink : root.muted
-            verticalAlignment: Text.AlignVCenter
-            elide: Text.ElideRight
-        }
-        indicator: Canvas {
-            x: control.width - 24; y: (control.height - height) / 2
-            width: 10; height: 6
-            onPaint: {
-                var ctx = getContext("2d")
-                ctx.reset(); ctx.moveTo(1, 1); ctx.lineTo(5, 5); ctx.lineTo(9, 1)
-                ctx.lineWidth = 1.5; ctx.strokeStyle = "#596779"; ctx.stroke()
-            }
-        }
-        delegate: ItemDelegate {
-            id: option
-            required property var modelData
-            required property int index
-            width: control.width - 8
-            height: 38
-            leftPadding: 10; rightPadding: 10
-            highlighted: control.highlightedIndex === index
-            contentItem: LabelText {
-                text: option.index < control.optionLabels.length ? control.optionLabels[option.index] : option.modelData
-                color: root.ink
-                font.pixelSize: 13
-                font.weight: control.currentIndex === option.index ? Font.DemiBold : Font.Normal
-                verticalAlignment: Text.AlignVCenter
-                elide: Text.ElideRight
-            }
-            background: Rectangle { radius: 4; color: option.highlighted ? "#e8f0ff" : "#ffffff" }
-        }
-        popup: Popup {
-            y: control.height + 4
-            width: control.width
-            padding: 4
-            topMargin: 8
-            bottomMargin: 8
-            implicitHeight: Math.min(contentItem.implicitHeight + 8, 320)
-            closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutsideParent
-            background: Rectangle { color: "#ffffff"; radius: 7; border.color: "#b8c4d4" }
-            contentItem: ListView {
-                clip: true
-                implicitHeight: contentHeight
-                model: control.popup.visible ? control.delegateModel : null
-                currentIndex: control.highlightedIndex
-                ScrollBar.vertical: ScrollBar { }
-            }
-        }
-    }
+    component Field: AppField { }
+    component Select: AppSelect { }
     component ModelPicker: Item {
         id: control
         property alias text: modelInput.text
@@ -316,7 +218,7 @@ ApplicationWindow {
             topMargin: 8; bottomMargin: 8
             implicitHeight: Math.min(modelList.contentHeight + 8, 300)
             closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutsideParent
-            background: Rectangle { color: "#ffffff"; radius: 7; border.color: "#b8c4d4" }
+            background: Rectangle { color: Theme.surface; radius: 7; border.color: Theme.lineStrong }
             onOpened: modelList.currentIndex = backend.modelChoices.indexOf(control.text)
             contentItem: ListView {
                 id: modelList
@@ -339,7 +241,7 @@ ApplicationWindow {
                     width: modelList.width; height: 38
                     highlighted: modelList.currentIndex === index
                     contentItem: LabelText { text: modelOption.modelData; font.pixelSize: 13; elide: Text.ElideRight; verticalAlignment: Text.AlignVCenter; font.weight: control.text === modelOption.modelData ? Font.DemiBold : Font.Normal }
-                    background: Rectangle { radius: 4; color: modelOption.highlighted || modelOption.hovered ? "#e8f0ff" : "#ffffff" }
+                    background: Rectangle { radius: 4; color: modelOption.highlighted || modelOption.hovered ? Theme.accentLight : Theme.surface }
                     onClicked: { modelList.currentIndex = index; modelList.chooseCurrent() }
                 }
             }
@@ -347,19 +249,21 @@ ApplicationWindow {
     }
     component Toggle: CheckBox {
         id: control
-        implicitHeight: 30
+        implicitHeight: Math.max(30, contentItem.implicitHeight + topPadding + bottomPadding)
+        Layout.fillWidth: true
         spacing: 10
         indicator: Rectangle {
             width: 18; height: 18
             x: control.leftPadding; y: (control.height - height) / 2
-            color: control.checked ? root.accent : "#ffffff"
+            color: control.checked ? root.accent : Theme.surface
             radius: 4
-            border.color: control.visualFocus ? root.accent : control.checked ? root.accent : "#9caabe"
+            border.color: control.visualFocus ? root.accent : control.checked ? root.accent : Theme.lineStrong
             border.width: control.visualFocus ? 2 : 1
-            LabelText { anchors.centerIn: parent; text: "✓"; color: "#ffffff"; visible: control.checked; font.pixelSize: 13; font.weight: Font.Bold }
+            Icon { anchors.centerIn: parent; name: "check"; width: 14; height: 14; color: Theme.accentText; visible: control.checked }
         }
         contentItem: LabelText {
             text: control.text
+            wrapMode: Text.WordWrap
             font.pixelSize: 13
             color: control.enabled ? root.ink : root.muted
             leftPadding: control.indicator.width + control.spacing
@@ -372,14 +276,14 @@ ApplicationWindow {
         id: scanSettingsScrollTimer
         interval: 1
         onTriggered: {
-            scanConverterPath.forceActiveFocus()
+            (root.showLocalOcrSettings ? scanConverterPath : scanProvider).forceActiveFocus()
             root.scrollToScanConverter()
         }
     }
     Connections {
         target: settingsScroll.contentItem
         function onContentHeightChanged() {
-            if (scanConverterPath.activeFocus)
+            if (scanConverterPath.activeFocus || scanProvider.activeFocus)
                 Qt.callLater(root.scrollToScanConverter)
         }
     }
@@ -387,11 +291,18 @@ ApplicationWindow {
         target: backend
         function onChanged() {
             root.syncMemoryLanguages()
+            if (root.currentAbbyyHandoff.showPrompt && root.currentAbbyyHandoff.promptId && root.currentAbbyyHandoff.promptId !== root.abbyyPromptId) {
+                root.abbyyPromptId = root.currentAbbyyHandoff.promptId
+                abbyyHandoffDialog.open()
+            }
+            if (!root.currentAbbyyHandoff.sourceId)
+                abbyyHandoffDialog.close()
             if (backend.memoryConflict.active && !rememberWordingDialog.visible)
                 rememberWordingDialog.open()
         }
     }
     InstructionsDialog { id: instructionsDialog; controller: backend }
+    AbbyyHandoffDialog { id: abbyyHandoffDialog; controller: backend; handoff: root.currentAbbyyHandoff }
     function openGlossary() {
         backend.glossaryEditor.prepare(root.sourceCodes[sourceLanguage.currentIndex], root.targetCodes[targetLanguage.currentIndex], root.domainValues[domain.currentIndex])
         glossaryDialog.open()
@@ -402,11 +313,11 @@ ApplicationWindow {
     UsagePanel { id: usagePanel; parent: Overlay.overlay; controller: backend.usage }
 
     header: Rectangle {
-        height: 108; color: "#ffffff"
+        height: 96; color: Theme.surface
         Rectangle { height: 1; anchors.left: parent.left; anchors.right: parent.right; anchors.bottom: parent.bottom; color: root.line }
         RowLayout {
             anchors.left: parent.left; anchors.right: parent.right; anchors.top: parent.top
-            anchors.leftMargin: 24; anchors.rightMargin: 24; height: 54; spacing: 10
+            anchors.leftMargin: 28; anchors.rightMargin: 28; height: 50; spacing: 10
             Image { Layout.preferredWidth: 28; Layout.preferredHeight: 28; source: "forma.svg"; sourceSize.width: 56; sourceSize.height: 56; smooth: true }
             LabelText { text: "Forma"; font.pixelSize: 21; font.weight: Font.DemiBold }
             Item { Layout.fillWidth: true }
@@ -414,6 +325,25 @@ ApplicationWindow {
                 text: backend.reviewEditing ? qsTr("Редагування перекладу") : backend.recognizingScan ? backend.scanMessage : backend.paused ? qsTr("На паузі") : backend.translating ? backend.queueSummary : backend.busy ? qsTr("Виконуємо завдання…") : backend.settings.model || qsTr("Підключення не налаштовано")
                 color: backend.busy ? root.accent : root.muted
                 elide: Text.ElideMiddle; Layout.maximumWidth: 300
+            }
+            Action {
+                objectName: "appearanceButton"; iconName: Theme.preference === "system" ? "monitor" : Theme.dark ? "moon" : "sun"
+                hint: qsTr("Вигляд"); subtle: true; implicitWidth: 36; implicitHeight: 36
+                onClicked: appearanceMenu.open()
+                Menu {
+                    id: appearanceMenu
+                    y: parent.height + 6; width: 230
+                    Repeater {
+                        model: root.themeCodes
+                        MenuItem {
+                            required property string modelData
+                            required property int index
+                            text: root.themeLabels[index]; checkable: true
+                            checked: Theme.preference === modelData
+                            onTriggered: backend.setUiTheme(modelData)
+                        }
+                    }
+                }
             }
             Action {
                 objectName: "usageButton"
@@ -427,7 +357,7 @@ ApplicationWindow {
             id: navigation
             objectName: "mainNavigation"
             anchors.left: parent.left; anchors.bottom: parent.bottom; anchors.leftMargin: 24; anchors.bottomMargin: 1
-            width: parent.width - 48; height: 46
+            width: parent.width - 48; height: 42
             spacing: 4
             enabled: !root.reviewLocked
             currentIndex: root.navigationPages.indexOf(root.page)
@@ -445,19 +375,19 @@ ApplicationWindow {
         anchors.fill: parent; anchors.margins: 24; spacing: 16
         RowLayout {
             Layout.fillWidth: true; spacing: 16
-            LabelText { text: root.titles[root.page]; font.pixelSize: 24; font.weight: Font.DemiBold; Layout.fillWidth: true }
+            LabelText { text: root.titles[root.page]; font.pixelSize: 26; font.weight: Font.Medium; Layout.fillWidth: true }
         }
         Rectangle {
             objectName: "noticeBanner"
             Layout.fillWidth: true; implicitHeight: noticeRow.implicitHeight + 22
             visible: backend.message.length > 0 && backend.messageKind !== "success"
-            color: backend.messageKind === "error" ? "#fff0ef" : backend.messageKind === "warning" ? "#fff5e8" : "#edf3ff"
-            border.color: backend.messageKind === "error" ? "#efc4c0" : backend.messageKind === "warning" ? "#ead4af" : "#c5d5ef"
+            color: backend.messageKind === "error" ? Theme.dangerFill : backend.messageKind === "warning" ? Theme.warningFill : Theme.accentLight
+            border.color: backend.messageKind === "error" ? Theme.dangerLine : backend.messageKind === "warning" ? Theme.warningLine : Theme.accentLine
             radius: 6
             RowLayout {
                 id: noticeRow
                 anchors.left: parent.left; anchors.right: parent.right; anchors.top: parent.top; anchors.margins: 11
-                LabelText { text: backend.message; color: backend.messageKind === "error" ? "#962d29" : root.ink; wrapMode: Text.WordWrap; Layout.fillWidth: true; font.pixelSize: 13 }
+                LabelText { text: backend.message; color: backend.messageKind === "error" ? Theme.danger : root.ink; wrapMode: Text.WordWrap; Layout.fillWidth: true; font.pixelSize: 13 }
                 Action { text: ""; iconName: "close"; hint: qsTr("Закрити повідомлення"); subtle: true; implicitWidth: 30; implicitHeight: 30; onClicked: backend.dismissMessage(); Accessible.name: hint }
             }
         }
@@ -480,7 +410,7 @@ ApplicationWindow {
                                 Caption { text: backend.documents.length ? String(backend.documents.length) : "" }
                                 Item { Layout.fillWidth: true }
                                 Action { text: ""; iconName: "clear-done"; hint: qsTr("Прибрати завершені з черги. Вони залишаться в історії"); objectName: "clearCompletedButton"; subtle: true; visible: root.hasCompleted; implicitHeight: 36; implicitWidth: 36; onClicked: backend.clearCompleted(); Accessible.name: qsTr("Прибрати завершені") }
-                                Action { text: qsTr("Додати файли"); iconName: "add"; objectName: "addDocumentsButton"; enabled: backend.canAddDocuments; implicitHeight: 36; onClicked: backend.pickDocuments() }
+                                Action { text: qsTr("Додати файли"); iconName: "add"; objectName: "addDocumentsButton"; visible: backend.documents.length > 0; enabled: backend.canAddDocuments; implicitHeight: 36; onClicked: backend.pickDocuments() }
                             }
                             Caption { text: qsTr("Нові файли перекладатимуться з поточними параметрами цього запуску."); visible: backend.translating; Layout.fillWidth: true; wrapMode: Text.WordWrap }
                             Divider { }
@@ -494,14 +424,14 @@ ApplicationWindow {
                                     required property var modelData
                                     required property int index
                                     width: ListView.view.width; height: modelData.status === "translating" ? 90 : 74; radius: 6
-                                    color: backend.selectedId === modelData.id ? root.accentLight : rowMouse.containsMouse ? "#f7f9fc" : "#ffffff"
+                                    color: backend.selectedId === modelData.id ? root.accentLight : rowMouse.containsMouse ? Theme.surfaceMuted : Theme.surface
                                     MouseArea { id: rowMouse; anchors.fill: parent; hoverEnabled: true; onClicked: backend.selectDocument(fileRow.modelData.id) }
                                     RowLayout {
                                         anchors.fill: parent; anchors.margins: 10; spacing: 12
                                         Rectangle {
                                             width: 40; height: 46; radius: 5
-                                            color: fileRow.modelData.format === "DOCX" ? "#e9f0ff" : fileRow.modelData.format === "XLSX" ? "#e6f3eb" : "#ffede8"
-                                            LabelText { anchors.centerIn: parent; text: fileRow.modelData.format; font.pixelSize: 10; font.weight: Font.Bold; color: fileRow.modelData.format === "DOCX" ? "#3159a5" : fileRow.modelData.format === "XLSX" ? "#226241" : "#a34b35" }
+                                            color: fileRow.modelData.format === "DOCX" ? Theme.accentLight : fileRow.modelData.format === "XLSX" ? Theme.successFill : Theme.dangerFill
+                                            LabelText { anchors.centerIn: parent; text: fileRow.modelData.format; font.pixelSize: 10; font.weight: Font.Bold; color: fileRow.modelData.format === "DOCX" ? Theme.accent : fileRow.modelData.format === "XLSX" ? Theme.success : Theme.danger }
                                         }
                                         ColumnLayout {
                                             Layout.fillWidth: true; spacing: 5
@@ -510,9 +440,9 @@ ApplicationWindow {
                                                 LabelText { text: fileRow.modelData.name; Layout.fillWidth: true; elide: Text.ElideMiddle; font.weight: Font.DemiBold; font.pixelSize: 13 }
                                                 Caption { visible: !!fileRow.modelData.startedAt; text: root.duration(fileRow.modelData.status === "translating" ? (root.clockNow - fileRow.modelData.startedAt) / 1000 : fileRow.modelData.elapsedSeconds || 0) }
                                             }
-                                            Caption { text: fileRow.modelData.size + " · " + fileRow.modelData.statusText; Layout.fillWidth: true; wrapMode: Text.WordWrap; maximumLineCount: 2; elide: Text.ElideRight; color: fileRow.modelData.status === "error" ? "#a13434" : root.muted }
+                                            Caption { text: fileRow.modelData.size + " · " + fileRow.modelData.statusText; Layout.fillWidth: true; wrapMode: Text.WordWrap; maximumLineCount: 2; elide: Text.ElideRight; color: fileRow.modelData.status === "error" ? Theme.danger : root.muted }
                                             Rectangle {
-                                                Layout.fillWidth: true; height: 3; radius: 2; visible: fileRow.modelData.status === "translating"; color: "#d8e3f4"
+                                                Layout.fillWidth: true; height: 3; radius: 2; visible: fileRow.modelData.status === "translating"; color: Theme.accentLine
                                                 Rectangle { width: parent.width * fileRow.modelData.progress / 100; height: 3; radius: 2; color: root.accent }
                                             }
                                         }
@@ -527,11 +457,11 @@ ApplicationWindow {
                                 }
                                 ColumnLayout {
                                     anchors.centerIn: parent; width: Math.min(360, parent.width - 24); spacing: 12; visible: backend.documents.length === 0
-                                    Rectangle {
-                                        Layout.alignment: Qt.AlignHCenter; width: 52; height: 62; radius: 7; color: "#f7f9fd"; border.color: "#c4d0e3"
-                                        Column { anchors.centerIn: parent; spacing: 6; Repeater { model: 3; Rectangle { width: 24; height: 2; color: "#95a9c8"; radius: 1 } } }
+                                    Item {
+                                        Layout.alignment: Qt.AlignHCenter; width: 56; height: 60
+                                        Icon { anchors.centerIn: parent; name: "document"; width: 36; height: 36; color: Theme.muted }
                                     }
-                                    Heading { text: qsTr("Додайте документи для перекладу"); Layout.fillWidth: true; horizontalAlignment: Text.AlignHCenter; wrapMode: Text.WordWrap }
+                                    Heading { text: qsTr("Додайте документи для перекладу"); font.pixelSize: 18; Layout.fillWidth: true; horizontalAlignment: Text.AlignHCenter; wrapMode: Text.WordWrap }
                                     Caption { text: qsTr("Перетягніть файли сюди або виберіть їх на комп’ютері."); Layout.fillWidth: true; horizontalAlignment: Text.AlignHCenter; wrapMode: Text.WordWrap; lineHeight: 1.3 }
                                     Action { text: qsTr("Вибрати файли"); iconName: "folder"; primary: true; Layout.alignment: Qt.AlignHCenter; enabled: backend.canAddDocuments; onClicked: backend.pickDocuments() }
                                     Caption { text: "DOCX  ·  XLSX  ·  PDF"; Layout.alignment: Qt.AlignHCenter; font.pixelSize: 11 }
@@ -545,15 +475,20 @@ ApplicationWindow {
                                     Layout.fillWidth: true
                                     Action {
                                         objectName: "recognizePdfButton"
-                                        text: qsTr("Скан PDF → DOCX"); iconName: "document"; implicitHeight: 34
+                                        text: root.manualAbbyy ? qsTr("Відкрити в ABBYY…") : qsTr("Скан PDF → DOCX"); iconName: "document"; implicitHeight: 34
                                         enabled: !backend.busy && backend.selectedDocument.status !== "loading"
                                         onClicked: backend.recognizeSelectedPdf(root.sourceCodes[sourceLanguage.currentIndex])
                                     }
+                                    Action {
+                                        objectName: "importAbbyyResultButton"; text: qsTr("Імпортувати DOCX…"); iconName: "import"; subtle: true; implicitHeight: 34
+                                        visible: root.currentAbbyyHandoff.sourceId === backend.selectedDocument.id && !!root.currentAbbyyHandoff.sourceId
+                                        enabled: !backend.busy; onClicked: abbyyHandoffDialog.open()
+                                    }
                                     Item { Layout.fillWidth: true }
-                                    Action { objectName: "scanSettingsButton"; text: qsTr("Налаштувати OCR"); iconName: "settings"; subtle: true; implicitHeight: 32; enabled: !backend.busy; onClicked: root.openScanSettings() }
+                                    Action { objectName: "scanSettingsButton"; text: root.width < 1120 ? "" : qsTr("Налаштувати OCR"); hint: qsTr("Налаштувати OCR"); iconName: "settings"; subtle: true; implicitHeight: 32; enabled: !backend.busy; onClicked: root.openScanSettings() }
                                 }
                                 Caption {
-                                    text: backend.recognizingScan ? backend.scanMessage : qsTr("Створює DOCX локально й замінює PDF у черзі. Перевірте текст і таблиці перед перекладом.")
+                                    text: backend.recognizingScan ? backend.scanMessage : root.manualAbbyy ? qsTr("Збережіть розпізнаний документ як DOCX у FineReader, перевірте його та поверніть у чергу.") : qsTr("Створює DOCX локально й замінює PDF у черзі. Перевірте текст і таблиці перед перекладом.")
                                     Layout.fillWidth: true; wrapMode: Text.WordWrap
                                 }
                                 ProgressBar { objectName: "scanProgressBar"; visible: backend.recognizingScan; from: 0; to: 100; value: backend.scanProgress; Layout.fillWidth: true }
@@ -572,7 +507,7 @@ ApplicationWindow {
                                 Layout.fillWidth: true
                                 Caption { text: qsTr("Результати") }
                                 Caption { text: backend.outputFolder; Layout.fillWidth: true; elide: Text.ElideMiddle; color: root.ink }
-                                Action { text: qsTr("Відкрити"); iconName: "folder"; objectName: "openOutputFolderButton"; implicitHeight: 32; onClicked: backend.openOutputFolder(); hint: qsTr("Відкрити папку результатів") }
+                                Action { text: qsTr("Відкрити"); iconName: "folder"; objectName: "openOutputFolderButton"; subtle: true; implicitHeight: 32; onClicked: backend.openOutputFolder(); hint: qsTr("Відкрити папку результатів") }
                                 Action { text: qsTr("Змінити…"); iconName: "settings"; subtle: true; implicitHeight: 32; enabled: !backend.busy; onClicked: backend.pickOutputFolder() }
                             }
                         }
@@ -606,7 +541,7 @@ ApplicationWindow {
                     }
                 }
                 Panel {
-                    Layout.preferredWidth: 294; Layout.fillHeight: true
+                    Layout.preferredWidth: 320; Layout.minimumWidth: 280; Layout.fillHeight: true
                     ColumnLayout {
                         anchors.fill: parent; anchors.margins: 20; spacing: 16
                         ScrollView {
@@ -615,7 +550,7 @@ ApplicationWindow {
                               ScrollBar.vertical: ReadingScrollBar { }
                               ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
                             ColumnLayout {
-                                width: translationScroll.availableWidth; spacing: 10
+                                width: translationScroll.availableWidth - 12; spacing: 10
                                 Heading { text: qsTr("Мови перекладу"); Layout.bottomMargin: 6 }
                                 Caption { text: qsTr("Мова оригіналу") }
                                   Select { id: sourceLanguage; objectName: "sourceLanguage"; model: root.sourceCodes; optionLabels: [qsTr("Автовизначення")].concat(root.languageLabels); Layout.fillWidth: true; enabled: !backend.busy && !backend.memoryProject.id }
@@ -624,7 +559,7 @@ ApplicationWindow {
                                 Caption {
                                     visible: root.needsSourceLanguage || root.sameLanguage
                                     text: root.needsSourceLanguage ? qsTr("Для PDF виберіть мову оригіналу.") : qsTr("Виберіть іншу мову перекладу.")
-                                    color: "#9b4c22"; wrapMode: Text.WordWrap; Layout.fillWidth: true
+                                    color: Theme.warning; wrapMode: Text.WordWrap; Layout.fillWidth: true
                                 }
                                   Caption { text: qsTr("Пам’ять проєкту") }
                                   Select {
@@ -637,12 +572,11 @@ ApplicationWindow {
                                       onActivated: function(index) { backend.selectMemoryProject(model[index]); root.syncMemoryLanguages() }
                                       Accessible.name: qsTr("Пам’ять проєкту")
                                   }
-                                  Action { text: backend.memoryProject.id ? qsTr("Еталони й глосарій…") : qsTr("Створити проєкт…"); objectName: "manageMemoryButton"; iconName: "book"; subtle: true; implicitHeight: 30; Layout.leftMargin: -10; enabled: !backend.busy && !root.reviewLocked; onClicked: memoryDialog.open(); hint: qsTr("Схожі фрагменти потребують платного запиту редактора; точні збіги використовують готовий переклад.") }
+                                  Action { text: backend.memoryProject.id ? qsTr("Еталони й глосарій…") : qsTr("Створити проєкт…"); objectName: "manageMemoryButton"; iconName: "book"; subtle: true; leftAligned: true; leftPadding: 0; implicitHeight: 30; Layout.fillWidth: true; enabled: !backend.busy && !root.reviewLocked; onClicked: memoryDialog.open(); hint: qsTr("Схожі фрагменти потребують платного запиту редактора; точні збіги використовують готовий переклад.") }
                                   Caption { text: qsTr("Пам’ять поповнюється після перекладу автоматично. Глосарій та еталони необов’язкові."); visible: !!backend.memoryProject.id; Layout.fillWidth: true; wrapMode: Text.WordWrap; font.pixelSize: 11 }
-                                  Action { text: backend.glossaryCount ? qsTr("Глосарій: %1 термінів…").arg(backend.glossaryCount) : qsTr("Глосарій (необов’язково)…"); objectName: "editGlossaryButton"; iconName: "book"; subtle: true; Layout.fillWidth: true; enabled: !backend.busy; onClicked: root.openGlossary(); hint: qsTr("Додайте власні терміни або створіть пропозиції з документів. Готовий CSV не потрібен.") }
-                                  Divider { Layout.topMargin: 2; Layout.bottomMargin: 2 }
-                                Divider { Layout.topMargin: 12; Layout.bottomMargin: 2 }
-                                Action { text: qsTr("Параметри перекладу"); iconName: root.translationOptionsOpen ? "chevron-down" : "chevron-right"; subtle: true; Layout.leftMargin: -10; implicitHeight: 34; onClicked: root.translationOptionsOpen = !root.translationOptionsOpen }
+                                  Action { text: backend.glossaryCount ? qsTr("Глосарій: %1 термінів…").arg(backend.glossaryCount) : qsTr("Глосарій (необов’язково)…"); objectName: "editGlossaryButton"; iconName: "book"; subtle: true; leftAligned: true; leftPadding: 0; Layout.fillWidth: true; enabled: !backend.busy; onClicked: root.openGlossary(); hint: qsTr("Додайте власні терміни або створіть пропозиції з документів. Готовий CSV не потрібен.") }
+                                  Divider { Layout.topMargin: 10; Layout.bottomMargin: 4 }
+                                Action { text: qsTr("Параметри перекладу"); iconName: root.translationOptionsOpen ? "chevron-down" : "chevron-right"; subtle: true; leftAligned: true; leftPadding: 0; Layout.fillWidth: true; implicitHeight: 34; onClicked: root.translationOptionsOpen = !root.translationOptionsOpen }
                                 ColumnLayout {
                                     visible: root.translationOptionsOpen; Layout.fillWidth: true; spacing: 9
                                     Caption { text: qsTr("Тематика") }
@@ -653,11 +587,11 @@ ApplicationWindow {
                                 }
                                 Action {
                                     text: qsTr("Власні інструкції") + (backend.translationInstructions.trim().length ? " •" : "")
-                                    objectName: "documentInstructionsButton"; iconName: "edit"; subtle: true
+                                    objectName: "documentInstructionsButton"; iconName: "edit"; subtle: true; leftAligned: true; leftPadding: 0
                                     Layout.fillWidth: true; enabled: !backend.busy; onClicked: instructionsDialog.open()
                                 }
-                                Caption { text: qsTr("Перевіряємо переклад і зберігаємо оригінальний файл."); visible: review.checked && !root.hasPdf; wrapMode: Text.WordWrap; Layout.fillWidth: true; lineHeight: 1.4 }
-                                Caption { text: qsTr("Редакторську перевірку вимкнено."); visible: !review.checked && !root.hasPdf; color: "#9b4c22"; wrapMode: Text.WordWrap; Layout.fillWidth: true }
+                                Caption { text: qsTr("Перевіряємо переклад і зберігаємо оригінальний файл."); visible: review.checked && !root.hasPdf && root.translationOptionsOpen; wrapMode: Text.WordWrap; Layout.fillWidth: true; lineHeight: 1.4 }
+                                Caption { text: qsTr("Редакторську перевірку вимкнено."); visible: !review.checked && !root.hasPdf; color: Theme.warning; wrapMode: Text.WordWrap; Layout.fillWidth: true }
                                 Caption { text: qsTr("PDF потребує візуальної перевірки. Редакторський прохід доступний для DOCX і XLSX."); visible: root.hasPdf; wrapMode: Text.WordWrap; Layout.fillWidth: true; lineHeight: 1.4 }
                             }
                         }
@@ -698,12 +632,12 @@ ApplicationWindow {
                         onActivated: function(index) { backend.selectReviewDocument(backend.reviewDocuments[index].id) }
                         Accessible.name: qsTr("Документ для перевірки")
                     }
-                    Action { text: qsTr("Оригінал"); iconName: "document"; objectName: "reviewOriginalButton"; enabled: !!backend.reviewDocument.path; onClicked: backend.openPath(backend.reviewDocument.path) }
-                    Action { text: qsTr("Переклад"); iconName: "external"; objectName: "reviewOutputButton"; enabled: !!backend.reviewDocument.outputExists; onClicked: backend.openPath(backend.reviewDocument.output) }
-                    Action { text: qsTr("Звіт"); iconName: "review"; objectName: "reviewReportButton"; enabled: !!backend.reviewDocument.reportExists; onClicked: backend.openReviewReport() }
+                    Action { text: qsTr("Оригінал"); iconName: "document"; objectName: "reviewOriginalButton"; subtle: true; enabled: !!backend.reviewDocument.path; onClicked: backend.openPath(backend.reviewDocument.path) }
+                    Action { text: qsTr("Переклад"); iconName: "external"; objectName: "reviewOutputButton"; subtle: true; enabled: !!backend.reviewDocument.outputExists; onClicked: backend.openPath(backend.reviewDocument.output) }
+                    Action { text: qsTr("Звіт"); iconName: "review"; objectName: "reviewReportButton"; subtle: true; enabled: !!backend.reviewDocument.reportExists; onClicked: backend.openReviewReport() }
                     Action { text: backend.reviewSaving ? qsTr("Зберігаємо…") : qsTr("Зберегти копію"); iconName: "save"; objectName: "reviewExportButton"; primary: true; visible: backend.reviewHasEdits || backend.reviewSaving; enabled: backend.reviewHasEdits && !root.reviewLocked; onClicked: backend.exportReviewEdits(); hint: qsTr("Створити виправлену копію. Попередній переклад залишиться без змін") }
                 }
-                Caption { text: backend.reviewActionError; objectName: "reviewActionError"; visible: text.length > 0; color: "#a13434"; Layout.fillWidth: true; wrapMode: Text.WordWrap }
+                Caption { text: backend.reviewActionError; objectName: "reviewActionError"; visible: text.length > 0; color: Theme.danger; Layout.fillWidth: true; wrapMode: Text.WordWrap }
                 Caption { text: qsTr("Правки збережено як чернетку. Збережіть копію, щоб отримати виправлений документ."); visible: backend.reviewHasEdits && !backend.reviewEditing; Layout.fillWidth: true; wrapMode: Text.WordWrap; color: root.accent }
                 RowLayout {
                     Layout.fillWidth: true; spacing: 14
@@ -718,7 +652,7 @@ ApplicationWindow {
                             var filter = currentIndex === 1 ? "all" : "issues"
                             if (backend.reviewFilter !== filter) backend.setReviewFilter(filter)
                         }
-                        background: Rectangle { color: "#e9edf4"; radius: 7 }
+                        background: Rectangle { color: Theme.disabled; radius: 7 }
                         NavigationTab { id: reviewIssuesMode; text: qsTr("Зауваження"); iconName: "attention"; objectName: "reviewIssuesFilter"; implicitHeight: 38 }
                         NavigationTab { id: reviewAllMode; text: qsTr("Увесь текст"); iconName: "list"; objectName: "reviewAllFilter"; implicitHeight: 38 }
                     }
@@ -768,18 +702,18 @@ ApplicationWindow {
                                     highlighted: modelData.id === backend.selectedReviewId
                                     Accessible.name: modelData.issueCount > 0 ? qsTr("%1, зауважень: %2").arg(modelData.location).arg(modelData.issueCount) : modelData.location
                                     background: Rectangle {
-                                        radius: 6; color: reviewEntryRow.highlighted ? root.accentLight : reviewEntryRow.hovered ? "#f4f7fb" : "#ffffff"
-                                        border.color: reviewEntryRow.visualFocus ? root.accent : reviewEntryRow.highlighted ? "#c5d5ef" : "transparent"
-                                        Rectangle { x: 0; y: 10; width: 3; height: parent.height - 20; radius: 1; visible: reviewEntryRow.modelData.issueCount > 0 && !reviewEntryRow.modelData.accepted; color: reviewEntryRow.modelData.severity === "error" ? "#b33a35" : "#bb7b28" }
+                                        radius: 6; color: reviewEntryRow.highlighted ? root.accentLight : reviewEntryRow.hovered ? Theme.surfaceMuted : Theme.surface
+                                        border.color: reviewEntryRow.visualFocus ? root.accent : reviewEntryRow.highlighted ? Theme.accentLine : "transparent"
+                                        Rectangle { x: 0; y: 10; width: 3; height: parent.height - 20; radius: 1; visible: reviewEntryRow.modelData.issueCount > 0 && !reviewEntryRow.modelData.accepted; color: reviewEntryRow.modelData.severity === "error" ? Theme.danger : Theme.warning }
                                     }
                                     contentItem: ColumnLayout {
                                         spacing: 5
                                         RowLayout {
                                             Layout.fillWidth: true; spacing: 6
                                             Caption { text: reviewEntryRow.modelData.location || qsTr("Документ"); Layout.fillWidth: true; elide: Text.ElideMiddle; font.weight: Font.DemiBold; color: root.ink }
-                                            Icon { name: "check"; color: "#226241"; visible: !!reviewEntryRow.modelData.accepted; Accessible.name: qsTr("Позначено як коректне") }
+                                            Icon { name: "check"; color: Theme.success; visible: !!reviewEntryRow.modelData.accepted; Accessible.name: qsTr("Позначено як коректне") }
                                             Icon { name: "edit"; color: root.accent; visible: !!reviewEntryRow.modelData.edited; Accessible.name: qsTr("Є правка") }
-                                            Caption { text: String(reviewEntryRow.modelData.issueCount || ""); visible: reviewEntryRow.modelData.issueCount > 0 && !reviewEntryRow.modelData.accepted; font.weight: Font.DemiBold; color: reviewEntryRow.modelData.severity === "error" ? "#a13434" : "#8b4b1d" }
+                                            Caption { text: String(reviewEntryRow.modelData.issueCount || ""); visible: reviewEntryRow.modelData.issueCount > 0 && !reviewEntryRow.modelData.accepted; font.weight: Font.DemiBold; color: reviewEntryRow.modelData.severity === "error" ? Theme.danger : Theme.warning }
                                         }
                                         LabelText {
                                             text: (reviewEntryRow.modelData.source || reviewEntryRow.modelData.translation || (reviewEntryRow.modelData.messages || [])[0] || qsTr("Примітка до документа")).replace(/\s+/g, " ")
@@ -798,13 +732,13 @@ ApplicationWindow {
                         RowLayout {
                             Layout.fillWidth: true; spacing: 6
                             LabelText { text: backend.selectedReviewEntry.location || qsTr("Документ"); Layout.fillWidth: true; elide: Text.ElideMiddle; font.weight: Font.DemiBold; font.pixelSize: 13 }
-                            Action { text: qsTr("Редагувати"); iconName: "edit"; objectName: "reviewEditButton"; implicitHeight: 32; visible: backend.selectedReviewEntry.kind === "segment" && !backend.reviewEditing; enabled: !!backend.selectedReviewEntry.canEdit && !backend.reviewSaving && !backend.memoryWorking; onClicked: backend.beginReviewEdit(); hint: backend.selectedReviewEntry.editReason || qsTr("Редагувати текст перекладу цього фрагмента") }
+                            Action { text: qsTr("Редагувати"); iconName: "edit"; objectName: "reviewEditButton"; subtle: true; implicitHeight: 32; visible: backend.selectedReviewEntry.kind === "segment" && !backend.reviewEditing; enabled: !!backend.selectedReviewEntry.canEdit && !backend.reviewSaving && !backend.memoryWorking; onClicked: backend.beginReviewEdit(); hint: backend.selectedReviewEntry.editReason || qsTr("Редагувати текст перекладу цього фрагмента") }
                             Action { text: ""; iconName: "undo"; objectName: "reviewDiscardEditButton"; implicitWidth: 34; implicitHeight: 32; visible: !!backend.selectedReviewEntry.edited && !backend.reviewEditing; enabled: !backend.reviewSaving && !backend.memoryWorking; onClicked: backend.discardReviewEdit(); hint: qsTr("Скасувати збережену правку цього фрагмента"); Accessible.name: hint }
                             Action { text: qsTr("Застосувати"); iconName: "check"; objectName: "reviewApplyButton"; primary: true; implicitHeight: 32; visible: backend.reviewEditing; enabled: !backend.reviewSaving; onClicked: backend.applyReviewEdit(); hint: qsTr("Зберегти правку в чернетці") }
                             Action { text: qsTr("Скасувати"); iconName: "close"; objectName: "reviewCancelEditButton"; implicitHeight: 32; visible: backend.reviewEditing; enabled: !backend.reviewSaving; onClicked: backend.cancelReviewEdit() }
-                            Action { text: ""; iconName: "chevron-left"; hint: qsTr("Попередній запис"); objectName: "reviewPreviousButton"; implicitWidth: 34; implicitHeight: 32; visible: !backend.reviewEditing; enabled: !root.reviewLocked && root.reviewEntryIndex > 0; onClicked: backend.stepReviewEntry(-1); Accessible.name: hint }
+                            Action { text: ""; iconName: "chevron-left"; hint: qsTr("Попередній запис"); objectName: "reviewPreviousButton"; subtle: true; implicitWidth: 34; implicitHeight: 32; visible: !backend.reviewEditing; enabled: !root.reviewLocked && root.reviewEntryIndex > 0; onClicked: backend.stepReviewEntry(-1); Accessible.name: hint }
                             Caption { text: (root.reviewEntryIndex + 1) + " / " + backend.reviewEntries.length; visible: !backend.reviewEditing; Layout.minimumWidth: 46; horizontalAlignment: Text.AlignHCenter }
-                            Action { text: ""; iconName: "chevron-right"; hint: qsTr("Наступний запис"); objectName: "reviewNextButton"; implicitWidth: 34; implicitHeight: 32; visible: !backend.reviewEditing; enabled: !root.reviewLocked && root.reviewEntryIndex >= 0 && root.reviewEntryIndex < backend.reviewEntries.length - 1; onClicked: backend.stepReviewEntry(1); Accessible.name: hint }
+                            Action { text: ""; iconName: "chevron-right"; hint: qsTr("Наступний запис"); objectName: "reviewNextButton"; subtle: true; implicitWidth: 34; implicitHeight: 32; visible: !backend.reviewEditing; enabled: !root.reviewLocked && root.reviewEntryIndex >= 0 && root.reviewEntryIndex < backend.reviewEntries.length - 1; onClicked: backend.stepReviewEntry(1); Accessible.name: hint }
                         }
                         Action { text: qsTr("Запам’ятати формулювання"); objectName: "rememberReviewWordingButton"; iconName: "book"; subtle: true; implicitHeight: 30; visible: !!backend.memoryProject.id && backend.selectedReviewEntry.kind === "segment" && !backend.reviewEditing; enabled: backend.canRememberReviewWording; onClicked: rememberWordingDialog.open() }
                         Panel {
@@ -814,12 +748,12 @@ ApplicationWindow {
                             Layout.preferredHeight: backend.selectedReviewEntry.kind === "document" ? 1 : Math.min(backend.reviewEditing ? 108 : root.height < 760 ? 112 : 160, explanationsText.implicitHeight + 70)
                             Layout.minimumHeight: 86
                             visible: (backend.selectedReviewEntry.messages || []).length > 0
-                            color: backend.selectedReviewEntry.accepted ? "#f3f8f4" : backend.selectedReviewEntry.severity === "error" ? "#fff5f4" : backend.selectedReviewEntry.severity === "warning" ? "#fff9f0" : "#ffffff"
-                            border.color: backend.selectedReviewEntry.accepted ? "#c8dfd0" : backend.selectedReviewEntry.severity === "error" ? "#efc4c0" : backend.selectedReviewEntry.severity === "warning" ? "#ead4af" : root.line
+                            color: backend.selectedReviewEntry.accepted ? Theme.successFill : backend.selectedReviewEntry.severity === "error" ? Theme.dangerFill : backend.selectedReviewEntry.severity === "warning" ? Theme.warningFill : Theme.surface
+                            border.color: backend.selectedReviewEntry.accepted ? Theme.successLine : backend.selectedReviewEntry.severity === "error" ? Theme.dangerLine : backend.selectedReviewEntry.severity === "warning" ? Theme.warningLine : root.line
                             ColumnLayout {
                                 anchors.fill: parent; anchors.margins: 14; spacing: 9
                                 RowLayout {
-                                    Icon { name: backend.selectedReviewEntry.accepted ? "check" : backend.selectedReviewEntry.severity === "info" ? "info" : "attention"; color: backend.selectedReviewEntry.accepted ? "#226241" : backend.selectedReviewEntry.severity === "error" ? "#a13434" : backend.selectedReviewEntry.severity === "warning" ? "#8b4b1d" : root.muted }
+                                    Icon { name: backend.selectedReviewEntry.accepted ? "check" : backend.selectedReviewEntry.severity === "info" ? "info" : "attention"; color: backend.selectedReviewEntry.accepted ? Theme.success : backend.selectedReviewEntry.severity === "error" ? Theme.danger : backend.selectedReviewEntry.severity === "warning" ? Theme.warning : root.muted }
                                     LabelText { text: backend.selectedReviewEntry.accepted ? qsTr("Позначено як коректне") : backend.selectedReviewEntry.severity === "info" ? qsTr("Примітка до документа") : ((backend.selectedReviewEntry.messages || []).length > 1 ? qsTr("На що звернути увагу (%1)").arg(backend.selectedReviewEntry.messages.length) : qsTr("На що звернути увагу")); font.pixelSize: 13; font.weight: Font.DemiBold; Layout.fillWidth: true; elide: Text.ElideRight }
                                     Action { text: qsTr("Це коректно"); iconName: "check"; objectName: "reviewConfirmButton"; implicitHeight: 30; visible: !!backend.selectedReviewEntry.canAccept && !backend.selectedReviewEntry.accepted; enabled: !root.reviewLocked; onClicked: backend.confirmReviewEntry(); hint: qsTr("Позначити цей запис як перевірений. Він залишиться у вкладці «Увесь текст»") }
                                     Action { text: qsTr("Повернути зауваження"); iconName: "undo"; objectName: "reviewReopenButton"; implicitHeight: 30; visible: !!backend.selectedReviewEntry.accepted; enabled: !root.reviewLocked; onClicked: backend.reopenReviewEntry() }
@@ -852,7 +786,7 @@ ApplicationWindow {
                         ColumnLayout {
                             anchors.centerIn: parent; width: Math.min(400, parent.width - 40); spacing: 14
                             BusyIndicator { running: backend.reviewSummary.loading; visible: running; Layout.alignment: Qt.AlignHCenter; Layout.preferredWidth: 36; Layout.preferredHeight: 36 }
-                            Icon { name: backend.reviewSummary.error ? "attention" : "review"; color: "#7b8da7"; visible: !backend.reviewSummary.loading; Layout.preferredWidth: 32; Layout.preferredHeight: 32; Layout.alignment: Qt.AlignHCenter }
+                            Icon { name: backend.reviewSummary.error ? "attention" : "review"; color: Theme.muted; visible: !backend.reviewSummary.loading; Layout.preferredWidth: 32; Layout.preferredHeight: 32; Layout.alignment: Qt.AlignHCenter }
                             Heading { text: root.reviewEmptyTitle(); Layout.fillWidth: true; wrapMode: Text.WordWrap; horizontalAlignment: Text.AlignHCenter }
                             Caption { text: root.reviewEmptyDescription(); Layout.fillWidth: true; wrapMode: Text.WordWrap; horizontalAlignment: Text.AlignHCenter; lineHeight: 1.3 }
                             Action { text: qsTr("Очистити пошук"); iconName: "close"; visible: backend.reviewSearch.length > 0 && !backend.reviewSummary.loading; Layout.alignment: Qt.AlignHCenter; onClicked: backend.setReviewSearch("") }
@@ -870,25 +804,6 @@ ApplicationWindow {
                     Layout.fillWidth: true; Layout.fillHeight: true; clip: true; contentWidth: availableWidth
                     ColumnLayout {
                         width: Math.min(880, settingsScroll.availableWidth); x: (settingsScroll.availableWidth - width) / 2; spacing: 16
-                        Panel {
-                            Layout.fillWidth: true; implicitHeight: interfaceRow.implicitHeight + 32
-                            RowLayout {
-                                id: interfaceRow
-                                anchors.left: parent.left; anchors.right: parent.right; anchors.top: parent.top; anchors.margins: 16; spacing: 16
-                                LabelText { text: qsTr("Мова інтерфейсу"); Layout.fillWidth: true; font.weight: Font.DemiBold }
-                                Select {
-                                    id: interfaceLanguage
-                                    objectName: "interfaceLanguageSelector"
-                                    Layout.preferredWidth: 250
-                                    model: root.uiLanguageCodes
-                                    optionLabels: root.uiLanguageCodes.map(function(code) { var language = backend.uiLanguages.find(function(item) { return item.code === code }); return language ? language.label : code })
-                                    currentIndex: root.uiLanguageCodes.indexOf(backend.uiLanguage)
-                                    enabled: !backend.busy
-                                    onActivated: function(index) { backend.setUiLanguage(root.uiLanguageCodes[index]) }
-                                    Accessible.name: qsTr("Мова інтерфейсу")
-                                }
-                            }
-                        }
                         Panel {
                             Layout.fillWidth: true; implicitHeight: connectionBody.implicitHeight + 40
                             ColumnLayout {
@@ -930,7 +845,7 @@ ApplicationWindow {
                                         onClicked: { root.removeSavedKey = !root.removeSavedKey; apiKey.clear(); root.keyVisible = false }
                                     }
                                 }
-                                Caption { objectName: "credentialStatusCaption"; text: root.removeSavedKey ? qsTr("Ключ буде видалено після натискання «Зберегти».") : !root.savedEndpointSelected ? qsTr("Введіть ключ для вибраного провайдера. Ключ іншого сервісу не переноситься.") : backend.settings.credentialStatus || qsTr("Ключ не відображається після збереження."); wrapMode: Text.WordWrap; Layout.fillWidth: true; color: root.removeSavedKey ? "#9b4c22" : root.muted }
+                                Caption { objectName: "credentialStatusCaption"; text: root.removeSavedKey ? qsTr("Ключ буде видалено після натискання «Зберегти».") : !root.savedEndpointSelected ? qsTr("Введіть ключ для вибраного провайдера. Ключ іншого сервісу не переноситься.") : backend.settings.credentialStatus || qsTr("Ключ не відображається після збереження."); wrapMode: Text.WordWrap; Layout.fillWidth: true; color: root.removeSavedKey ? Theme.warning : root.muted }
                                 RowLayout {
                                     Layout.fillWidth: true; spacing: 16; Layout.topMargin: 6
                                     ColumnLayout {
@@ -962,6 +877,40 @@ ApplicationWindow {
                                     }
 
                                 }
+                            }
+                        }
+                        Panel {
+                            Layout.fillWidth: true; implicitHeight: appearanceBody.implicitHeight + 40
+                            ColumnLayout {
+                                id: appearanceBody
+                                anchors.left: parent.left; anchors.right: parent.right; anchors.top: parent.top; anchors.margins: 20; spacing: 16
+                                Heading { text: qsTr("Вигляд") }
+                                RowLayout {
+                                    Layout.fillWidth: true; spacing: 20
+                                    LabelText { text: qsTr("Мова інтерфейсу"); Layout.fillWidth: true }
+                                    Select {
+                                        id: interfaceLanguage; objectName: "interfaceLanguageSelector"
+                                        Layout.preferredWidth: 250
+                                        model: root.uiLanguageCodes
+                                        optionLabels: root.uiLanguageCodes.map(function(code) { var language = backend.uiLanguages.find(function(item) { return item.code === code }); return language ? language.label : code })
+                                        currentIndex: root.uiLanguageCodes.indexOf(backend.uiLanguage)
+                                        enabled: !backend.busy
+                                        onActivated: function(index) { backend.setUiLanguage(root.uiLanguageCodes[index]) }
+                                        Accessible.name: qsTr("Мова інтерфейсу")
+                                    }
+                                }
+                                RowLayout {
+                                    Layout.fillWidth: true; spacing: 20
+                                    LabelText { text: qsTr("Тема"); Layout.fillWidth: true }
+                                    Select {
+                                        objectName: "interfaceThemeSelector"; Layout.preferredWidth: 250
+                                        model: root.themeCodes; optionLabels: root.themeLabels
+                                        currentIndex: root.themeCodes.indexOf(Theme.preference)
+                                        onActivated: function(index) { backend.setUiTheme(root.themeCodes[index]) }
+                                        Accessible.name: qsTr("Тема")
+                                    }
+                                }
+                                Caption { text: qsTr("Використовує оформлення операційної системи та змінюється разом із ним."); visible: Theme.preference === "system"; Layout.fillWidth: true; wrapMode: Text.WordWrap }
                             }
                         }
                         Panel {
@@ -1004,19 +953,33 @@ ApplicationWindow {
                                 RowLayout {
                                     Heading { text: qsTr("Переклад PDF") }
                                     Item { Layout.fillWidth: true }
-                                    Caption { text: backend.settings.pdfReady ? qsTr("Рушій знайдено") : qsTr("Рушій не знайдено"); color: backend.settings.pdfReady ? "#226241" : root.muted }
+                                    Caption { text: backend.settings.pdfReady ? qsTr("Рушій знайдено") : qsTr("Рушій не знайдено"); color: backend.settings.pdfReady ? Theme.success : root.muted }
                                     Action { text: root.pdfOptionsOpen ? qsTr("Згорнути") : qsTr("Налаштувати"); iconName: root.pdfOptionsOpen ? "chevron-down" : "settings"; subtle: true; implicitHeight: 30; onClicked: root.pdfOptionsOpen = !root.pdfOptionsOpen }
                                 }
-                                Caption { text: qsTr("Текстові PDF обробляє окремо встановлений BabelDOC. Сканам потрібне розпізнавання тексту."); wrapMode: Text.WordWrap; Layout.fillWidth: true }
+                                Caption { text: qsTr("PDF із текстом перекладається зі збереженням макета. Для сканів спочатку підготуйте DOCX."); wrapMode: Text.WordWrap; Layout.fillWidth: true }
                                 ColumnLayout {
                                     visible: root.pdfOptionsOpen; Layout.fillWidth: true; spacing: 8
                                     Caption { text: qsTr("Шлях до BabelDOC") }
                                     Field { id: babeldocPath; Layout.fillWidth: true; placeholderText: qsTr("Порожньо — знайти автоматично"); enabled: !backend.busy }
-                                    Caption { text: qsTr("Встановлення: uv tool install --python 3.12 BabelDOC==0.7.1"); wrapMode: Text.WordWrap; Layout.fillWidth: true }
-                                        Caption { text: qsTr("Шлях до OCR-конвертера") }
-                                        Field { id: scanConverterPath; objectName: "scanConverterPathField"; Layout.fillWidth: true; placeholderText: qsTr("Порожньо — знайти автоматично"); enabled: !backend.busy }
-                                        Caption { objectName: "scanConverterStatus"; text: backend.settings.scanConverterReady ? qsTr("OCR-конвертер знайдено") : qsTr("OCR-конвертер не знайдено"); color: backend.settings.scanConverterReady ? "#177044" : "#9b4c22"; Layout.fillWidth: true; wrapMode: Text.WordWrap }
-                                        Caption { text: qsTr("Потрібен окремий локальний OCR-конвертер. API-модель для розпізнавання не використовується."); wrapMode: Text.WordWrap; Layout.fillWidth: true }
+                                    AppButton { text: qsTr("Як налаштувати PDF та OCR"); iconName: "external"; subtle: true; leftAligned: true; leftPadding: 0; onClicked: Qt.openUrlExternally("https://github.com/grebocheck/FormaTranslate/blob/main/docs/PDF.md") }
+                                        Divider { Layout.topMargin: 8; Layout.bottomMargin: 4 }
+                                    Caption { text: qsTr("Розпізнавання сканів") }
+                                    Select {
+                                        id: scanProvider; objectName: "scanProviderSelector"
+                                        model: root.scanProviderCodes; optionLabels: root.scanProviderLabels
+                                        Layout.fillWidth: true; enabled: !backend.busy
+                                        Accessible.name: qsTr("Розпізнавання сканів")
+                                    }
+                                    Caption { text: qsTr("Автоматично: використати встановлений ABBYY, інакше локальний OCR. Звичайний FineReader відкривається для ручного експорту DOCX."); Layout.fillWidth: true; wrapMode: Text.WordWrap }
+                                    Caption { text: qsTr("Шлях до ABBYY FineReader"); visible: scanProvider.currentIndex !== 1 }
+                                    Field { id: abbyyPath; objectName: "abbyyPathField"; visible: scanProvider.currentIndex !== 1; Layout.fillWidth: true; placeholderText: qsTr("Порожньо — знайти автоматично"); enabled: !backend.busy }
+                                    Caption { text: backend.settings.abbyyReady ? qsTr("ABBYY FineReader знайдено") : qsTr("ABBYY FineReader не знайдено"); visible: scanProvider.currentIndex !== 1; color: backend.settings.abbyyReady ? Theme.success : Theme.muted; Layout.fillWidth: true; wrapMode: Text.WordWrap }
+                                    Toggle { id: abbyyExtendedCliConfirmed; objectName: "abbyyExtendedCliConfirmed"; visible: scanProvider.currentIndex === 3; text: qsTr("Моя ліцензія ABBYY дозволяє Extended CLI"); enabled: !backend.busy }
+                                    Caption { text: qsTr("Автоматичний експорт доступний лише з відповідною ліцензією Extended CLI. Звичайна або Corporate-ліцензія сама по собі цього не підтверджує."); visible: scanProvider.currentIndex === 3; color: Theme.warning; Layout.fillWidth: true; wrapMode: Text.WordWrap }
+                                    Caption { text: qsTr("Шлях до OCR-конвертера"); visible: root.showLocalOcrSettings }
+                                        Field { id: scanConverterPath; objectName: "scanConverterPathField"; visible: root.showLocalOcrSettings; Layout.fillWidth: true; placeholderText: qsTr("Порожньо — знайти автоматично"); enabled: !backend.busy }
+                                        Caption { objectName: "scanConverterStatus"; visible: root.showLocalOcrSettings; text: backend.settings.scanConverterReady ? qsTr("OCR-конвертер знайдено") : qsTr("OCR-конвертер не знайдено"); color: backend.settings.scanConverterReady ? Theme.success : Theme.warning; Layout.fillWidth: true; wrapMode: Text.WordWrap }
+                                        Caption { text: qsTr("Потрібен окремий локальний OCR-конвертер. API-модель для розпізнавання не використовується."); visible: root.showLocalOcrSettings; wrapMode: Text.WordWrap; Layout.fillWidth: true }
                                 }
                             }
                         }
@@ -1075,7 +1038,7 @@ ApplicationWindow {
                             Caption {
                                 visible: !!historyRow.modelData.error || historyRow.modelData.warningCount > 0 || (historyRow.modelData.status === "done" && !historyRow.modelData.outputExists)
                                 text: historyRow.modelData.error || (historyRow.modelData.warningCount > 0 ? qsTr("Зауважень у звіті: %1").arg(historyRow.modelData.warningCount) : qsTr("Файл результату переміщено або видалено."))
-                                color: historyRow.modelData.error ? "#a13434" : "#8b4b1d"; Layout.fillWidth: true; wrapMode: Text.WordWrap; maximumLineCount: 2; elide: Text.ElideRight
+                                color: historyRow.modelData.error ? Theme.danger : Theme.warning; Layout.fillWidth: true; wrapMode: Text.WordWrap; maximumLineCount: 2; elide: Text.ElideRight
                             }
                             RowLayout {
                                 Layout.fillWidth: true; spacing: 8
@@ -1092,7 +1055,7 @@ ApplicationWindow {
                     ColumnLayout {
                         anchors.centerIn: parent; width: Math.min(430, parent.width - 40); spacing: 12
                         visible: backend.historyEntries.length === 0
-                        Icon { name: "history"; Layout.preferredWidth: 38; Layout.preferredHeight: 38; color: "#7b8da7"; Layout.alignment: Qt.AlignHCenter }
+                        Icon { name: "history"; Layout.preferredWidth: 38; Layout.preferredHeight: 38; color: Theme.muted; Layout.alignment: Qt.AlignHCenter }
                         Heading { text: backend.historyLoading ? qsTr("Шукаємо попередні переклади…") : qsTr("Тут будуть ваші переклади"); Layout.fillWidth: true; horizontalAlignment: Text.AlignHCenter; wrapMode: Text.WordWrap }
                         Caption { text: qsTr("Завершені переклади з’являються тут автоматично. Попередні результати можна імпортувати з вибраної папки."); Layout.fillWidth: true; horizontalAlignment: Text.AlignHCenter; wrapMode: Text.WordWrap; lineHeight: 1.3 }
                     }
@@ -1117,6 +1080,7 @@ ApplicationWindow {
         var saved = backend.saveSettings({baseUrl: baseUrl.text, model: modelField.text, reviewModel: reviewModel.text,
             providerPreset: root.providerPresetId, requestsPerMinute: requestsPerMinute.text,
             apiMode: apiMode.currentText, responseFormat: responseFormat.currentText, babeldocPath: babeldocPath.text, scanConverterPath: scanConverterPath.text,
+            scanProvider: root.scanProviderCodes[scanProvider.currentIndex], abbyyPath: abbyyPath.text, abbyyExtendedCliConfirmed: abbyyExtendedCliConfirmed.checked,
             reasoningEffort: root.nativeProvider ? "" : root.reasoningCodes[reasoning.currentIndex],
             maxOutputTokens: maxTokens.text, timeout: timeoutField.text,
             parallelDocuments: parallelDocuments.text, maxParallelRequests: parallelRequests.text,
@@ -1146,10 +1110,12 @@ ApplicationWindow {
         root.languageMemoryProjectId = projectId
     }
     function scrollToScanConverter() {
-        if (root.page !== 2 || !scanConverterPath.activeFocus)
+        if (root.page !== 2 || (!scanConverterPath.activeFocus && !scanProvider.activeFocus))
             return
         var flickable = settingsScroll.contentItem
-        flickable.contentY = Math.max(0, flickable.contentHeight - flickable.height)
+        var target = scanConverterPath.activeFocus ? scanConverterPath : scanProvider
+        var position = target.mapToItem(flickable.contentItem, 0, 0)
+        flickable.contentY = Math.max(0, Math.min(flickable.contentHeight - flickable.height, position.y - 48))
     }
     function loadConfig() {
         root.providerPresetId = backend.settings.providerPreset || "custom"
@@ -1158,6 +1124,9 @@ ApplicationWindow {
         reviewModel.text = backend.settings.reviewModel || ""
         babeldocPath.text = backend.settings.babeldocPath || ""
         scanConverterPath.text = backend.settings.scanConverterPath || ""
+        scanProvider.currentIndex = Math.max(0, root.scanProviderCodes.indexOf(backend.settings.scanProvider || "auto"))
+        abbyyPath.text = backend.settings.abbyyPath || ""
+        abbyyExtendedCliConfirmed.checked = !!backend.settings.abbyyExtendedCliConfirmed
         apiMode.currentIndex = Math.max(0, apiMode.model.indexOf(backend.settings.apiMode || "chat"))
         responseFormat.currentIndex = Math.max(0, responseFormat.model.indexOf(backend.settings.responseFormat || "auto"))
         reasoning.currentIndex = Math.max(0, root.reasoningCodes.indexOf(backend.settings.reasoningEffort || ""))
@@ -1247,9 +1216,9 @@ ApplicationWindow {
     }
 
     function historyColor(entry, background) {
-        if (entry.status === "error" || entry.status === "failed") return background ? "#fff0ef" : "#a13434"
-        if (entry.warningCount > 0) return background ? "#fff3e5" : "#8b4b1d"
-        if (entry.status === "done") return background ? "#edf7f1" : "#226241"
-        return background ? "#edf0f4" : "#596779"
+        if (entry.status === "error" || entry.status === "failed") return background ? Theme.dangerFill : Theme.danger
+        if (entry.warningCount > 0) return background ? Theme.warningFill : Theme.warning
+        if (entry.status === "done") return background ? Theme.successFill : Theme.success
+        return background ? Theme.disabled : Theme.muted
     }
 }

@@ -88,7 +88,7 @@ def test_language_changes_keep_preset_manual_model_and_quota_drafts(settings_win
     rpm.setProperty("text", "3")
     key = window.findChild(QQuickItem, "apiKeyField")
     key.setProperty("text", "unsaved-gemini-secret")
-    for language in ("en", "pl", "de", "uk"):
+    for language in ("en", "pl", "de", "uk", "fr", "es"):
         backend.setUiLanguage(language)
         QTest.qWait(20)
         assert window.property("providerPresetId") == "gemini-free"
@@ -98,6 +98,10 @@ def test_language_changes_keep_preset_manual_model_and_quota_drafts(settings_win
         assert key.property("text") == "unsaved-gemini-secret"
         save = window.findChild(QQuickItem, "saveSettingsButton")
         assert key.mapToScene(QPointF(0, key.height())).y() < save.mapToScene(QPointF(0, 0)).y()
+        for name in ("saveSettingsButton", "testConnectionButton"):
+            button = window.findChild(QQuickItem, name)
+            left = button.mapToScene(QPointF(0, 0)).x()
+            assert 0 <= left and left + button.width() <= window.width()
         assert not window.grabWindow().isNull()
     select_preset(backend, window, "custom")
     assert model.property("text") == "my-gemini-version"

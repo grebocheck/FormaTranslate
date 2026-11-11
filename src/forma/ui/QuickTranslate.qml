@@ -12,10 +12,10 @@ Item {
     readonly property bool imageMode: controller.mode === "image"
     property bool showOriginal: false
     property real imageZoom: 1
-    readonly property color ink: "#182230"
-    readonly property color muted: "#596779"
-    readonly property color accent: "#2859c5"
-    readonly property color line: "#dce2ea"
+    readonly property color ink: Theme.ink
+    readonly property color muted: Theme.muted
+    readonly property color accent: Theme.accent
+    readonly property color line: Theme.line
     signal configureRequested()
     signal instructionsRequested()
     property bool instructionsActive: false
@@ -55,84 +55,19 @@ Item {
     }
     Component.onCompleted: sourceEditor.text = controller.sourceText
 
-    component Label: Text {
+    component Label: Text { font.family: Theme.fontFamily;
         color: page.ink; font.pixelSize: 14
         textFormat: Text.PlainText; renderType: Text.NativeRendering
     }
     component Caption: Label { color: page.muted; font.pixelSize: 12 }
-    component Card: Rectangle { color: "#ffffff"; border.color: page.line; radius: 10 }
-    component Button: AbstractButton {
-        id: button
-        property string iconName: ""
-        property string hint: ""
-        property bool primary: false
-        property bool subtle: false
-        readonly property color foreground: !enabled ? "#5b6777" : primary ? "#ffffff" : checked ? page.accent : page.ink
-        implicitWidth: Math.ceil(buttonRow.implicitWidth + 24)
-        implicitHeight: 40
-        Layout.minimumWidth: implicitWidth
-        hoverEnabled: true
-        activeFocusOnTab: true
-        Accessible.name: text || hint
-        ToolTip.visible: hovered && hint.length > 0
-        ToolTip.text: hint
-        ToolTip.delay: 600
-        background: Rectangle {
-            radius: 7
-            color: !button.enabled ? "#edf0f4" : button.primary ? (button.down ? "#173e94" : button.hovered ? "#204eaf" : page.accent) : button.checked ? "#eaf1ff" : button.hovered ? "#edf2fa" : button.subtle ? "transparent" : "#ffffff"
-            border.color: button.visualFocus ? page.accent : !button.enabled ? "#d9dfe7" : button.primary || button.subtle || button.checked ? "transparent" : "#bdc9d9"
-            border.width: button.visualFocus ? 2 : 1
-        }
-        contentItem: Item {
-            Row {
-                id: buttonRow
-                anchors.centerIn: parent; spacing: 8
-                Icon { name: button.iconName; color: button.foreground; visible: button.iconName.length > 0; anchors.verticalCenter: parent.verticalCenter }
-                Label { text: button.text; visible: text.length > 0; color: button.foreground; font.pixelSize: 13; font.weight: Font.DemiBold; anchors.verticalCenter: parent.verticalCenter }
-            }
-        }
-    }
-    component LanguageSelect: ComboBox {
-        id: select
-        property var labels: []
-        implicitHeight: 40
-        leftPadding: 12; rightPadding: 32
-        font.pixelSize: 14
-        displayText: currentIndex >= 0 && currentIndex < labels.length ? labels[currentIndex] : ""
-        background: Rectangle {
-            radius: 7; color: select.enabled ? "#ffffff" : "#f0f2f6"
-            border.color: select.visualFocus || select.popup.visible ? page.accent : "#c7d0dd"
-            border.width: select.visualFocus ? 2 : 1
-        }
-        contentItem: Label { text: select.displayText; color: select.enabled ? page.ink : page.muted; verticalAlignment: Text.AlignVCenter; elide: Text.ElideRight }
-        indicator: Icon { name: "chevron-down"; color: page.muted; x: select.width - width - 10; y: (select.height - height) / 2; width: 14; height: 14 }
-        delegate: ItemDelegate {
-            id: option
-            required property int index
-            required property var modelData
-            width: select.width - 8; height: 38
-            highlighted: select.highlightedIndex === index
-            contentItem: Label { text: select.labels[option.index]; font.pixelSize: 13; verticalAlignment: Text.AlignVCenter; elide: Text.ElideRight }
-            background: Rectangle { radius: 4; color: option.highlighted ? "#e8f0ff" : "#ffffff" }
-        }
-        popup: Popup {
-            y: select.height + 4; width: select.width; padding: 4
-            topMargin: 8; bottomMargin: 8
-            implicitHeight: Math.min(contentItem.implicitHeight + 8, 320)
-            background: Rectangle { color: "#ffffff"; radius: 7; border.color: "#b8c4d4" }
-            contentItem: ListView {
-                clip: true; implicitHeight: contentHeight
-                model: select.popup.visible ? select.delegateModel : null
-                currentIndex: select.highlightedIndex
-                ScrollBar.vertical: ScrollBar { }
-            }
-        }
-    }
+    component Card: Rectangle { color: Theme.surface; border.color: page.line; radius: 10 }
+    component Button: AppButton { }
+    component LanguageSelect: AppSelect { id: select; property alias labels: select.optionLabels }
     component ReadingText: TextArea {
         readOnly: true; selectByMouse: true; persistentSelection: true
         wrapMode: TextEdit.Wrap; textFormat: TextEdit.PlainText
-        color: page.ink; selectionColor: page.accent; selectedTextColor: "#ffffff"
-        placeholderTextColor: "#69778a"; font.pixelSize: 15
+        color: page.ink; selectionColor: page.accent; selectedTextColor: Theme.accentText
+        placeholderTextColor: Theme.muted; font.pixelSize: 15
         padding: 0; rightPadding: 12; background: null
     }
     component TextScroll: ScrollView {
@@ -142,7 +77,7 @@ Item {
             active: true; policy: ScrollBar.AsNeeded; minimumSize: 0.08
             anchors.right: parent.right; anchors.top: parent.top; anchors.bottom: parent.bottom
             width: 7; padding: 1
-            contentItem: Rectangle { implicitWidth: 5; implicitHeight: 28; radius: 3; color: "#a8b5c7" }
+            contentItem: Rectangle { implicitWidth: 5; implicitHeight: 28; radius: 3; color: Theme.scrollbar }
             background: null
         }
     }
@@ -232,7 +167,7 @@ Item {
                         Caption {
                             Layout.alignment: Qt.AlignRight
                             text: qsTr("%1 / %2 символів").arg(page.controller.sourceCount).arg(page.controller.maximumTextLength)
-                            color: page.controller.sourceCount > page.controller.maximumTextLength ? "#a13434" : page.muted
+                            color: page.controller.sourceCount > page.controller.maximumTextLength ? Theme.danger : page.muted
                         }
                     }
                 }
@@ -273,7 +208,7 @@ Item {
                     ColumnLayout {
                         anchors.centerIn: parent; width: Math.min(520, parent.width - 48)
                         spacing: 12; visible: !page.controller.hasImage
-                        Icon { name: "image"; color: "#7b8da7"; Layout.preferredWidth: 42; Layout.preferredHeight: 42; Layout.alignment: Qt.AlignHCenter }
+                        Icon { name: "image"; color: Theme.muted; Layout.preferredWidth: 42; Layout.preferredHeight: 42; Layout.alignment: Qt.AlignHCenter }
                         Label { text: qsTr("Перекладіть текст на фото"); font.pixelSize: 18; font.weight: Font.DemiBold; Layout.fillWidth: true; horizontalAlignment: Text.AlignHCenter }
                         Caption { text: qsTr("Перетягніть зображення сюди або вставте його з буфера обміну."); Layout.fillWidth: true; horizontalAlignment: Text.AlignHCenter; wrapMode: Text.WordWrap }
                         RowLayout {
@@ -300,7 +235,7 @@ Item {
                         RowLayout {
                             Layout.fillWidth: true; Layout.fillHeight: true; spacing: 12
                             Rectangle {
-                                color: "#f4f6fa"; radius: 6
+                                color: Theme.canvas; radius: 6
                                 Layout.fillWidth: true; Layout.fillHeight: true; Layout.preferredWidth: 3
                                 Flickable {
                                     id: imageViewport; objectName: "quickImageViewport"
@@ -371,7 +306,7 @@ Item {
             visible: page.controller.error.length > 0 || page.controller.warnings.length > 0
             Layout.fillWidth: true
             implicitHeight: Math.min(70, feedbackText.implicitHeight + 20)
-            radius: 7; color: page.controller.error.length ? "#fff0ef" : "#fff5e8"
+            radius: 7; color: page.controller.error.length ? Theme.dangerFill : Theme.warningFill
             TextScroll {
                 id: feedbackScroll
                 anchors.fill: parent; anchors.margins: 10
@@ -379,7 +314,7 @@ Item {
                     id: feedbackText; objectName: "quickFeedback"
                     width: feedbackScroll.availableWidth; font.pixelSize: 12
                     text: page.controller.error || page.controller.warnings.join("\n")
-                    color: page.controller.error.length ? "#962d29" : "#8b4b1d"
+                    color: page.controller.error.length ? Theme.danger : Theme.warning
                     Accessible.name: qsTr("Повідомлення перекладача")
                 }
             }

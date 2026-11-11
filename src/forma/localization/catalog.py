@@ -14,7 +14,11 @@ from PySide6.QtCore import QLocale, QTranslator
 
 from forma.core.resources import resource_path
 
-_LANGUAGES = {"uk": "Українська", "en": "English", "pl": "Polski", "de": "Deutsch"}
+_LANGUAGES = {
+    "uk": "Українська", "en": "English", "pl": "Polski", "de": "Deutsch",
+    "fr": "Français", "es": "Español",
+}
+SUPPORTED_LANGUAGES = frozenset(_LANGUAGES)
 _LOCK = RLock()
 _language = "uk"
 _FORMATTER = Formatter()
@@ -195,7 +199,7 @@ def translate_ui_message(source: str) -> str:
         # Keep all parts of a composition in one language if another thread switches.
         language = _language
         if language == "uk":
-            return source
+              return translate(source)
         cached = _cached(language, source)
         if cached is not None:
             return cached

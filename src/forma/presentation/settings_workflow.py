@@ -13,9 +13,10 @@ from forma.core.models import (
     FormaError,
     validate_instructions,
 )
+from forma.documents.abbyy import find_abbyy
 from forma.documents.ocr import find_scan_converter
 from forma.documents.pdf import find_babeldoc
-from forma.localization.catalog import set_language
+from forma.localization.catalog import available_languages, set_language
 from forma.localization.catalog import translate_ui_message as tr
 from forma.providers.catalog import list_models
 from forma.providers.client import Provider
@@ -31,7 +32,7 @@ from forma.settings.credentials import (
 
 class SettingsWorkflow:
     def setUiLanguage(self, code):
-        if code not in {"system", "uk", "en", "pl", "de"} or code == self._ui_language:
+        if code not in {item["code"] for item in available_languages()} or code == self._ui_language:
             return
         try:
             save_preferences({**load_preferences(), "ui_language": code})
@@ -48,6 +49,17 @@ class SettingsWorkflow:
         else:
             self._filter_review()
         self.reviewEditChanged.emit()
+
+    def setUiTheme(self, code):
+        if code not in {"system", "light", "dark"} or code == self._ui_theme:
+            return
+        try:
+            save_preferences({**load_preferences(), "ui_theme": code})
+        except OSError:
+            self._notice("Не вдалося зберегти налаштування.", "error")
+            return
+        self._ui_theme = code
+        self.uiThemeChanged.emit()
 
     def clearModels(self):
         self._models_generation += 1
@@ -130,6 +142,10 @@ class SettingsWorkflow:
             "requestsPerMinute": s.requests_per_minute,
             "babeldocPath": s.babeldoc_path,
             "scanConverterPath": s.scan_converter_path,
+            "scanProvider": s.scan_provider,
+            "abbyyPath": s.abbyy_path,
+            "abbyyExtendedCliConfirmed": s.abbyy_extended_cli_confirmed,
+            "scanProviderEffective": ("abbyy" if self._worker_availability.get("abbyyReady") else "forma") if s.scan_provider == "auto" else s.scan_provider,
             "envPath": str(s.env_path),
             "keyPresent": bool(s.api_key),
             "keyStored": s.key_stored,
@@ -146,7 +162,7 @@ class SettingsWorkflow:
         """
         if self._closing:
             return
-        paths = self._settings.babeldoc_path, self._settings.scan_converter_path
+        paths = self._settings.babeldoc_path, self._settings.scan_converter_path, self._settings.abbyy_path
         key = (*paths, os.environ.get("PATH", ""))
         if key == self._worker_probe_key and (not force or self._worker_probe_running):
             return
@@ -156,10 +172,11 @@ class SettingsWorkflow:
         generation = self._worker_probe_generation
         self._worker_probe_running = True
         if changed_paths:
-            self._worker_availability = {"pdfReady": False, "scanConverterReady": False}
+            self._worker_availability = {"pdfReady": False, "scanConverterReady": False, "abbyyReady": False}
         checks = (
             ("pdfReady", find_babeldoc, paths[0]),
             ("scanConverterReady", find_scan_converter, paths[1]),
+            ("abbyyReady", find_abbyy, paths[2]),
         )
 
         def probe():
@@ -222,6 +239,8 @@ class SettingsWorkflow:
                     ("review_model", "reviewModel"),
                     ("babeldoc_path", "babeldocPath"),
                     ("scan_converter_path", "scanConverterPath"),
+                    ("scan_provider", "scanProvider"),
+                    ("abbyy_path", "abbyyPath"),
                     ("reasoning_effort", "reasoningEffort"),
                     ("provider_preset", "providerPreset"),
                 )
@@ -239,6 +258,7 @@ class SettingsWorkflow:
                 ("requests_per_minute", "requestsPerMinute"),
             ):
                 prefs[key] = int(str(values.get(ui, getattr(old, key))))
+            prefs["abbyy_extended_cli_confirmed"] = values.get("abbyyExtendedCliConfirmed", old.abbyy_extended_cli_confirmed)
             candidate = old.with_overrides(**prefs)
             candidate.validate(require_connection=False)
             try:

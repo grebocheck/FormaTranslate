@@ -65,7 +65,7 @@ def test_minimum_window_and_language_switch_keep_glossary_draft_focus_and_values
         source.setProperty("cursorPosition", 4)
         expected = [dict(row) for row in editor.rows.rows]
         dialog = window.findChild(QObject, "glossaryDialog")
-        for language in ("en", "pl", "de", "uk"):
+        for language in ("en", "pl", "de", "fr", "es", "uk"):
             backend.setUiLanguage(language)
             QTest.qWait(20)
             assert dialog.property("visible") and dialog.property("csvOpen")

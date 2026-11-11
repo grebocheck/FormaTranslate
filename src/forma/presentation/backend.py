@@ -20,6 +20,7 @@ from forma.presentation.file_dialogs import FilePickers
 from forma.presentation.glossary_controller import GlossaryController
 from forma.presentation.history_workflow import HistoryWorkflow
 from forma.presentation.memory_workflow import MemoryWorkflow
+from forma.presentation.ocr_workflow import OcrWorkflow
 from forma.presentation.quick_controller import QuickTranslator
 from forma.presentation.review_workflow import ReviewWorkflow
 from forma.presentation.settings_workflow import SettingsWorkflow
@@ -48,10 +49,11 @@ class TaskThread(QThread):
 
 
 class Backend(
-    QObject, ReviewWorkflow, HistoryWorkflow, SettingsWorkflow, MemoryWorkflow, DocumentWorkflow
+    QObject, ReviewWorkflow, HistoryWorkflow, SettingsWorkflow, MemoryWorkflow, OcrWorkflow, DocumentWorkflow
 ):
     changed = Signal()
     languageChanged = Signal()
+    uiThemeChanged = Signal()
     reviewEditChanged = Signal()
     closedReady = Signal()
     workerAvailabilityReady = Signal(int, object)
@@ -61,10 +63,10 @@ class Backend(
         preference = os.environ.get("FORMA_UI_LANGUAGE") or load_preferences().get(
             "ui_language", "system"
         )
-        self._ui_language = (
-            preference if preference in {"system", "uk", "en", "pl", "de"} else "system"
-        )
+        self._ui_language = preference if preference in {item["code"] for item in available_languages()} else "system"
         set_language(self._ui_language)
+        theme = load_preferences().get("ui_theme", "system")
+        self._ui_theme = theme if theme in {"system", "light", "dark"} else "system"
         self._file_status = FileAvailability(self)
         self._file_status.changed.connect(self.changed.emit)
         self._segments_cache = None
@@ -77,6 +79,7 @@ class Backend(
         self._scan_active = False
         self._scan_progress = 0
         self._scan_message = ""
+        self._abbyy_handoff = {}
         self._paused = False
         self._control = None
         self._message = ""
@@ -85,7 +88,7 @@ class Backend(
         self._instructions_error = ""
         self._api_status = "Очікує налаштування"
         self._settings = self._read_settings()
-        self._worker_availability = {"pdfReady": False, "scanConverterReady": False}
+        self._worker_availability = {"pdfReady": False, "scanConverterReady": False, "abbyyReady": False}
         self._worker_probe_key = None
         self._worker_probe_generation = 0
         self._worker_probe_running = False
@@ -245,6 +248,14 @@ class Backend(
     @Slot(str)
     def setUiLanguage(self, code):
         return SettingsWorkflow.setUiLanguage(self, code)
+
+    @Property(str, notify=uiThemeChanged)
+    def uiTheme(self):
+        return self._ui_theme
+
+    @Slot(str)
+    def setUiTheme(self, code):
+        return SettingsWorkflow.setUiTheme(self, code)
 
     @staticmethod
     def _display_document(document):
@@ -726,7 +737,27 @@ class Backend(
 
     @Slot(str)
     def recognizeSelectedPdf(self, source_language):
-        return DocumentWorkflow.recognizeSelectedPdf(self, source_language)
+        return OcrWorkflow.recognizeSelectedPdf(self, source_language)
+
+    @Property("QVariantMap", notify=changed)
+    def abbyyHandoff(self):
+        return dict(self._abbyy_handoff)
+
+    @Slot(str)
+    def openSelectedInAbbyy(self, source_language):
+        return OcrWorkflow.openSelectedInAbbyy(self, source_language)
+
+    @Slot(bool)
+    def importAbbyyResult(self, reviewed):
+        return OcrWorkflow.importAbbyyResult(self, reviewed)
+
+    @Slot()
+    def copyAbbyySourcePath(self):
+        return OcrWorkflow.copyAbbyySourcePath(self)
+
+    @Slot()
+    def dismissAbbyyHandoff(self):
+        return OcrWorkflow.dismissAbbyyHandoff(self)
 
     @Slot(str)
     def removeDocument(self, document_id):

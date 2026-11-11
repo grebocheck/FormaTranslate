@@ -1,0 +1,22 @@
+{
+  "Оберіть готове підключення або задайте власне. Додайте API-ключ і збережіть налаштування.": "Choisissez une connexion prédéfinie ou configurez la vôtre. Ajoutez une clé API et enregistrez les paramètres.",
+  "Провайдер і пресет": "Fournisseur et préréglage",
+  "Введіть ключ для вибраного провайдера. Ключ іншого сервісу не переноситься.": "Saisissez une clé pour le fournisseur sélectionné. Une clé d’un autre service n’est pas réutilisée.",
+  "Не більше %1 запитів за хвилину. Ліміти провайдера можуть бути нижчими.": "Au maximum %1 requêtes par minute. Votre fournisseur peut imposer des limites inférieures.",
+  "Кількість паралельних запитів впливає на швидкість і навантаження на API.": "Le nombre de requêtes simultanées influe sur la vitesse et la charge de l’API.",
+  "Запитів за хвилину, 0 — без обмеження": "Requêtes par minute, 0 — sans limite",
+  "Власне підключення / OpenAI": "Connexion personnalisée / OpenAI",
+  "Вкажіть адресу, модель і параметри свого API.": "Saisissez l’adresse, le modèle et les paramètres de votre API.",
+  "Google Gemini — Free Tier": "Google Gemini — Offre gratuite",
+  "Google Gemini": "Google Gemini",
+  "Anthropic Claude": "Anthropic Claude",
+  "Для проєкту Free Tier у Google AI Studio: 1 запит одночасно, до 5 за хвилину. Квоти й оплату визначає Google; пресет не вимикає білінг. Безплатні запити можуть використовуватися Google для покращення продуктів.": "Pour un projet de l’offre gratuite dans Google AI Studio : 1 requête simultanée, jusqu’à 5 par minute. Google définit les quotas et la facturation ; ce préréglage ne désactive pas la facturation. Google peut utiliser les requêtes gratuites pour améliorer ses produits.",
+  "Пряме підключення до Gemini API. Модель і ліміти можна змінити під свій проєкт Google AI Studio.": "Connexion directe à l’API Gemini. Adaptez le modèle et les limites à votre projet Google AI Studio.",
+  "Пряме підключення до Claude API. Потрібен API-ключ Anthropic; доступ і оплату визначає ваш обліковий запис API.": "Connexion directe à l’API Claude. Une clé API Anthropic est nécessaire ; l’accès et la facturation dépendent de votre compte API.",
+  "Запити за хвилину: вкажіть ціле число від 0 до 6000.": "Requêtes par minute : saisissez un entier de 0 à 6000.",
+  "Невідомий пресет провайдера. Оберіть його знову в налаштуваннях.": "Préréglage de fournisseur inconnu. Sélectionnez-le à nouveau dans les paramètres.",
+  "Режим API має бути chat, responses, gemini або anthropic.": "Le mode API doit être chat, responses, gemini ou anthropic.",
+  "Вичерпано квоту API для PDF-перекладу. Перевірте ліміти проєкту та повторіть пізніше.": "Quota API de traduction PDF épuisé. Vérifiez les limites du projet et réessayez plus tard.",
+  "API повернув некоректну відповідь PDF-перекладу. Перевірте модель і режим API.": "L’API a renvoyé une réponse de traduction PDF invalide. Vérifiez le modèle et le mode API.",
+  "Вичерпано денну квоту Gemini або модель недоступна для цього тарифу. Перевірте ліміти проєкту в Google AI Studio.": "Le quota quotidien de Gemini est épuisé ou le modèle n’est pas disponible avec cette offre. Vérifiez les limites du projet dans Google AI Studio."
+}

@@ -3,7 +3,7 @@ import QtQuick
 Item {
     id: root
     property string name: "document"
-    property color color: "#182230"
+    property color color: Theme.ink
     implicitWidth: 18
     implicitHeight: 18
     width: implicitWidth
@@ -50,6 +50,9 @@ Item {
         "paste": '<path d="M9 5H6a2 2 0 0 0-2 2v13h16V7a2 2 0 0 0-2-2h-3"/><rect x="9" y="3" width="6" height="4" rx="1"/><path d="M8 12h8M8 16h6"/>',
         "swap": '<path d="M3 7h17m-4-4 4 4-4 4M21 17H4m4-4-4 4 4 4"/>',
         "zoom-in": '<circle cx="10" cy="10" r="7"/><path d="m15 15 6 6M7 10h6m-3-3v6"/>',
+        "sun": '<circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.5 1.5m11 11L19 19M5 19l1.5-1.5m11-11L19 5"/>',
+        "moon": '<path d="M20.5 13.5A8.5 8.5 0 0 1 10.5 3a9 9 0 1 0 10 10.5Z"/>',
+        "monitor": '<rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 21h8m-4-4v4"/>',
         "fit": '<path d="M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5"/>'
     })
     Image {
@@ -60,7 +63,7 @@ Item {
         smooth: true
         source: "data:image/svg+xml;utf8," + encodeURIComponent(
             '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="'
-            + root.color + '" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">'
+            + root.color + '" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">'
             + (root.drawings[root.name] || root.drawings.document) + '</svg>')
     }
 }

@@ -1,6 +1,7 @@
 from pathlib import Path
 from time import monotonic
 
+import pytest
 from PySide6.QtCore import QCoreApplication, QEvent, QPointF, QUrl
 from PySide6.QtQml import QQmlApplicationEngine
 from PySide6.QtQuick import QQuickItem
@@ -12,7 +13,8 @@ from forma.presentation.backend import Backend
 from forma.settings.config import Settings, load_preferences
 
 
-def test_switch_language_persists_without_changing_document_or_review_state(qapp, monkeypatch):
+@pytest.mark.parametrize("language", ("de", "fr", "es"))
+def test_switch_language_persists_without_changing_document_or_review_state(qapp, monkeypatch, language):
     monkeypatch.setattr(Backend, "_read_settings", lambda _: Settings())
     backend = Backend()
     backend._documents = [
@@ -45,8 +47,8 @@ def test_switch_language_persists_without_changing_document_or_review_state(qapp
     backend._review_editing = True
     backend._review_draft_text = "User text — не перекладати"
     backend._filter_review()
-    backend.setUiLanguage("de")
-    assert current_language() == "de"
+    backend.setUiLanguage(language)
+    assert current_language() == language
     assert "0" in backend.queueSummary and "Перекладаємо" not in backend.queueSummary
     assert backend.documents[0]["statusText"] != "Готово"
     assert backend.documents[0]["name"] == "Документ.docx"
@@ -59,14 +61,14 @@ def test_switch_language_persists_without_changing_document_or_review_state(qapp
     assert backend.reviewDraftText == "User text — не перекладати"
     assert backend.reviewEditing
     assert backend.selectedReviewId == "part"
-    assert load_preferences()["ui_language"] == "de"
+    assert load_preferences()["ui_language"] == language
     assert backend.appVersion == __version__
     backend.setUiLanguage("invalid")
-    assert backend.uiLanguage == "de"
+    assert backend.uiLanguage == language
     monkeypatch.delenv("FORMA_UI_LANGUAGE")
     restarted = Backend()
-    assert restarted.uiLanguage == "de"
-    assert current_language() == "de"
+    assert restarted.uiLanguage == language
+    assert current_language() == language
     QTest.qWait(10)
 
 
@@ -99,7 +101,7 @@ def test_live_qml_switch_keeps_choices_and_unsaved_settings(qapp, monkeypatch):
         source.setProperty("currentIndex", 3)
         target.setProperty("currentIndex", 2)
         reasoning.setProperty("currentIndex", 2)
-        for language in ("en", "pl", "de", "uk"):
+        for language in ("en", "pl", "de", "fr", "es", "uk"):
             backend.setUiLanguage(language)
             QTest.qWait(30)
             assert model.property("text") == "unsaved-provider/model"

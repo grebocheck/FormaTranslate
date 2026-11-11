@@ -17,6 +17,12 @@ No CI/CD is configured. Releases are prepared and uploaded manually from reviewe
 
 ## Publish
 
-Commit the reviewed changes and create the annotated version tag. Push only the intended public branch/tag to GitHub. Create a GitHub Release with a concise changelog, supported platforms, known limitations, downloadable packages and a `SHA256SUMS` file. Check the published links and hashes.
+Commit the reviewed changes and create the annotated version tag. Push only the intended public branch/tag to GitHub. Create a GitHub Release with direct Windows/Linux download links at the top, a concise description and clear candidate/platform limits. Put source/rebuild details and extended validation evidence in collapsed technical sections. GitHub's automatically generated source-code links are separate from the prepared application packages.
+
+Keep the visible release assets small in number: the application ZIPs, one `Sources-VERSION.zip` and `SHA256SUMS`. The source bundle must contain the exact application/helper and dependency source archives unchanged, including the Qt/PySide, Linux dependency and Windows runtime source companions. Their original filenames and SHA256 are preserved in `MANIFEST.json`; the included readme explains rebuilding and the nested runtime-sources directory. These materials accompany the binaries even though users do not need them to run the application.
+
+Use `scripts/release_assets.py create --output dist/Sources-VERSION.zip --version VERSION --inventory PATH_TO_ASSET_HASHES.json ORIGINAL_SOURCE_ARCHIVES...`. The input inventory has an `assets` list with each original `name` and `sha256`. The command verifies every original archive and atomically publishes a bundle below 2 GiB. `scripts/release_assets.py verify dist/Sources-VERSION.zip` checks its complete inventory and original archive bytes again.
+
+Upload the consolidated source bundle, verify its server SHA256 and public download link, and only then remove the redundant individual source assets from an existing release. Keep binary packages byte-identical when simplifying an already published release. Update `SHA256SUMS` for the resulting application/source downloads and verify all published links and hashes. Never remove access to corresponding source materials before their replacement is publicly available.
 
 The public repository starts with a sanitized snapshot. Private pre-publication experiment history is intentionally absent. Never merge or mirror a private history into the public repository. Continue public changes from the public `main` history; apply reviewed changes explicitly when maintaining a separate private checkout.

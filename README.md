@@ -13,17 +13,24 @@
 
 FormaTranslate is an open-source desktop translator for **Windows and Linux**, built with Python and Qt Quick. Connect OpenAI, Google Gemini, Anthropic Claude or a compatible API, choose a model, and translate documents, text or photos. API usage follows your provider's pricing and quotas; FormaTranslate itself has no subscription.
 
-The interface supports **English, Ukrainian, Polish and German**, follows the system language, and can be changed in Settings. The interface language and document translation languages are independent.
+The interface supports **English, Ukrainian, Polish, German, French and Spanish**, follows the system language, and can be changed in Settings. Appearance follows the system by default, with explicit Light and Dark choices available without restarting. The interface language and document translation languages are independent.
 
 ![FormaTranslate desktop interface](docs/interface.png)
 
 ## Download and start
 
-Get the package for your platform from **[GitHub Releases](https://github.com/grebocheck/FormaTranslate/releases/latest)**. Extract it and launch the executable. Python and a `.env` file are not needed for the packaged app. On Linux, make the executable runnable with `chmod +x Forma-linux-x86_64` if necessary. The 0.6.0 Linux binary requires **glibc 2.43 or newer** (built on Ubuntu 26.04); use the source installation on older distributions. See each release's platform validation notes; macOS is not supported yet.
+Get the package for your platform from **[GitHub Releases](https://github.com/grebocheck/FormaTranslate/releases/latest)**. Extract it and launch the executable. Python and a `.env` file are not needed for the packaged app. On Linux, make the executable runnable with `chmod +x Forma-linux-x86_64` if necessary. The current Linux binary requires **glibc 2.43 or newer** (built on Ubuntu 26.04); use the source installation on older distributions. See each release's platform validation notes; macOS is not supported yet.
 
 1. Open **Settings** and enter your API address, model and API key. The model list can be loaded from providers that support it, or entered manually.
 2. Add DOCX, XLSX or PDF files and select the source and target languages. For a scan, use **Scan PDF → DOCX** and check the recognized text before translating.
 3. Translate, open the output folder, and use **Review** to inspect the result.
+
+Windows downloads offer two editions:
+
+- **Standard**: a lightweight application for DOCX/XLSX and an installed ABBYY or external OCR/PDF engine. Ordinary ABBYY uses a guided editor → reviewed DOCX → Forma workflow; automatic output needs a separately confirmed Extended CLI license. [ABBYY setup](docs/ABBYY.md).
+- **Complete**: includes the local OCR worker, four OCR language-model sets, Tesseract and BabelDOC assets. Its larger one-file executable extracts these components at startup.
+
+Release descriptions provide direct platform download links. A single **Sources** archive contains the developer and dependency source materials.
 
 DOCX and XLSX work directly. **Direct PDF translation uses BabelDOC; scanned PDF preparation uses the local OCR helper**. Complete Windows builds include both engines and their local assets; Linux and source installations use separate workers. See [PDF setup](docs/PDF.md) and [complete Windows builds](docs/WINDOWS-RUNTIME.md). Some OpenAI-compatible providers omit features used by particular API modes; choose the mode and response format supported by yours.
 

@@ -13,41 +13,25 @@ Popup {
     padding: 22
     modal: true; focus: true
     closePolicy: Popup.CloseOnEscape
-    background: Rectangle { color: "#ffffff"; radius: 12; border.color: "#d5dfed" }
-    Overlay.modal: Rectangle { color: "#55202f45" }
+    background: Rectangle { color: Theme.surface; radius: 12; border.color: Theme.line }
+    Overlay.modal: Rectangle { color: Theme.overlay }
     onOpened: {
         editor.text = controller.translationInstructions
         editor.forceActiveFocus()
     }
-    component Copy: Text {
+    component Copy: Text { font.family: Theme.fontFamily;
         Layout.fillWidth: true
-        color: "#1a2b42"; font.pixelSize: 13
+        color: Theme.ink; font.pixelSize: 13
         wrapMode: Text.WordWrap; textFormat: Text.PlainText
     }
-    component Action: Button {
-        id: action
-        property bool primary: false
-        implicitHeight: 40; padding: 12
-        contentItem: Text {
-            text: action.text; font.pixelSize: 13; font.weight: Font.DemiBold
-            color: !action.enabled ? "#66778c" : action.primary ? "#ffffff" : "#1a2b42"
-            horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter
-            textFormat: Text.PlainText
-        }
-        background: Rectangle {
-            radius: 6
-            color: !action.enabled ? "#edf0f4" : action.primary ? (action.down ? "#173e94" : "#2859c5") : action.hovered ? "#edf3ff" : "#ffffff"
-            border.color: action.visualFocus ? "#2859c5" : "#bdc9d9"
-            border.width: action.visualFocus ? 2 : 1
-        }
-    }
+    component Action: AppButton { }
     contentItem: ColumnLayout {
         spacing: 12
-        Copy { text: qsTr("Власні інструкції"); font.pixelSize: 22; font.weight: Font.DemiBold }
-        Copy { text: qsTr("Опишіть бажані терміни, стиль і правила перекладу. Інструкції діють для наступних перекладів документів, тексту та фото, включно з редакторською перевіркою."); color: "#596779" }
+        Copy { text: qsTr("Власні інструкції"); font.pixelSize: 21; font.weight: Font.Medium }
+        Copy { text: qsTr("Опишіть бажані терміни, стиль і правила перекладу. Інструкції діють для наступних перекладів документів, тексту та фото, включно з редакторською перевіркою."); color: Theme.muted }
         Rectangle {
             Layout.fillWidth: true; Layout.fillHeight: true; Layout.minimumHeight: 130
-            radius: 7; color: "#f8faff"; border.color: editor.activeFocus ? "#2859c5" : "#bdc9d9"
+            radius: 7; color: Theme.surfaceMuted; border.color: editor.activeFocus ? Theme.accent : Theme.lineStrong
             ScrollView {
                 id: scroll
                 anchors.fill: parent; anchors.margins: 10; clip: true
@@ -58,14 +42,14 @@ Popup {
                     width: scroll.availableWidth; padding: 0; rightPadding: 10
                     wrapMode: TextEdit.Wrap; textFormat: TextEdit.PlainText
                     selectByMouse: true; persistentSelection: true
-                    color: "#1a2b42"; font.pixelSize: 14
-                    selectionColor: "#2859c5"; selectedTextColor: "#ffffff"
+                    color: Theme.ink; font.pixelSize: 14
+                    selectionColor: Theme.accent; selectedTextColor: Theme.accentText
                     height: Math.max(contentHeight, placeholder.implicitHeight)
                     Text {
                         id: placeholder
                         width: Math.max(0, editor.width - 10)
                         visible: editor.text.length === 0
-                        color: "#66778c"; font: editor.font
+                        color: Theme.muted; font: editor.font
                         wrapMode: Text.WordWrap; textFormat: Text.PlainText
                         text: qsTr("Наприклад:\nДля англійської використовуйте британський правопис.\nДОДАТКИ перекладайте як APPENDICES.\nДотримуйтеся формального технічного стилю.")
                     }
@@ -73,9 +57,9 @@ Popup {
                 }
             }
         }
-        Copy { text: qsTr("%1 / %2 символів").arg(editor.text.length).arg(dialog.controller.maximumInstructionsLength); color: editor.text.length > dialog.controller.maximumInstructionsLength ? "#a13434" : "#596779"; horizontalAlignment: Text.AlignRight; font.pixelSize: 12 }
-        Copy { text: dialog.controller.instructionsError; visible: text.length > 0; color: "#a13434" }
-        Copy { text: qsTr("Зберігаються на цьому пристрої та надсилаються вибраному AI-сервісу разом із запитами. Порожнє поле вимикає власні інструкції. Числа, коди й форматування залишаються захищеними."); color: "#596779"; font.pixelSize: 12 }
+        Copy { text: qsTr("%1 / %2 символів").arg(editor.text.length).arg(dialog.controller.maximumInstructionsLength); color: editor.text.length > dialog.controller.maximumInstructionsLength ? Theme.danger : Theme.muted; horizontalAlignment: Text.AlignRight; font.pixelSize: 12 }
+        Copy { text: dialog.controller.instructionsError; visible: text.length > 0; color: Theme.danger }
+        Copy { text: qsTr("Зберігаються на цьому пристрої та надсилаються вибраному AI-сервісу разом із запитами. Порожнє поле вимикає власні інструкції. Числа, коди й форматування залишаються захищеними."); color: Theme.muted; font.pixelSize: 12 }
         RowLayout {
             Layout.fillWidth: true; spacing: 10
             Item { Layout.fillWidth: true }

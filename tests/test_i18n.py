@@ -28,7 +28,11 @@ def restore_language():
         ("uk_UA", "uk"),
         ("pl_PL", "pl"),
         ("de-DE", "de"),
-        ("fr_FR", "en"),
+        ("fr_FR", "fr"),
+        ("fr_CA", "fr"),
+        ("es_ES", "es"),
+        ("es-MX", "es"),
+        ("ja_JP", "en"),
         ("C", "en"),
     ],
 )
@@ -42,17 +46,19 @@ def test_system_locale_and_explicit_choice(monkeypatch, locale, expected):
 
 
 def test_language_switching_and_self_named_options():
-    expected = {"uk": "Налаштування", "en": "Settings", "pl": "Ustawienia", "de": "Einstellungen"}
+    expected = {"uk": "Налаштування", "en": "Settings", "pl": "Ustawienia", "de": "Einstellungen", "fr": "Paramètres", "es": "Ajustes"}
     for language, label in expected.items():
         assert i18n.set_language(language) == language
         assert i18n.translate("Налаштування") == label
         choices = i18n.available_languages()
-        assert [choice["code"] for choice in choices] == ["system", "uk", "en", "pl", "de"]
+        assert [choice["code"] for choice in choices] == ["system", "uk", "en", "pl", "de", "fr", "es"]
         assert [choice["label"] for choice in choices[1:]] == [
             "Українська",
             "English",
             "Polski",
             "Deutsch",
+            "Français",
+            "Español",
         ]
         assert choices[0]["label"] == i18n.translate("Як у системі")
 
@@ -92,6 +98,32 @@ def test_dynamic_templates_preserve_unicode_newlines_paths_and_literal_braces():
     assert i18n.translate(unknown_markup) == unknown_markup
 
 
+@pytest.mark.parametrize("language", ("fr", "es"))
+def test_new_languages_translate_ui_without_rewriting_user_values(language):
+    i18n.set_language(language)
+    name = "Налаштування {name} — Łódź/École 12,50.docx"
+    message = i18n.translate("Готово: {name}", name=name)
+    assert message.endswith(name) and message != "Готово: " + name
+    assert i18n.translate_ui_message("Назва громади — {project} 12,50") == "Назва громади — {project} 12,50"
+    source = "API-статистика поточного запуску: " + name + (
+        ". Повторно використані переклади з кешу не витрачають токени; "
+        "перервані запити можуть бути відсутні в обліку."
+    )
+    assert name in i18n.translate_ui_message(source)
+
+
+def test_ukrainian_boundary_translates_known_english_storage_errors_only():
+    i18n.set_language("uk")
+    assert i18n.translate_ui_message("Invalid translation memory entry or policy.") == (
+        "Некоректний запис або правила пам’яті перекладів."
+    )
+    value = "Document text — {project} 12,50 is not a UI message"
+    assert i18n.translate_ui_message(value) == value
+    assert i18n.translate_ui_message("Готово: Налаштування {project}.docx") == (
+        "Готово: Налаштування {project}.docx"
+    )
+
+
 def test_formatted_status_and_canonical_locations_are_presentation_only():
     source = "document · абзац 123"
     i18n.set_language("en")
@@ -110,9 +142,9 @@ def test_catalogs_cover_every_qml_key_and_preserve_placeholders():
     assert qml_keys
     formatter = Formatter()
     catalogs = i18n._catalogs()
-    non_uk_keys = [set(catalogs[language]) for language in ("en", "pl", "de")]
-    assert non_uk_keys[0] == non_uk_keys[1] == non_uk_keys[2]
-    for language in ("en", "pl", "de"):
+    non_uk_keys = [set(catalogs[language]) for language in ("en", "pl", "de", "fr", "es")]
+    assert all(keys == non_uk_keys[0] for keys in non_uk_keys[1:])
+    for language in ("en", "pl", "de", "fr", "es"):
         catalog = catalogs[language]
         assert qml_keys <= catalog.keys(), sorted(qml_keys - catalog.keys())
         for source, translated in catalog.items():
@@ -144,7 +176,7 @@ def test_quick_translator_messages_are_available_in_every_interface_language():
             and re.search(r"[А-Яа-яІіЇїЄєҐґ]", node.value)
         )
     assert keys
-    for language in ("en", "pl", "de"):
+    for language in ("en", "pl", "de", "fr", "es"):
         assert keys <= i18n._catalogs()[language].keys(), (
             language,
             sorted(keys - i18n._catalogs()[language].keys()),
@@ -152,15 +184,24 @@ def test_quick_translator_messages_are_available_in_every_interface_language():
 
 
 def test_ocr_messages_are_available_in_every_interface_language():
-    tree = ast.parse(Path("src/forma/documents/ocr.py").read_text(encoding="utf-8"))
-    keys = {
-        node.value
-        for node in ast.walk(tree)
-        if isinstance(node, ast.Constant)
-        and isinstance(node.value, str)
-        and re.search(r"[А-Яа-яІіЇїЄєҐґ]", node.value)
-    }
-    for language in ("en", "pl", "de"):
+    keys = set()
+    for filename in ("documents/ocr.py", "documents/abbyy.py", "presentation/ocr_workflow.py"):
+        tree = ast.parse((Path("src/forma") / filename).read_text(encoding="utf-8"))
+        fragments = {
+            id(child)
+            for node in ast.walk(tree)
+            if isinstance(node, ast.JoinedStr)
+            for child in ast.walk(node)
+        }
+        keys.update(
+            node.value
+            for node in ast.walk(tree)
+            if isinstance(node, ast.Constant)
+            and id(node) not in fragments
+            and isinstance(node.value, str)
+            and re.search(r"[А-Яа-яІіЇїЄєҐґ]", node.value)
+        )
+    for language in ("en", "pl", "de", "fr", "es"):
         assert keys <= i18n._catalogs()[language].keys(), (
             language,
             sorted(keys - i18n._catalogs()[language].keys()),
@@ -199,7 +240,7 @@ def test_translation_memory_errors_have_complete_interface_translations():
         and isinstance(node.args[0].value, str)
     )
     keys.add(str(translation_memory.MemoryConflict()))
-    for language in ("en", "uk", "pl", "de"):
+    for language in ("en", "uk", "pl", "de", "fr", "es"):
         assert keys <= i18n._catalogs()[language].keys(), (
             language, sorted(keys - i18n._catalogs()[language].keys())
         )
@@ -227,7 +268,7 @@ def test_glossary_and_validation_workflows_have_complete_interface_translations(
         "Експорт зупинено: переклад не пройшов перевірку після трьох спроб. "
         "Перегляньте звіт про проблемні фрагменти та повторіть переклад."
     )
-    for language in ("en", "uk", "pl", "de"):
+    for language in ("en", "uk", "pl", "de", "fr", "es"):
         assert keys <= i18n._catalogs()[language].keys(), (
             language, sorted(keys - i18n._catalogs()[language].keys())
         )
@@ -235,7 +276,7 @@ def test_glossary_and_validation_workflows_have_complete_interface_translations(
 
 def test_workflow_templates_interpolate_counts_in_all_languages():
     source = "Додано {count} термінів до чернетки. Наявні переклади збережено."
-    for language in ("en", "uk", "pl", "de"):
+    for language in ("en", "uk", "pl", "de", "fr", "es"):
         i18n.set_language(language)
         message = i18n.translate(source, count=12)
         assert "12" in message and "{count}" not in message
@@ -264,7 +305,7 @@ def test_provider_presets_and_protocol_messages_have_translations():
             and re.search(r"[А-Яа-яІіЇїЄєҐґ]", node.value)
         )
     assert keys
-    for language in ("en", "pl", "de"):
+    for language in ("en", "pl", "de", "fr", "es"):
         assert keys <= i18n._catalogs()[language].keys(), (
             language,
             sorted(keys - i18n._catalogs()[language].keys()),
@@ -272,10 +313,10 @@ def test_provider_presets_and_protocol_messages_have_translations():
 
 
 def test_concurrent_language_changes_return_only_complete_catalog_values():
-    expected = {"Налаштування", "Settings", "Ustawienia", "Einstellungen"}
+    expected = {"Налаштування", "Settings", "Ustawienia", "Einstellungen", "Paramètres", "Ajustes"}
 
     def work(index):
-        i18n.set_language(("uk", "en", "pl", "de")[index % 4])
+        i18n.set_language(("uk", "en", "pl", "de", "fr", "es")[index % 6])
         return i18n.translate("Налаштування")
 
     with ThreadPoolExecutor(max_workers=8) as pool:
@@ -291,7 +332,7 @@ def test_very_large_unknown_text_bypasses_dynamic_matching():
     assert i18n.translate(source) == source
 
 
-@pytest.mark.parametrize("language", ["en", "pl", "de"])
+@pytest.mark.parametrize("language", ["en", "pl", "de", "fr", "es"])
 def test_explicit_nested_ui_messages_translate_only_known_components(language):
     i18n.set_language(language)
     messages = [

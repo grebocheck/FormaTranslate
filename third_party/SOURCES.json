@@ -1,6 +1,6 @@
 {
-  "release": "0.7.0",
-  "delivery": "Upload these exact source archives alongside every binary release; no written-offer substitute is used.",
+  "release": "0.8.0",
+  "delivery": "Include these exact archives unchanged, under their original filenames, in the release's Sources-VERSION.zip alongside the application/helper and runtime/dependency source archives. Preserve every archive SHA256 in the source bundle inventory and upload the bundle with each binary release; no written-offer substitute is used.",
   "sources": [
     {
       "component": "Qt",

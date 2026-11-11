@@ -14,7 +14,7 @@
 | `documents` | Office structure, review/export, PDF and local OCR integration |
 | `memory` | Project memory, frozen sessions, exact reuse and reviewed adaptation candidates |
 | `presentation` | Qt controllers and focused desktop workflows |
-| `ui`, `locales` | QML and the four interface-language catalogs |
+| `ui`, `locales` | QML and the six interface-language catalogs |
 
 `forma.app`, `python -m forma` and the `forma`/`forma-desktop` entry points remain stable. Internal Python imports use the packages above; there is no parallel set of legacy forwarding modules.
 
@@ -22,7 +22,7 @@ The presentation layer coordinates document work and exposes Qt properties and s
 
 Local persistence keeps its existing directories, database schemas and canonical report values. Moving a Python module does not invalidate document checkpoints, approved wording, saved reviews or the credential vault. Interface localization applies only when displaying metadata; it does not rewrite document text or stored fingerprints.
 
-`core.resources.resource_path()` locates the shared QML/catalog assets in source installations and frozen executables. The separately frozen OCR package remains under `tools/ocr`; its CPU inference dependencies are isolated from the desktop environment. Windows runtime staging, worker entry points and binary packaging live under `scripts`; see [WINDOWS-RUNTIME.md](WINDOWS-RUNTIME.md).
+`core.resources.resource_path()` locates the shared QML/catalog assets in source installations and frozen executables. OCR preparation and assisted ABBYY handoff live in the focused `presentation/ocr_workflow.py`; ABBYY edition detection never implies automatic-export licensing. The separately frozen OCR package remains under `tools/ocr`; its CPU inference dependencies are isolated from the desktop environment. Windows runtime staging, worker entry points and binary packaging live under `scripts`; see [WINDOWS-RUNTIME.md](WINDOWS-RUNTIME.md).
 
 Run `uv run ruff check .` and `uv run pytest` after changing package boundaries. Build and smoke-test the actual executable after import or resource-path changes; a passing source test suite does not prove that a frozen binary contains its dynamic dependencies.
 
