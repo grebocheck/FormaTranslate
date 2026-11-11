@@ -303,6 +303,56 @@ def test_capacity_split_preserves_paid_review_and_drafts_when_cancelled(tmp_path
     assert len(single.calls) == 1
 
 
+def test_stage_envelope_budgets_drafts_references_and_utf8_before_requests():
+    from forma.core.models import Segment
+    from forma.providers.client import TRANSLATION_SCHEMA
+    from forma.translation.budget import STAGE_INPUT_BYTES, stage_input_size
+
+    segments = [Segment(str(index), "paragraph", "<r0>Current clause</r0>") for index in range(2)]
+    common = {"document_context": "Shared context"}
+    drafts = {segment.id: "<r0>" + "Попередній текст " * 1600 + "</r0>" for segment in segments}
+    references = {segment.id: {"previous_source": "Prior clause " * 500} for segment in segments}
+    provider, saved = FakeProvider(), []
+    result = TranslationEngine(local_settings())._stage(
+        segments, common, Options(), provider, lambda values: saved.extend(values),
+        drafts=drafts, memory_references=references,
+    )
+    assert len(provider.calls) == 2 and set(result) == set(saved) == {"0", "1"}
+    for instruction, payload in provider.calls:
+        assert stage_input_size(instruction, payload, TRANSLATION_SCHEMA) <= STAGE_INPUT_BYTES
+        assert len(payload["segments"]) == 1
+        sid = payload["segments"][0]["id"]
+        assert payload["segments"][0]["text"] == segments[int(sid)].source
+        assert payload["drafts"] == {sid: drafts[sid]}
+        assert payload["memory_references"] == {sid: references[sid]}
+        assert payload["document_context"] == common["document_context"]
+    assert stage_input_size("", {"text": "Д" * 20}, {}) > stage_input_size("", {"text": "a" * 20}, {})
+
+
+def test_unbroken_oversized_atom_preflight_reports_real_sizes_without_api(tmp_path):
+    from docx import Document
+
+    from forma.core.models import TranslationFailure
+
+    source = tmp_path / "fragmented.docx"
+    document = Document()
+    paragraph = document.add_paragraph()
+    for index, char in enumerate("Ab" * 1240):
+        paragraph.add_run(char).bold = bool(index % 2)
+    document.save(source)
+    provider = FakeProvider()
+    with pytest.raises(TranslationFailure) as caught:
+        TranslationEngine(local_settings(), provider=provider).translate(source, tmp_path / "out", Options())
+    failure = caught.value
+    assert not provider.calls and failure.stage == "preflight"
+    assert len(failure.segments) == 1 and failure.segments[0].location == "document · абзац 1"
+    assert len(failure.segments[0].plain) == 2480 and len(failure.segments[0].source) == 37460
+    data = json.loads(failure.report.with_suffix(".json").read_text())
+    assert data["stage"] == "preflight" and data["exported"] is False
+    assert data["segments"][0]["issues"][0]["code"] == "request_size"
+    assert "2480" in failure.report.read_text() and "37460" in failure.report.read_text()
+
+
 def test_unchanged_foreign_prose_is_flagged_in_report_with_location(tmp_path):
     from docx import Document
 

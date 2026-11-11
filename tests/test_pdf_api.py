@@ -278,6 +278,36 @@ def test_pdf_api_blocks_incomplete_responses_and_still_accounts_usage(upstream, 
             bridge.check_error()
 
 
+def test_classic_pdf_units_are_checked_without_guessing_opaque_prompt_sources(upstream):
+    source = "Nominal power 5 kW. Input:\n\nBackup power 7 kW."
+    prefix = ";; Treat next line as plain text input and translate it into "
+    suffix = (
+        ", output translation ONLY. If translation is unnecessary (e.g. proper nouns, codes, "
+        "{{1}}, etc. ), return the original text. NO explanations. NO notes. Input:\n\n"
+    )
+    classic = {"messages": [
+        {"role": "system", "content": "You are a professional,authentic machine translation engine."},
+        {"role": "user", "content": prefix + "uk" + suffix + source},
+    ]}
+    choice = {"finish_reason": "stop", "message": {"content": "Номінальна потужність 5 кВт. Резерв 7 кВт."}}
+    upstream.response["choices"] = [choice]
+    with PDFAPI(config(upstream), 1) as bridge:
+        assert post(bridge, classic).status_code == 200
+        choice["message"]["content"] = "Номінальна потужність 5 MW. Резерв 7 кВт."
+        opaque = {"messages": [{"role": "user", "content": "Translate: " + source}]}
+        assert post(bridge, opaque).status_code == 200
+        invalid_language = {"messages": [classic["messages"][0], {
+            "role": "user", "content": prefix + "not a language" + suffix + source,
+        }]}
+        assert post(bridge, invalid_language).status_code == 200
+        assert post(bridge, classic).status_code == 422
+        with pytest.raises(FormaError, match="одиниці вимірювання"):
+            bridge.check_error()
+        assert bridge.summary()["input_tokens"] == 4 * 31
+        assert post(bridge, classic).status_code == 422
+        assert len(upstream.requests) == 4  # Fatal validation never adds another billed attempt.
+
+
 @pytest.mark.parametrize("refused", [False, True])
 def test_incomplete_pdf_response_cannot_export_even_if_engine_writes_file(
     upstream, pdf_file, tmp_path, monkeypatch, refused

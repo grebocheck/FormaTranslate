@@ -78,3 +78,13 @@ def test_numeric_evidence_uses_the_same_ordinal_and_hour_exceptions_as_validatio
     assert numbers_match(source, target)
     assert number_differences(source, target)["missing"] == []
     assert number_differences(source, target)["unexpected"] == []
+
+
+def test_recognized_cubic_unit_spelling_preserves_coefficients_and_identifier_digits():
+    assert numbers_match("Flow 12,50m3/h", "Flow 12.50 m³/h")
+    assert numbers_match("m^3/h", "м³/год")
+    assert numbers_match("Flow 5m3/hour", "Flow 5m3/h")
+    assert not numbers_match("Flow 3m3/h", "Flow 4m³/h")
+    assert not numbers_match("Model AM3/H", "Model AM³/H")
+    assert not numbers_match("Model m3-500", "Model m³-500")
+    assert not numbers_match("File m3/h.docx", "File m³/h.docx")

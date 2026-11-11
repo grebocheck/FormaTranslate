@@ -6,6 +6,12 @@ from collections import Counter
 from lxml import etree
 
 from forma.core.models import FormaError, Issue, plain_text
+from forma.translation.quantities import (
+    canonicalize_unit_exponents,
+    quantity_bindings,
+    standalone_unit,
+    verified_unit_conflict,
+)
 
 # Units and adjacent formatting runs need not be separated by whitespace (25kW,
 # 10мм, or 999</r0><r1>pump). Word boundaries silently hid changed values there.
@@ -21,6 +27,7 @@ PROTECTED = re.compile(
     r"%\([^)]+\)[a-z]|\$\{[^{}]+\}|[\w.\-–]+\.(?:docx|xlsx|pdf|pptx|csv|txt)\b"
 )
 CODE_CANDIDATES = re.compile(r"\b[A-ZА-ЯІЇЄҐ0-9]+(?:[-_./,][A-ZА-ЯІЇЄҐ0-9]+)*\b")
+QUANTITY_UNIT_MESSAGE = "У перекладі змінилися одиниці вимірювання або їхній зв’язок із числами."
 
 
 def immutable_spans(text: str) -> list[tuple[int, int, str]]:
@@ -144,6 +151,7 @@ def _unchanged_notation(text: str) -> bool:
 def numeric_values(text: str) -> Counter:
     # Different decimal separators are allowed, while the digits must be retained.
     normalized = text.replace("−", "-")
+    normalized = canonicalize_unit_exponents(normalized, NUMBERS, immutable_spans(normalized))
     return Counter(re.sub(r"\s", "", n).replace(",", ".") for n in NUMBERS.findall(normalized))
 
 
@@ -255,6 +263,19 @@ def introduced_repetition(source: str, translated: str) -> bool:
     ) or _long_repetitions(translated) > _long_repetitions(source, minimum_chars=30, anchor_size=3)
 
 
+def quantity_units_conflict(source: str, translated: str) -> bool:
+    """Only verified known-unit conflicts in plain text; unknown units are inconclusive."""
+    quantities, unit_labels = [], []
+    for text in (source, translated):
+        normalized = text.replace("−", "-")
+        protected = immutable_spans(normalized)
+        quantities.append(quantity_bindings(normalized, NUMBERS, protected))
+        unit_labels.append(standalone_unit(normalized, NUMBERS, protected))
+    return bool(all(unit_labels) and unit_labels[0] != unit_labels[1]) or verified_unit_conflict(
+        *quantities, numeric_values(source), numeric_values(translated)
+    )
+
+
 def check_segment(source: str, translated: str, segment_id: str = "") -> list[Issue]:
     try:
         parse_translation(source, translated)
@@ -266,6 +287,8 @@ def check_segment(source: str, translated: str, segment_id: str = "") -> list[Is
         issues.append(
             Issue("numbers", "У перекладі змінилися числа або відсотки.", segment_id, "error")
         )
+    if quantity_units_conflict(before, after):
+        issues.append(Issue("quantity_units", QUANTITY_UNIT_MESSAGE, segment_id, "error"))
     if protected_values(before) != protected_values(after):
         issues.append(
             Issue("protected_values", "Змінилися адреси, коди або змінні.", segment_id, "error")

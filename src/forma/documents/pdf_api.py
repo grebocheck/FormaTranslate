@@ -24,7 +24,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import httpx
 
 from forma.accounting.usage import record_attempt
-from forma.core.models import FormaError
+from forma.core.models import FormaError, Options
 from forma.providers.client import JobControl, retry_delay
 from forma.providers.protocol import (
     adapt_chat_request,
@@ -35,10 +35,17 @@ from forma.providers.protocol import (
     request_headers,
     terminal_quota_error,
 )
+from forma.translation.quality import QUANTITY_UNIT_MESSAGE, quantity_units_conflict
 
 MAX_BODY = 4 * 1024 * 1024
 MAX_RESPONSE = 8 * 1024 * 1024
 REASONING_MODELS = ("gpt-5", "gpt-6", "o1", "o3", "o4")
+_CLASSIC_SYSTEM = "You are a professional,authentic machine translation engine."
+_CLASSIC_PREFIX = ";; Treat next line as plain text input and translate it into "
+_CLASSIC_SUFFIX = (
+    ", output translation ONLY. If translation is unnecessary (e.g. proper nouns, codes, "
+    "{{1}}, etc. ), return the original text. NO explanations. NO notes. "
+)
 
 
 def provider_base(url):
@@ -85,6 +92,35 @@ def completion_error(data: bytes) -> str:
     except (ValueError, AttributeError, TypeError):
         pass
     return ""
+
+
+def _classic_quantity_error(body: dict, data: bytes) -> str:
+    """Only BabelDOC 0.7.1's exact classic prompt exposes a verified source span.
+
+    Its arbitrary do_llm_translate prompts have no such contract and stay opaque.
+    """
+    messages = body.get("messages")
+    if not isinstance(messages, list) or len(messages) != 2:
+        return ""
+    if messages[0] != {"role": "system", "content": _CLASSIC_SYSTEM}:
+        return ""
+    user = messages[1]
+    if not isinstance(user, dict) or set(user) != {"role", "content"} or user["role"] != "user":
+        return ""
+    content = user["content"]
+    if not isinstance(content, str):
+        return ""
+    header, delimiter, source = content.partition("Input:\n\n")
+    if not delimiter or not header.startswith(_CLASSIC_PREFIX) or not header.endswith(_CLASSIC_SUFFIX):
+        return ""
+    language = header[len(_CLASSIC_PREFIX):-len(_CLASSIC_SUFFIX)]
+    try:
+        Options(target_language=language).validate()
+        choices = json.loads(data).get("choices", [])
+        translated = choices[0]["message"]["content"]
+    except (FormaError, ValueError, TypeError, IndexError, KeyError, AttributeError):
+        return ""
+    return QUANTITY_UNIT_MESSAGE if isinstance(translated, str) and quantity_units_conflict(source, translated) else ""
 
 
 def _redact(data, secret):
@@ -396,7 +432,10 @@ class PDFAPI:
                             data = b'{"error":{"message":"PDF provider request failed"}}'
                     data = _redact(data, self.settings.api_key)
                     self._usage(data)
-                    incomplete = completion_error(data) if 200 <= status < 300 else ""
+                    incomplete = (
+                        completion_error(data) or _classic_quantity_error(original, data)
+                        if 200 <= status < 300 else ""
+                    )
                     if incomplete:
                         with self.lock:
                             self.fatal_error = incomplete

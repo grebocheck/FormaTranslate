@@ -224,7 +224,7 @@ def _policy(verified: _Verified, snapshot, preferred: bool) -> tuple[str, bool]:
 
 
 def _entries(verified: _Verified, policy: str, known_policy: bool, overrides=None) -> list[dict]:
-    from forma.memory.context import adaptation_context, segment_context, segment_role
+    from forma.memory.context import adaptation_context, scoped_segment_context, segment_role
     from forma.memory.similarity import eligible_source
     from forma.memory.store import exact_fingerprint
 
@@ -238,7 +238,7 @@ def _entries(verified: _Verified, policy: str, known_policy: bool, overrides=Non
         parse_translation(segment.source, target)
         if blocking_issues(segment, target, verified.options):
             raise FormaError(_INVALID_TRANSLATION)
-        context = segment_context(verified.original, segment)
+        context = scoped_segment_context(verified.original, segment)
         role = segment_role(verified.original, segment)
         key = exact_fingerprint(policy, segment.source, context, role)
         entries.append({

@@ -51,9 +51,39 @@ def test_numbers_adjacent_to_units_or_formatting_boundaries_are_not_hidden(sourc
 
 
 def test_unit_translation_and_decimal_locale_keep_adjacent_numbers_valid():
-    source = "<r0>Power 25kW; gap 10мм; pressure 1,25bar</r0>"
-    target = "<r0>Потужність 25кВт; зазор 10mm; тиск 1.25bar</r0>"
+    source = "<r0>Power 25kW; gap 10мм; pressure 1,25bar; energy 7kWh; flow 12.50m³/h; output 8mW</r0>"
+    target = "<r0>Потужність 25кВт; зазор 10mm; тиск 1.25bar; енергія 7 кВт∙год; подача 12,50 м³/год; вихід 8 мВт</r0>"
     assert not [issue for issue in check_segment(source, target) if issue.severity == "error"]
+    assert not [issue for issue in check_segment("<r0> кВт </r0>", "<r0> kW </r0>") if issue.severity == "error"]
+    assert not [issue for issue in check_segment("<r0>м³/год</r0>", "<r0>m³/h</r0>") if issue.severity == "error"]
+
+
+def test_verified_quantity_unit_conflicts_keep_prefix_dimension_and_pairing():
+    def conflict(source, target):
+        issues = check_segment(f"<r0>{source}</r0>", f"<r0>{target}</r0>", "quantity")
+        return [(issue.code, issue.severity, issue.segment_id) for issue in issues]
+
+    assert conflict("Power 5kW", "Power 5MW") == [("quantity_units", "error", "quantity")]
+    assert conflict("Power 5kW", "Energy 5kWh") == [("quantity_units", "error", "quantity")]
+    assert conflict("кВт", "MW") == [("quantity_units", "error", "quantity")]
+    assert conflict("kW", "kWh") == [("quantity_units", "error", "quantity")]
+    assert conflict("Primary 5kW; reserve 10MW", "Primary 10kW; reserve 5MW") == [
+        ("quantity_units", "error", "quantity"),
+    ]
+
+
+def test_unit_validation_does_not_guess_words_currencies_or_identifier_fragments():
+    source = "<r0>5kW; 5 megawatts; amount 20 грн; model K5MW and abc5kW</r0>"
+    target = "<r0>5 kilowatts; 5MW; сума 20 UAH; модель K5MW та abc5kW</r0>"
+    assert not [issue for issue in check_segment(source, target) if issue.severity == "error"]
+    assert not check_segment("<r0>кВт</r0>", "<r0>kilowatts</r0>")
+    assert not check_segment("<r0>kW label</r0>", "<r0>MW label</r0>")
+    assert not [issue for issue in check_segment("<r0>Power 5kW</r0>", "<r0>Power 5</r0>") if issue.code == "quantity_units"]
+    source = "<r0>Flow 6 m³ per hour; reserve 9 м³ за годину</r0>"
+    target = "<r0>Подача 6 м³/год; резерв 9 m³/h</r0>"
+    assert not [issue for issue in check_segment(source, target) if issue.severity == "error"]
+    issues = check_segment("<r0>See https://example.org/5kW</r0>", "<r0>Див. https://example.org/5MW</r0>")
+    assert [issue.code for issue in issues] == ["protected_values"]
 
 
 def test_ukrainian_ordinals_and_hour_notation_preserve_value():

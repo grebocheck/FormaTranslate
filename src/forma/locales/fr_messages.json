@@ -291,5 +291,10 @@
   "Читаємо структуру PDF": "Lecture de la structure PDF",
   "Читаємо структуру документа": "Lecture de la structure du document",
   "Не вдалося зберегти налаштування.": "Impossible d’enregistrer les paramètres.",
-  "Перевірте налаштування провайдера.": "Vérifiez les paramètres du fournisseur."
+  "Перевірте налаштування провайдера.": "Vérifiez les paramètres du fournisseur.",
+  "У перекладі змінилися одиниці вимірювання або їхній зв’язок із числами.": "Les unités de mesure ou leur association avec les nombres ont changé dans la traduction.",
+  "Фрагмент завеликий для одного запиту. Перегляньте звіт про проблемні фрагменти.": "Le segment est trop volumineux pour une seule requête. Consultez le rapport des segments problématiques.",
+  "Символів тексту: {plain}; символів розмітки: {markup}; позначок форматування: {spans}.": "Caractères de texte : {plain} ; caractères de balisage : {markup} ; marqueurs de mise en forme : {spans}.",
+  "Фрагмент ще не надсилали до API.": "Le segment n’a pas encore été envoyé à l’API.",
+  "Не вдалося безпечно поділити фрагмент. Перегляньте звіт про проблемні фрагменти.": "Le segment n’a pas pu être divisé de manière sûre. Consultez le rapport des segments problématiques."
 }

@@ -72,8 +72,8 @@ def test_each_exact_group_is_translated_and_edited_once_then_reused_across_files
     provider = OfflineProvider()
     first = TranslationEngine(settings, provider=provider).translate(source, tmp_path / "out", options)
     assert len(provider.calls) == 2
-    assert sum(len(call["segments"]) for call in provider.calls) == 4  # 2 contexts x 2 passes
-    assert first.repeated_segments == 3
+    assert sum(len(call["segments"]) for call in provider.calls) == 6  # Lead, body and ending x 2 passes.
+    assert first.repeated_segments == 2
     assert first.memory_segments == first.cached_segments == 0
     assert all(call["glossary"] == {"Energy": "Енергія"} for call in provider.calls)
     assert all("terms" not in call for call in provider.calls)
@@ -135,6 +135,131 @@ def test_only_changed_contexts_require_new_requests(case, tmp_path):
     assert [len(call["segments"]) for call in provider.calls] == [2, 2]
 
 
+def test_v1_machine_and_approved_wording_get_one_scoped_review_then_v2_exact_reuse(tmp_path):
+    from forma.core.models import plain_text
+    from forma.memory.context import segment_context, segment_role
+    from forma.memory.store import exact_fingerprint
+
+    store = TranslationMemory()
+    project = store.create_project("Scoped synthetic topics", "en", "uk")
+    settings = Settings(base_url="http://127.0.0.1:1/v1", api_key="offline", model="offline", max_parallel_requests=1, parallel_documents=1)
+    options = Options("en", "uk", review=True, auto_glossary=False, memory_project_id=project.id)
+
+    def source(name, title):
+        doc = Document()
+        doc.core_properties.comments = name
+        doc.add_paragraph(title, style="Title")
+        for text in ("Fixed first note", "Before value", "Charge", "Current", "Power 15 kW", "After value", "Fixed last note"):
+            doc.add_paragraph(text)
+        path = tmp_path / f"{name}.docx"
+        doc.save(path)
+        return path
+
+    old = source("financial", "Financial")
+    office = OfficeDocument(old)
+    run = MemoryRun(options, settings, protocol=PROTOCOL_VERSION, memory=store)
+    generation = generation_fingerprint(settings, protocol=PROTOCOL_VERSION, review=True, context_version=1)
+    assert generation not in run.legacy_generations and generation in run.revalidation_generations
+    originals = []
+    for word, target in (("Charge", "Плата"), ("Current", "Поточний"), ("Power 15 kW", "Потужність 99 kW")):
+        segment = next(item for item in office.segments if item.plain == word)
+        context, role = segment_context(office, segment), segment_role(office, segment)
+        record = dict(key=exact_fingerprint(run.policy, segment.source, context, role), source_markup=segment.source, target=f"<r0>{target}</r0>", context=context, role=role, policy=run.policy)
+        originals.append(store.approve(project.id, **record) if word == "Current" else store.save_machine(project.id, **record, generation_profile=generation, status="draft" if word == "Power 15 kW" else "machine_final"))
+
+    class ScopedProvider:
+        input_tokens = output_tokens = 0
+
+        def __init__(self):
+            self.calls = []
+
+        def complete(self, instruction, payload, schema, **kwargs):
+            self.calls.append(payload)
+            assert payload["document_context"] == ""
+            values = []
+            for item in payload["segments"]:
+                text = plain_text(item["text"])
+                scope = json.loads(item["neighboring_context"])
+                assert scope["memory_context_version"] == 2 and scope["role_sha256"]
+                target = {"Charge": "Заряд", "Current": "Струм", "Power 15 kW": "Потужність 15 kW"}.get(text, "Довідковий текст")
+                if text in {"Charge", "Current", "Power 15 kW"}:
+                    assert "Electrical" in scope["scope_prompt"]
+                    assert item["id"] in payload["drafts"]
+                    assert payload["memory_references"][item["id"]]["legacy_context_revalidation"]
+                values.append({"id": item["id"], "text": f"<r0>{target}</r0>"})
+            return {"segments": values}
+
+    provider = ScopedProvider()
+    current = source("electrical", "Electrical")
+    old_checkpoint = data_directory() / "checkpoints" / (checkpoint_fingerprint(
+        hashlib.sha256(current.read_bytes()).hexdigest(), options, settings,
+        memory_policy=run.policy, memory_generation=generation,
+    ) + ".json")
+    old_checkpoint.parent.mkdir(parents=True, exist_ok=True)
+    old_bytes = json.dumps({"translations": {
+        next(item.id for item in office.segments if item.plain == "Charge"): "<r0>Плата</r0>",
+        next(item.id for item in office.segments if item.plain == "Current"): "<r0>Поточний</r0>",
+    }}).encode()
+    old_checkpoint.write_bytes(old_bytes)
+    result = TranslationEngine(settings, provider=provider).translate(current, tmp_path / "out", options)
+    assert old_checkpoint.read_bytes() == old_bytes  # Historical checkpoint was not adopted/relabelled.
+    for word, translated in (("Charge", "Заряд"), ("Current", "Струм"), ("Power 15 kW", "Потужність 15 kW")):
+        segment = next(item for item in result.segments if item.plain == word)
+        assert result.translations[segment.id] == f"<r0>{translated}</r0>"
+        assert sum(any(item["id"] == segment.id for item in payload["segments"]) for payload in provider.calls) == 1
+    assert result.adapted_segments == 3
+    with store._connect() as database:
+        assert [database.execute("SELECT status FROM entries WHERE id=?", (entry.entry_id,)).fetchone()[0] for entry in originals] == ["machine_final", "human_approved", "draft"]
+    again = ScopedProvider()
+    repeated = TranslationEngine(settings, provider=again).translate(source("repeat", "Electrical"), tmp_path / "out", options)
+    assert not again.calls and repeated.memory_segments == len(repeated.segments)
+
+
+def test_unstyled_document_lead_disambiguates_without_binding_unrelated_later_body(tmp_path):
+    from forma.core.models import plain_text
+
+    store = TranslationMemory()
+    project = store.create_project("Unstyled synthetic topics", "en", "uk")
+    settings = Settings(base_url="http://127.0.0.1:1/v1", api_key="offline", model="offline", max_parallel_requests=1, parallel_documents=1)
+    options = Options("en", "uk", review=False, auto_glossary=False, memory_project_id=project.id)
+
+    class ContextProvider:
+        input_tokens = output_tokens = 0
+
+        def __init__(self):
+            self.charge_requests = 0
+
+        def complete(self, instruction, payload, schema, **kwargs):
+            assert payload["document_context"] == ""
+            values = []
+            for item in payload["segments"]:
+                if plain_text(item["text"]) == "Charge":
+                    self.charge_requests += 1
+                    # Inspect only actual supplied readable context, not hashes,
+                    # filenames or a test-only semantic label.
+                    readable = json.loads(item["neighboring_context"])["scope_prompt"]
+                    target = "Заряд" if "Electrical domain" in readable else "Плата"
+                else:
+                    target = "Довідковий текст"
+                values.append({"id": item["id"], "text": f"<r0>{target}</r0>"})
+            return {"segments": values}
+
+    def translate(name, lead, later):
+        doc = Document()
+        for text in (lead, "Fixed note", "Before value", "Charge", "After value", "Last note", later):
+            doc.add_paragraph(text)  # The original reproduction has no Title/Heading style.
+        source = tmp_path / f"{name}.docx"
+        doc.save(source)
+        provider = ContextProvider()
+        result = TranslationEngine(settings, provider=provider).translate(source, tmp_path / "out", options)
+        sid = next(item.id for item in result.segments if item.plain == "Charge")
+        return result.translations[sid], provider.charge_requests
+
+    assert translate("financial", "Financial domain", "Original later body") == ("<r0>Плата</r0>", 1)
+    assert translate("electrical", "Electrical domain", "Original later body") == ("<r0>Заряд</r0>", 1)
+    assert translate("unrelated", "Electrical domain", "Changed unrelated later body") == ("<r0>Заряд</r0>", 0)
+
+
 def test_parallel_owners_finish_before_waiting_even_with_reversed_claims_and_one_slot(case, tmp_path):
     _, settings, options = case
     memory = run(case)
@@ -165,9 +290,9 @@ def test_parallel_owners_finish_before_waiting_even_with_reversed_claims_and_one
                    for source, provider in zip(sources, providers, strict=True)]
         results = [future.result(timeout=10) for future in futures]
     assert len(owner_threads) == 2
-    assert sum(len(call["segments"]) for provider in providers for call in provider.calls) == 4
+    assert sum(len(call["segments"]) for provider in providers for call in provider.calls) == 6
     assert all(len(result.translations) == 5 for result in results)
-    assert sum(result.repeated_segments for result in results) == 8
+    assert sum(result.repeated_segments for result in results) == 7
 
 
 def test_failed_owner_unblocks_waiter_and_later_file_can_retry(case, tmp_path):
@@ -227,7 +352,7 @@ def test_queue_shares_memory_and_records_only_actual_provider_work(case, tmp_pat
     results = [payload["result"] for kind, payload in events if kind == "result"]
     assert len(results) == 3
     assert not [payload for kind, payload in events if kind == "file_error"]
-    assert sum(len(call["segments"]) for provider in providers for call in provider.calls) == 4
+    assert sum(len(call["segments"]) for provider in providers for call in provider.calls) == 6
     assert sum(result.input_tokens for result in results) == sum(provider.input_tokens for provider in providers)
 
 

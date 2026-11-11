@@ -8,6 +8,7 @@ from concurrent.futures import Future
 from forma.core.models import FormaError, Options
 from forma.memory.store import (
     TranslationMemory,
+    exact_fingerprint,
     generation_fingerprint,
     policy_fingerprint,
 )
@@ -33,6 +34,16 @@ class MemoryRun:
                 settings.with_overrides(base_url=url), protocol=protocol, review=options.review, legacy=True,
             )) != self.generation
         ))
+        # Scope-v1 profiles are reference-only. They never enter normal exact
+        # lookup, connection adoption or file-checkpoint migration aliases.
+        self.revalidation_generations = tuple(dict.fromkeys((
+            generation_fingerprint(settings, protocol=protocol, review=options.review, context_version=1),
+            *(generation_fingerprint(
+                settings.with_overrides(base_url=url), protocol=protocol, review=options.review,
+                legacy=True, context_version=1,
+            ) for url in (settings.base_url, *legacy_connection_urls(settings))
+              if legacy_route_compatible(url, settings.api_mode)),
+        )))
         self._lock = threading.Lock()
         self._work: dict[str, Future] = {}
         self._candidate_lock = threading.RLock()
@@ -63,6 +74,31 @@ class MemoryRun:
                 **hit.provenance, "kind": "connection_identity_migration", "source_entry_id": hit.entry_id,
             },
         )
+
+    def legacy_revalidation_many(self, records):
+        """Exact old local/source proof permits one paid review, never output."""
+        expected = {
+            exact_fingerprint(self.policy, source, context, role): (source, context, role)
+            for source, context, role in records.values()
+        }
+        found = {}
+        for generation in self.revalidation_generations:
+            pending = [key for key in expected if key not in found or found[key].status != "human_approved"]
+            for key, hit in self.memory.lookup_many(self.snapshot, pending, generation, include_draft=True).items():
+                source, context, role = expected[key]
+                if (hit.project_id != self.snapshot.project_id or hit.policy != self.policy
+                        or hit.source_markup != source or hit.context != context or hit.role != role
+                        or hit.status not in {"human_approved", "machine_final", "draft"}
+                        or hit.status != "human_approved" and hit.generation_profile not in self.revalidation_generations):
+                    raise FormaError("Запис пам’яті не відповідає поточному фрагменту. Перевірте цілісність бази пам’яті.")
+                previous = found.get(key)
+                priority = {"draft": 0, "machine_final": 1, "human_approved": 2}
+                if previous is None or (priority[hit.status], hit.entry_id) > (priority[previous.status], previous.entry_id):
+                    found[key] = hit
+        return {
+            current: found[key] for current, (source, context, role) in records.items()
+            if (key := exact_fingerprint(self.policy, source, context, role)) in found
+        }
 
     def similar(self, source_markup, role, context, *, adaptation_context=None):
         """Share one bounded-search index across the queue's document workers."""

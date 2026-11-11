@@ -291,6 +291,11 @@
   "Читаємо структуру PDF": "Odczytywanie struktury PDF",
   "Читаємо структуру документа": "Odczytywanie struktury dokumentu",
   "Не вдалося зберегти налаштування.": "Nie udało się zapisać ustawień.",
-  "Перевірте налаштування провайдера.": "Sprawdź ustawienia dostawcy."
+  "Перевірте налаштування провайдера.": "Sprawdź ustawienia dostawcy.",
+  "У перекладі змінилися одиниці вимірювання або їхній зв’язок із числами.": "W tłumaczeniu zmieniły się jednostki miary lub ich powiązanie z liczbami.",
+  "Фрагмент завеликий для одного запиту. Перегляньте звіт про проблемні фрагменти.": "Fragment jest zbyt duży dla jednego zapytania. Sprawdź raport o problematycznych fragmentach.",
+  "Символів тексту: {plain}; символів розмітки: {markup}; позначок форматування: {spans}.": "Znaki tekstu: {plain}; znaki znaczników: {markup}; znaczniki formatowania: {spans}.",
+  "Фрагмент ще не надсилали до API.": "Fragment nie został jeszcze wysłany do API.",
+  "Не вдалося безпечно поділити фрагмент. Перегляньте звіт про проблемні фрагменти.": "Nie udało się bezpiecznie podzielić fragmentu. Sprawdź raport o problematycznych fragmentach."
 }
 

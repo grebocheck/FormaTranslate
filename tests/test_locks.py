@@ -38,6 +38,18 @@ def test_decimal_normalization_preserves_equipment_tags_and_file_references():
     assert "Звіт_Демо_v2.docx" in result
     assert not any(i.severity == "error" for i in check_segment(source, result))
 
+    # Real documents often split a code/link across runs with different styles.
+    # An ordinary decimal in another run must not consume the code's lock.
+    split = (
+        "<r0>Pressure 0,4; code </r0><r1>РУ-</r1><r2>0,4</r2><k0/>"
+        "<r3>https://exa</r3><r4>mple.org/a?x=1&amp;y=2</r4>"
+    )
+    locked, keys = lock_markup(split)
+    translated = unlock_markup(english_decimals(locked), keys)
+    assert translated == split.replace("Pressure 0,4", "Pressure 0.4")
+    assert unlock_markup(lock_draft(translated, keys), keys) == translated
+    assert not any(i.severity == "error" for i in check_segment(split, translated))
+
 
 def test_invalid_model_markup_is_a_repairable_error():
     from forma.translation.locks import english_decimals

@@ -147,14 +147,22 @@ def test_exactly_unchanged_codes_preserve_original_pixels(qapp):
 
 def test_changed_numbers_and_identifiers_get_one_bounded_repair(qapp):
     provider = FakeProvider(
-        {"blocks": [block("Pump AB-120: 25 kW", "Насос AB-121: 26 кВт")]},
-        {"translations": [{"id": 0, "translation": "Насос AB-120: 25 кВт"}]},
+        {"blocks": [block("Pump AB-120: 25 kW", "Насос AB-121: 26 кВт"), block("Power 5kW", "Потужність 5MW", y=650, height=250)]},
+        {"translations": [{"id": 0, "translation": "Насос AB-120: 25 кВт"}, {"id": 1, "translation": "Потужність 5кВт"}]},
     )
     result = translate_image(provider, picture(), "en", "uk")
-    assert result.translated_text == "Насос AB-120: 25 кВт"
+    assert result.translated_text == "Насос AB-120: 25 кВт\n\nПотужність 5кВт"
     assert len(provider.calls) == 2
     assert provider.calls[1][3] == {}
     assert provider.calls[1][1]["blocks"][0]["source"] == "Pump AB-120: 25 kW"
+    assert provider.calls[1][1]["blocks"][1]["source"] == "Power 5kW"
+    provider = FakeProvider(
+        {"blocks": [block("Power 5kW", "Потужність 5MW")]},
+        {"translations": [{"id": 0, "translation": "Потужність 5MWh"}]},
+    )
+    with pytest.raises(FormaError, match="одиниці вимірювання"):
+        translate_image(provider, picture(), "en", "uk")
+    assert len(provider.calls) == 2
 
 
 @pytest.mark.parametrize("correction", [

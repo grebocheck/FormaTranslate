@@ -126,7 +126,7 @@ def test_regular_import_is_reference_even_if_report_claims_review_or_manual_edit
 
 
 def test_explicit_preferred_import_reconstructs_real_context_and_role(pair, memory, project):
-    from forma.memory.context import segment_context, segment_role
+    from forma.memory.context import scoped_segment_context, segment_role
     from forma.memory.store import exact_fingerprint, policy_fingerprint
 
     summary = import_reference(memory, project.id, *pair, preferred=True)
@@ -137,7 +137,7 @@ def test_explicit_preferred_import_reconstructs_real_context_and_role(pair, memo
     policy = policy_fingerprint(Options(source_language="en", target_language="uk", auto_glossary=False), {})
     snapshot = memory.snapshot(project.id)
     for segment in office.segments:
-        key = exact_fingerprint(policy, segment.source, segment_context(office, segment), segment_role(office, segment))
+        key = exact_fingerprint(policy, segment.source, scoped_segment_context(office, segment), segment_role(office, segment))
         hit = memory.lookup(snapshot, key, "0" * 64, preferred_only=True)
         assert hit is not None
         assert "Untrusted report context" not in hit.context

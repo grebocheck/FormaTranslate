@@ -25,6 +25,8 @@ SEGMENT_CHECK_CODES = {
     "formatting",
     "numbers",
     "protected_values",
+    "missing_text",
+    "quantity_units",
     "unchanged",
     "expansion",
     "short_translation",

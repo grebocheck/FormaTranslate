@@ -40,7 +40,7 @@ def write_failure_report(source, folder, options, failure):
         rows.append(
             f"<h2>{html.escape(tr(segment.location))}</h2><ul>{findings}</ul>"
             f"<table><tr><th>{html.escape(tr('Оригінал'))}</th><th>{html.escape(tr('Останній варіант перекладу'))}</th></tr>"
-            f"<tr><td>{html.escape(segment.plain)}</td><td>{html.escape(plain_text(candidate)) if candidate is not None else html.escape(tr('Модель не повернула фрагмент.'))}</td></tr></table>"
+            f"<tr><td>{html.escape(segment.plain)}</td><td>{html.escape(plain_text(candidate)) if candidate is not None else html.escape(tr('Фрагмент ще не надсилали до API.' if failure.stage == 'preflight' else 'Модель не повернула фрагмент.'))}</td></tr></table>"
             + values
         )
     preparation = getattr(failure, "preparation", {})

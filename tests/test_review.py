@@ -187,6 +187,8 @@ def test_old_segment_warnings_are_recomputed_but_structural_and_error_findings_r
     data["issues"] = [
         asdict(Issue("unchanged", "Old heuristic warning", "document:1")),
         asdict(Issue("numbers", "Old heuristic error", "document:1", "error")),
+        asdict(Issue("missing_text", "Old missing-text error", "document:1", "error")),
+        asdict(Issue("quantity_units", "Old quantity-unit error", "document:1", "error")),
         asdict(Issue("tracked_changes", "Перевірте виправлення у документі.")),
         asdict(Issue("export_failed", "Не вдалося зберегти зображення.", severity="error")),
         asdict(Issue("unchanged", "Finding for a segment absent from this report", "absent:1")),
@@ -202,6 +204,8 @@ def test_old_segment_warnings_are_recomputed_but_structural_and_error_findings_r
 
     assert "Old heuristic warning" not in messages
     assert "Old heuristic error" not in messages
+    assert "Old missing-text error" not in messages
+    assert "Old quantity-unit error" not in messages
     assert "Finding for a segment absent from this report" in messages
     assert entries["document:tracked_changes"]["severity"] == "info"
     assert "Track Changes" in entries["document:tracked_changes"]["messages"][0]

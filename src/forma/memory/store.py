@@ -195,7 +195,7 @@ def policy_fingerprint(options, glossary: dict) -> str:
     })
 
 
-def generation_fingerprint(settings, *, protocol: int, review: bool, legacy: bool = False) -> str:
+def generation_fingerprint(settings, *, protocol: int, review: bool, legacy: bool = False, context_version: int = 2) -> str:
     """Hash an explicit allowlist; never serialize Settings or its API key."""
     from forma.settings.connection import connection_identity, legacy_route_compatible
 
@@ -210,6 +210,8 @@ def generation_fingerprint(settings, *, protocol: int, review: bool, legacy: boo
     }
     if not legacy and not legacy_route_compatible(settings.base_url, settings.api_mode):
         values["connection_route"] = 2
+    if context_version != 1:
+        values["memory_context_version"] = context_version
     return _fingerprint(values)
 
 

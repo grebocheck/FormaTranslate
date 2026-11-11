@@ -141,6 +141,18 @@ def test_editor_can_correct_numbers_but_wrong_final_numbers_are_rejected():
         translate_text(provider, "Hello 42", "en", "uk")
     assert len(provider.calls) == 2
 
+    def repair_units(segments, call):
+        segments[0]["text"] = "Потужність 5 MW" if call == 1 else "Потужність 5 кВт"
+        return {"segments": segments}
+
+    assert translate_text(TextProvider(repair_units), "Power 5 kW", "en", "uk") == "Потужність 5 кВт"
+    provider = TextProvider(
+        lambda segments, call: {"segments": [{"id": segments[0]["id"], "text": "Потужність 5 MW"}]}
+    )
+    with pytest.raises(FormaError, match="одиниці вимірювання"):
+        translate_text(provider, "Power 5 kW", "en", "uk")
+    assert len(provider.calls) == 2
+
 
 def test_decimal_punctuation_can_be_localized():
     provider = TextProvider(

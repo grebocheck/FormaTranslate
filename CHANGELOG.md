@@ -4,6 +4,10 @@ Versions follow semantic versioning. Changes before 1.0 may evolve as document c
 
 ## Unreleased
 
+- Bind project-memory requests and exact/fuzzy identities to the same explicit Word Title/Subtitle/section or worksheet context, with full identity hashes and useful head/tail excerpts. Retain old entries as one-pass editorial migration references instead of silently adopting them under the new scope.
+- Automatically divide supported long paragraphs into reversible private pieces, persist draft/editorial progress across interruptions and reconstruct/validate the original formatting stream before accepting the parent. Measure the complete serialized stage input when sizing batches.
+- Detect known quantity/unit scale and type changes, including standalone unit cells; accept localized aliases and cubic-unit notation without relaxing identifier/number checks.
+- Protect identifiers and links across formatting runs, preserve their decimal punctuation and clear stale prose/unit findings after review corrections.
 - Adapt changed DOCX table passages through one bilingual editing pass using a separate structural reference context, while retaining exact-memory identities and checks on peer cells, headers and hidden surrounding paragraphs.
 - Split pending Office batches after explicitly recognized provider context/output limits; preserve accepted fragments, drafts and cancellation boundaries, and stop at a single segment rather than retrying an unchanged oversized request.
 - Reject obvious prose loss hidden behind retained numbers or identifiers, and avoid repeatedly persisting already accepted fragments during repairs.

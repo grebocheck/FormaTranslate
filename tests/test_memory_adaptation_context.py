@@ -153,3 +153,42 @@ def test_table_own_source_can_be_edited_but_other_full_context_remains_binding(t
     sid = result.segments[0].id
     calls = [p for p in provider.calls if any(item["id"] == sid for item in p["segments"])]
     assert len(calls) == 2 and all(sid not in p.get("memory_references", {}) for p in calls)
+
+
+def test_hidden_table_peer_unit_reaches_actual_readable_translation_context(tmp_path):
+    import json
+
+    memory = TranslationMemory()
+    project = memory.create_project("Synthetic ambiguous units", "uk", "en")
+    options = Options("uk", "en", review=False, auto_glossary=False, memory_project_id=project.id)
+    settings = Settings(base_url="http://127.0.0.1:1/v1", api_key="offline", model="offline", max_parallel_requests=1, parallel_documents=1)
+
+    class UnitProvider:
+        input_tokens = output_tokens = 0
+
+        def complete(self, instruction, payload, schema, **kwargs):
+            values = []
+            for item in payload["segments"]:
+                visible = plain_text(item["text"])
+                scope = json.loads(item["neighboring_context"])
+                facts = json.dumps(json.loads(scope["context"])["facts"], ensure_ascii=False)
+                if visible == "Витрата":
+                    # The oracle inspects actual supplied text, not digests or
+                    # filenames. The unit is after the old head-only excerpt.
+                    assert "м³/год" in facts or "грн" in facts
+                    target = "Flow rate" if "м³/год" in facts else "Expenditure"
+                else:
+                    target = "Administrative note " * 80 + ("м³/год" if "м³/год" in visible else "грн")
+                values.append({"id": item["id"], "text": f"<r0>{target}</r0>"})
+            return {"segments": values}
+
+    for index, (unit, expected) in enumerate((("м³/год", "Flow rate"), ("грн", "Expenditure"))):
+        document = Document()
+        table = document.add_table(rows=1, cols=2)
+        table.cell(0, 0).text = "Витрата"
+        table.cell(0, 1).text = "Службова примітка " * 80 + unit
+        source = tmp_path / f"unit-{index}.docx"
+        document.save(source)
+        result = TranslationEngine(settings, provider=UnitProvider()).translate(source, tmp_path / "out", options)
+        sid = next(item.id for item in result.segments if item.plain == "Витрата")
+        assert result.translations[sid] == f"<r0>{expected}</r0>"

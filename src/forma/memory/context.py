@@ -216,6 +216,40 @@ def segment_context(document: OfficeDocument, segment: Segment) -> str:
     return json.dumps({"context": segment.context, "full_context_sha256": _digest(full)}, ensure_ascii=False, sort_keys=True)
 
 
+def scoped_segment_context(document: OfficeDocument, segment: Segment) -> str:
+    """Version-two identity binds every authoritative document/section input."""
+    from forma.memory.readable_context import readable_context
+    from forma.memory.scope import Scope, word_scope
+
+    previous = json.loads(segment_context(document, segment))
+    readable = readable_context(document, segment)
+    try:
+        selected = json.loads(readable)["selected_context_sha256"]
+    except (ValueError, TypeError, KeyError):
+        selected = _digest(readable)
+    if document.path.suffix.lower() == ".docx":
+        scope = word_scope(document, segment)
+    else:
+        # The v1 worksheet context already covers named sheets, complete
+        # selected row/column captions and every use of each shared string.
+        scope = Scope(_digest({"version": 2, "worksheet": previous["full_context_sha256"]}), segment.context)
+    role = segment_role(document, segment)
+    return json.dumps({
+        "memory_context_version": 2, "context": readable,
+        "scope_sha256": scope.sha256, "scope_prompt": scope.prompt, "role_sha256": role,
+        "full_context_sha256": _digest({"version": 2, "local": previous["full_context_sha256"], "selected": selected, "scope": scope.sha256, "role": role}),
+    }, ensure_ascii=False, sort_keys=True)
+
+
+def request_context(context: str) -> str:
+    """Include readable excerpts AND complete identity digests in paid requests.
+
+    Private fragment journals can then bind their actual serialized inputs even
+    when a heading or neighbor changes beyond its readable excerpt.
+    """
+    return context
+
+
 def _adaptation_text(node, omitted=()):
     """Visible XML structure with actual target nodes removed, never text matches."""
     tokens, text = [], []
@@ -316,4 +350,6 @@ def adaptation_context(document: OfficeDocument, segment: Segment) -> str | None
         if 0 <= position < len(document.segments)
         and document.targets[document.segments[position].id].part == target.part
     ]
-    return _digest({"version": 1, "row": own, "header": first, "neighbors": neighbors})
+    from forma.memory.scope import word_scope
+
+    return _digest({"version": 2, "scope": word_scope(document, segment).sha256, "row": own, "header": first, "neighbors": neighbors})

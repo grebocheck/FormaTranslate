@@ -9,22 +9,29 @@ from dataclasses import replace
 
 from forma.core.models import FormaError, Segment, TranslationResult
 from forma.documents.ooxml import OfficeDocument
-from forma.memory.context import adaptation_context, segment_context, segment_role
+from forma.memory.context import (
+    adaptation_context,
+    request_context,
+    scoped_segment_context,
+    segment_context,
+    segment_role,
+)
 from forma.memory.session import MemoryRun
 from forma.memory.similarity import eligible_source
 from forma.memory.store import exact_fingerprint, generation_fingerprint, policy_fingerprint
 from forma.persistence.files import atomic_json, available_output
 from forma.providers.client import Provider
+from forma.translation.budget import validate_segment_sizes
 from forma.translation.engine import (
     PROTOCOL_VERSION,
     batched,
     blocking_issues,
-    document_context,
     file_digest,
     load_checkpoint,
     translation_issues,
     use_english_decimals,
 )
+from forma.translation.fragments import FragmentCache
 
 
 def _changed_spans(previous, current):
@@ -67,8 +74,7 @@ def translate_with_memory(engine, source, folder, options, progress):
         raise FormaError("Оригінал змінився під час читання. Повторіть переклад.")
     if not document.segments:
         raise FormaError("У документі немає тексту для перекладу. Текст усередині зображень потребує OCR.")
-    if any(len(segment.source) > 26000 for segment in document.segments):
-        raise FormaError("Документ містить абзац понад 26 000 символів. Розділіть його перед перекладом.")
+    fragment_plans = validate_segment_sizes(document.segments)
     checkpoint, state = load_checkpoint(
         source_hash, options, settings, memory_policy=run.policy, memory_generation=run.generation,
         legacy_generations=run.legacy_generations,
@@ -98,19 +104,22 @@ def translate_with_memory(engine, source, folder, options, progress):
                             "status": entry["status"], "kind": "checkpoint",
                         }
 
-    groups, keys, contexts, roles, retrieval_contexts = {}, {}, {}, {}, {}
+    groups, keys, contexts, roles, retrieval_contexts, legacy_contexts = {}, {}, {}, {}, {}, {}
     for segment in document.segments:
-        context, role = segment_context(document, segment), segment_role(document, segment)
+        context, role = scoped_segment_context(document, segment), segment_role(document, segment)
         key = exact_fingerprint(run.policy, segment.source, context, role)
         groups.setdefault(key, []).append(segment)
         keys[segment.id], contexts[key], roles[key] = key, context, role
+        legacy_contexts[key] = segment_context(document, segment)
         if key not in retrieval_contexts:
             retrieval_contexts[key] = adaptation_context(document, segment) if options.review and eligible_source(segment.source) else None
 
     lock = threading.RLock()
+    fragment_cache = FragmentCache(state, checkpoint, lock, plans=fragment_plans)
     owned, borrowed = {}, {}
     claimed = set()
     adaptations = {}
+    legacy_edits = set()
     provider = engine.provider
     stopped = threading.Event()
 
@@ -159,7 +168,7 @@ def translate_with_memory(engine, source, folder, options, progress):
                 if retrieval_contexts[key] is not None:
                     provenance["adaptation_context_sha256"] = retrieval_contexts[key]
                 if previous is not None:
-                    provenance.update(kind="adaptation", source_entry_id=previous.entry_id)
+                    provenance.update(kind="legacy_revalidation" if sid in legacy_edits else "adaptation", source_entry_id=previous.entry_id)
                 hit = run.memory.save_machine(
                     run.snapshot.project_id, key, members[0].source, candidate,
                     contexts[key], roles[key], run.policy, run.generation,
@@ -185,6 +194,12 @@ def translate_with_memory(engine, source, folder, options, progress):
     try:
         progress(3, "Шукаємо точні переклади в пам’яті проєкту")
         available = run.lookup_many(groups, include_draft=options.review)
+        legacy = run.legacy_revalidation_many({
+            key: (members[0].source, legacy_contexts[key], roles[key])
+            for key, members in groups.items()
+            if options.review and key not in available
+            and not any(member.id in translations or member.id in drafts for member in members)
+        }) if options.review else {}
         for key, members in groups.items():
             control.check()
             representative = members[0]
@@ -236,25 +251,29 @@ def translate_with_memory(engine, source, folder, options, progress):
                     kinds[member.id] = "draft_memory"
                     draft_hits.add(member.id)
             if options.review and representative.id not in drafts:
-                previous = run.similar(
+                previous = legacy.get(key) or run.similar(
                     representative.source, roles[key], contexts[key], adaptation_context=retrieval_contexts[key],
                 )
                 if previous is not None and not blocking_issues(
                     Segment("reference", "", previous.source_markup), previous.target, options,
+                    draft=key in legacy and previous.status == "draft",
                 ):
                     adaptations[representative.id] = previous
+                    if key in legacy:
+                        legacy_edits.add(representative.id)
             owned[key] = representative
         with lock:
             persist()
-        pending = list(owned.values())
+        pending = [replace(segment, context=request_context(contexts[keys[segment.id]])) for segment in owned.values()]
         if pending:
             provider = provider or Provider(settings, control)
         common = {
+            "memory_context_version": 2,
             "source_language": options.source_language,
             "target_language": options.target_language,
             "domain": options.domain,
             "glossary": dict(run.glossary),
-            "document_context": document_context(document.segments),
+            "document_context": "",
             "number_format": "Use decimal points, preserving all digits and precision; do not add thousands separators."
             if use_english_decimals(options) else "Preserve source numeric notation.",
         }
@@ -271,7 +290,7 @@ def translate_with_memory(engine, source, folder, options, progress):
                     engine._stage(
                         untranslated, common, options, provider,
                         lambda values: save_stage(values, reviewed=not options.review),
-                        progress=report_stage,
+                        progress=report_stage, fragment_cache=fragment_cache,
                     )
                 if options.review:
                     control.check()
@@ -291,12 +310,15 @@ def translate_with_memory(engine, source, folder, options, progress):
                             "previous_context": previous.context,
                             "changed_source_spans": _changed_spans(previous.source_markup, segment.source),
                         }
+                        if segment.id in legacy_edits:
+                            adaptation_references[segment.id]["legacy_context_revalidation"] = True
                     if adaptation_references:
                         report_stage("Адаптуємо переклад до змін у фрагменті")
                     engine._stage(
                         batch, common, options, provider,
                         lambda values: save_stage(values, reviewed=True),
                         drafts=batch_drafts, memory_references=adaptation_references, progress=report_stage,
+                        fragment_cache=fragment_cache,
                     )
             except BaseException:
                 stopped.set()

@@ -29,6 +29,8 @@ from forma.settings.connection import (
     legacy_connection_urls,
     legacy_route_compatible,
 )
+from forma.translation.budget import STAGE_INPUT_BYTES, stage_input_size, validate_segment_sizes
+from forma.translation.fragments import FragmentCache, FragmentError
 from forma.translation.instructions import translation_prompt
 from forma.translation.locks import english_decimals, lock_draft, lock_markup, unlock_markup
 from forma.translation.quality import check_language, check_segment, number_differences
@@ -267,15 +269,43 @@ class TranslationEngine:
         self.preparation_progress = None
 
     def _stage(
-        self, batch, common, options, provider, save, *, drafts=None, memory_references=None, progress=lambda *_: None
+        self, batch, common, options, provider, save, *, drafts=None, memory_references=None,
+        progress=lambda *_: None, fragment_cache=None,
     ):
         """Retain valid segments and repair only failures, separately for translation/editing."""
+        self.control.check()
+        fragment_cache = fragment_cache or FragmentCache()
+        ordinary, completed_parents = [], {}
+        for segment in batch:
+            plan = fragment_cache.plan(segment)
+            if plan is None:
+                ordinary.append(segment)
+                continue
+            candidate = self._fragment_stage(plan, common, options, provider, fragment_cache,
+                                             review=drafts is not None, progress=progress)
+            completed_parents[segment.id] = candidate
+            save({segment.id: candidate})
+        if not ordinary:
+            return completed_parents
+        batch = ordinary
         locked = {s.id: lock_markup(s.source) for s in batch}
         pending = list(batch)
-        accepted = {}
+        accepted = dict(completed_parents)
         errors = []
         previous = {}
         failed_candidates, failed_issues = {}, []
+
+        def split_pending():
+            midpoint = len(pending) // 2
+            # Every child is strictly smaller; accepted parent values stay saved.
+            for subset in (pending[:midpoint], pending[midpoint:]):
+                self.control.check()
+                accepted.update(self._stage(
+                    subset, common, options, provider, save, drafts=drafts,
+                    memory_references=memory_references, progress=progress, fragment_cache=fragment_cache,
+                ))
+            return accepted
+
         for attempt in range(3):
             self.control.check()
             payload = {
@@ -313,10 +343,25 @@ class TranslationEngine:
             instruction = translation_prompt(
                 REVIEW_PROMPT if drafts is not None else TRANSLATE_PROMPT, options.instructions
             )
+            if common.get("memory_context_version") == 2:
+                instruction += (
+                    "\nEach segment has its own authoritative document/section or worksheet context. "
+                    "Other items in this batch may belong to unrelated sections: do not use their "
+                    "topics to override this segment's supplied scope. Context hashes and role IDs "
+                    "are bookkeeping, never text to translate. Use the readable context facts, "
+                    "the requested domain and the authoritative glossary to resolve meaning."
+                )
             if payload.get("memory_references"):
                 instruction += "\n" + ADAPTATION_PROMPT
             if errors:
                 instruction += "\nRepair the previous response. Return only the requested IDs and fix every listed error."
+            if common.get("paragraph_validation_errors"):
+                instruction += (
+                    "\nThe complete paragraph failed validation. Correct the paragraph_validation_errors "
+                    "findings in this fragment without omitting or inventing source content."
+                )
+            if len(pending) > 1 and stage_input_size(instruction, payload, TRANSLATION_SCHEMA) > STAGE_INPUT_BYTES:
+                return split_pending()
             try:
                 response, response_errors = response_candidates(
                     provider.complete(
@@ -331,17 +376,16 @@ class TranslationEngine:
             except CapacityError:
                 self.control.check()
                 if len(pending) <= 1:
+                    segment = pending[0]
+                    plan = fragment_cache.plan(segment, limit=len(locked[segment.id][0]) // 2)
+                    if plan is not None:
+                        candidate = self._fragment_stage(plan, common, options, provider, fragment_cache,
+                                                         review=drafts is not None, progress=progress)
+                        accepted[segment.id] = candidate
+                        save({segment.id: candidate})
+                        return accepted
                     raise
-                midpoint = len(pending) // 2
-                # Every child is strictly smaller. Keep all content and stage
-                # inputs; only explicit provider limits justify extra requests.
-                for subset in (pending[:midpoint], pending[midpoint:]):
-                    self.control.check()
-                    accepted.update(self._stage(
-                        subset, common, options, provider, save, drafts=drafts,
-                        memory_references=memory_references, progress=progress,
-                    ))
-                return accepted
+                return split_pending()
             except ValidationError as exc:
                 errors = [str(exc)]
                 previous = {}
@@ -386,6 +430,88 @@ class TranslationEngine:
             pending, failed_candidates, failed_issues,
             stage="review" if drafts is not None else "translation",
         )
+
+    def _fragment_stage(self, plan, common, options, provider, cache, *, review, progress):
+        """Keep partial work private; only a validated whole paragraph leaves here."""
+        final_stage = "finals" if review or not options.review else "drafts"
+        cache.save(plan, final_stage, {})  # Persist the plan before the first request.
+
+        def loaded(stage):
+            raw, valid = cache.load(plan, stage), {}
+            for part in plan.parts:
+                candidate = raw.get(part.segment.id)
+                if isinstance(candidate, str) and not blocking_issues(
+                    part.segment, candidate, options, draft=stage == "drafts" and options.review,
+                ):
+                    valid[part.segment.id] = candidate
+            return valid
+
+        def save_parts(stage, destination):
+            def persist(values):
+                cache.save(plan, stage, values)
+                destination.update(values)
+            return persist
+
+        try:
+            for _ in range(3):
+                finals = loaded(final_stage)
+                for part in plan.parts:
+                    if part.fixed and part.segment.id not in finals:
+                        encoded, locks = lock_markup(part.segment.source)
+                        finals[part.segment.id] = unlock_markup(
+                            english_decimals(encoded) if use_english_decimals(options) else encoded, locks,
+                        )
+                        cache.save(plan, final_stage, {part.segment.id: finals[part.segment.id]})
+                pending = [part.segment for part in plan.parts if part.segment.id not in finals]
+                feedback = list(dict.fromkeys([
+                    *common.get("paragraph_validation_errors", []), *cache.feedback(plan, final_stage),
+                ]))
+                current = {**common, "paragraph_validation_errors": feedback} if feedback else common
+                if review:
+                    part_drafts = loaded("drafts")
+                    missing = [segment for segment in pending if segment.id not in part_drafts]
+                    # Whole legacy/adaptation drafts have no reliable source-slice
+                    # alignment. Retain them; regenerate only missing piece drafts.
+                    for segment in missing:
+                        self._stage([segment], current, options, provider, save_parts("drafts", part_drafts),
+                                    progress=progress, fragment_cache=cache)
+                    for segment in pending:
+                        self._stage([segment], current, options, provider, save_parts("finals", finals),
+                                    drafts=part_drafts, progress=progress, fragment_cache=cache)
+                else:
+                    for segment in pending:
+                        self._stage([segment], current, options, provider, save_parts(final_stage, finals),
+                                    progress=progress, fragment_cache=cache)
+                candidate = plan.assemble(finals, target_language=options.target_language)
+                issues = blocking_issues(plan.parent, candidate, options, draft=final_stage == "drafts" and options.review)
+                if not issues:
+                    cache.accept(plan, final_stage)
+                    return candidate
+                cache.reject(plan, final_stage, issues)
+                self.control.check()
+            raise TranslationFailure(
+                "Експорт зупинено: переклад не пройшов перевірку після трьох спроб. "
+                "Перегляньте звіт про проблемні фрагменти та повторіть переклад.",
+                [plan.parent], {plan.parent.id: candidate}, issues,
+                stage="review" if review else "translation",
+            )
+        except TranslationFailure as failure:
+            failure.segments = [plan.root]
+            failure.candidates = ({plan.root.id: failure.candidates[plan.root.id]}
+                                  if plan.root.id in failure.candidates else {})
+            failure.issues = [replace(issue, segment_id=plan.root.id) for issue in failure.issues]
+            raise
+        except CapacityError as exc:
+            raise TranslationFailure(
+                str(exc), [plan.root], {}, [Issue("capacity_limit", str(exc), plan.root.id, "error")],
+                stage="review" if review else "translation",
+            ) from None
+        except FragmentError:
+            raise TranslationFailure(
+                "Фрагмент завеликий для одного запиту. Перегляньте звіт про проблемні фрагменти.",
+                [plan.root], {}, [Issue("request_size", str(FragmentError()), plan.root.id, "error")],
+                stage="review" if review else "translation",
+            ) from None
 
     def translate(
         self, source: Path, folder: Path, options: Options, progress: Progress = lambda *_: None
@@ -505,10 +631,7 @@ class TranslationEngine:
             raise FormaError(
                 "У документі немає тексту для перекладу. Текст усередині зображень потребує OCR."
             )
-        if any(len(s.source) > 26000 for s in document.segments):
-            raise FormaError(
-                "Документ містить абзац понад 26 000 символів. Розділіть його перед перекладом."
-            )
+        fragment_plans = validate_segment_sizes(document.segments)
         checkpoint, state = load_checkpoint(source_hash, options, self.settings)
         saved_glossary = state.get("glossary")
         if not isinstance(saved_glossary, dict) or not all(
@@ -527,6 +650,7 @@ class TranslationEngine:
                     destination[segment.id] = candidate
         cached = len(translations)
         state_lock = threading.RLock()
+        fragment_cache = FragmentCache(state, checkpoint, state_lock, plans=fragment_plans)
 
         def save_stage(values, *, reviewed):
             with state_lock:
@@ -614,6 +738,7 @@ class TranslationEngine:
                             provider,
                             lambda values: save_stage(values, reviewed=not options.review),
                             progress=report_stage,
+                            fragment_cache=fragment_cache,
                         )
                     if options.review:
                         self.control.check()
@@ -628,6 +753,7 @@ class TranslationEngine:
                             lambda values: save_stage(values, reviewed=True),
                             drafts=batch_drafts,
                             progress=report_stage,
+                            fragment_cache=fragment_cache,
                         )
                     with state_lock:
                         report_stage(

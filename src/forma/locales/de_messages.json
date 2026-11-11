@@ -291,6 +291,11 @@
   "Читаємо структуру PDF": "PDF-Struktur wird eingelesen",
   "Читаємо структуру документа": "Dokumentstruktur wird eingelesen",
   "Не вдалося зберегти налаштування.": "Die Einstellungen konnten nicht gespeichert werden.",
-  "Перевірте налаштування провайдера.": "Prüfen Sie die Einstellungen des Anbieters."
+  "Перевірте налаштування провайдера.": "Prüfen Sie die Einstellungen des Anbieters.",
+  "У перекладі змінилися одиниці вимірювання або їхній зв’язок із числами.": "Maßeinheiten oder ihre Zuordnung zu Zahlen wurden in der Übersetzung verändert.",
+  "Фрагмент завеликий для одного запиту. Перегляньте звіт про проблемні фрагменти.": "Das Segment ist für eine einzelne Anfrage zu groß. Prüfen Sie den Bericht zu problematischen Segmenten.",
+  "Символів тексту: {plain}; символів розмітки: {markup}; позначок форматування: {spans}.": "Textzeichen: {plain}; Markup-Zeichen: {markup}; Formatierungsmarkierungen: {spans}.",
+  "Фрагмент ще не надсилали до API.": "Das Segment wurde noch nicht an die API gesendet.",
+  "Не вдалося безпечно поділити фрагмент. Перегляньте звіт про проблемні фрагменти.": "Das Segment konnte nicht sicher aufgeteilt werden. Prüfen Sie den Bericht zu problematischen Segmenten."
 }
 

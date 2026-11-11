@@ -6,7 +6,9 @@ Use the same source documents, languages, glossary and domain for every candidat
 
 The offline suite tests program behavior with synthetic documents and fake providers: preservation of numbers/formatting, protocol handling, cancellation, cache boundaries and persistence. Its collected count includes parameterized inputs. Neither a high count nor a provider stub returning expected words establishes linguistic accuracy. Retain distinct failure boundaries; remove repeated UI/database setup for malformed values already covered by pure validators. A useful test must fail for a relevant behavioral fault, rather than a renamed helper or a different temporary path.
 
-Current automatic checks catch numeric/identifier changes and obvious lost prose, but they cannot generally establish that units, negation, named entities or obligations were translated correctly. For example, a fluent sentence that changes `5 kW` to `5 MW` keeps its numeric value and can still pass structural checks. The bilingual editorial pass is another model output, not human approval.
+Engine checks catch numeric/identifier changes, obvious lost prose and conflicts between known numeric-unit pairs or whole unit labels, including `5 kW` → `5 MW`. Localized known units are allowed; unknown or spelled-out units, currencies and arbitrary prose are not inferred by that guard. The CLI structural comparison still reports numeric preservation separately. These checks do not establish that negation, named entities, obligations or technical meaning were translated correctly. The bilingual editorial pass is another model output, not human approval.
+
+The unit guard is shared by Office, plain-text final results and photo translations. In PDF it covers fresh responses matching the exact classic BabelDOC 0.7.1 request contract; arbitrary `do_llm_translate` prompts and already cached worker results have no verified source mapping at that boundary. They are not presented as unit-verified.
 
 ## Structural checks
 
@@ -47,3 +49,7 @@ uv run python scripts/research_translation.py
 The first commands generate synthetic fixtures or exercise fake APIs. `check_quality.py` and `research_translation.py` prepare files by default; adding `--live` explicitly enables paid requests to the configured provider. Their output belongs in the ignored `output/` directory. Parallel fake-API timing measures scheduling, not real model latency or linguistic quality.
 
 For the optional installed PDF engine, `uv run python scripts/smoke_pdf.py` uses a local fake API and a synthetic PDF. It checks integration, not translation quality.
+
+## Spreadsheet storage limitation
+
+A shared-string XLSX entry can currently represent cells with different meanings, including the same label under flow-rate and financial contexts. The extractor binds all uses, but one shared-string translation still gives those cells one identical output. Independent per-use targets and rich-text-preserving shared-string clones require an extraction/report/import contract change; context hashing alone does not solve that representational limitation. Test that change with a real shared-string workbook and independently reopened cells, not only an inline-string fixture.

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from zipfile import ZipFile
 
 import pytest
@@ -11,13 +12,21 @@ from lxml import etree
 from openpyxl import Workbook
 
 from forma.documents.ooxml import OfficeDocument, S
-from forma.memory.context import adaptation_context, segment_context, segment_role
+from forma.memory.context import (
+    adaptation_context,
+    scoped_segment_context,
+    segment_context,
+    segment_role,
+)
 
 
 def identity(path, text="Energy"):
     document = OfficeDocument(path)
     segment = next(item for item in document.segments if item.plain == text)
-    return segment.source, segment.context, segment_context(document, segment), segment_role(document, segment)
+    return (
+        segment.source, segment.context, segment_context(document, segment), segment_role(document, segment),
+        scoped_segment_context(document, segment),
+    )
 
 
 def workbook(path, header, *, unrelated=10):
@@ -189,3 +198,59 @@ def test_docx_xml_comments_and_processing_instructions_do_not_change_identity(tm
         document.save(path)
         identities.append(identity(path))
     assert identities[0] == identities[1]
+
+
+def test_explicit_title_inherited_outline_and_direct_override_bind_distant_segments(tmp_path):
+    from docx.enum.style import WD_STYLE_TYPE
+
+    def context(name, *, title="Financial", subtitle="", section="Costs", direct=None, unrelated="Unrelated note"):
+        document = Document()
+        document.add_paragraph(title, style="Title")
+        if subtitle:
+            subtitle_style = document.styles.add_style("Custom document subtitle", WD_STYLE_TYPE.PARAGRAPH)
+            subtitle_style.base_style = document.styles["Subtitle"]
+            document.add_paragraph(subtitle, style=subtitle_style)
+        inherited = document.styles.add_style("Custom section role", WD_STYLE_TYPE.PARAGRAPH)
+        inherited.base_style = document.styles["Heading 2"]
+        paragraph = document.add_paragraph(section, style=inherited)
+        if direct is not None:
+            outline = OxmlElement("w:outlineLvl")
+            outline.set(f"{{{document._element.nsmap['w']}}}val", str(direct))
+            paragraph._p.get_or_add_pPr().append(outline)
+        for text in ("First fixed note", "Before value", "Charge", "After value", "Last fixed note", unrelated):
+            document.add_paragraph(text)
+        path = tmp_path / f"{name}.docx"
+        document.save(path)
+        parsed = OfficeDocument(path)
+        segment = next(item for item in parsed.segments if item.plain == "Charge")
+        return scoped_segment_context(parsed, segment)
+
+    original = context("original")
+    assert original == context("unrelated", unrelated="Different unrelated body note")
+    assert original != context("title", title="Electrical")
+    assert original != context("section", section="Current")
+    assert "Costs" in json.loads(original)["scope_prompt"]  # Custom basedOn inherited outline level.
+    assert "Costs" not in json.loads(context("body-override", direct=9))["scope_prompt"]
+    long_title = "Same long title " * 100
+    before = context("long-before", title=long_title + "Financial")
+    after = context("long-after", title=long_title + "Electrical")
+    assert before != after and "Electrical" in json.loads(after)["scope_prompt"]
+    subtitle_before = context("subtitle-before", title="Report", subtitle="Financial")
+    subtitle_after = context("subtitle-after", title="Report", subtitle="Electrical")
+    assert subtitle_before != subtitle_after
+    assert "Document subtitle: Electrical" in json.loads(subtitle_after)["scope_prompt"]
+
+    def separate_section(name, first):
+        document = Document()
+        document.add_heading(first, 1)
+        document.add_paragraph("Financial body")
+        document.add_heading("Electrical", 1)
+        for text in ("First fixed note", "Before value", "Charge", "After value"):
+            document.add_paragraph(text)
+        path = tmp_path / f"{name}.docx"
+        document.save(path)
+        parsed = OfficeDocument(path)
+        segment = next(item for item in parsed.segments if item.plain == "Charge")
+        return scoped_segment_context(parsed, segment)
+
+    assert separate_section("sibling-before", "Financial") == separate_section("sibling-after", "Changed financial section")

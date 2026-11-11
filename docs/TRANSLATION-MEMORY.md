@@ -29,7 +29,7 @@ Glossary entries guide terminology. Complete repeated paragraphs belong in trans
 
 ## What is reused
 
-An exact match requires the same marked-up source, context, document role and translation policy. The policy includes the language pair, subject, custom instructions, shared glossary and numeric convention. For prose, context includes full neighboring segments; DOCX tables use row/header text, boundaries and cell geometry. XLSX context includes full selected row/column values and every use of a shared string. A changed number, code, negation or control marker does not qualify as an exact match.
+An exact match requires the same marked-up source, context, document role and translation policy. The policy includes the language pair, subject, custom instructions, shared glossary and numeric convention. For prose, context includes full neighboring segments and an explicit document/section scope; DOCX tables use row/header text, boundaries and cell geometry. XLSX context includes full selected row/column values and every use of a shared string. A changed number, code, negation or control marker does not qualify as an exact match.
 
 Identical visible text alone is insufficient. A label in a different table or a sentence next to different instructions may need another translation. Formatting markers remain attached to the current document's structure.
 
@@ -46,7 +46,11 @@ Equivalent forms of a native API address share the same generation identity. A p
 
 Within one queue, exact entries share completed work, including across documents. Separate application processes can still make duplicate requests. Pause, cancellation and checkpoint recovery remain available.
 
-The current memory identity binds local context and the selected project policy, but translation requests also carry sampled document-wide context. A distant subject change can therefore affect an uncached model response without changing an exact local memory key (for example, financial versus electrical “charge”). Keep projects focused and use explicit domain/instructions for different meanings. Replacing this assumption with stable project/section context is an outstanding design task; hashing entire documents would prevent useful template reuse, while removing global context alone would discard useful disambiguation. See [the evaluation method](BENCHMARK.md) before changing that policy.
+Project-memory requests now use the same versioned local/section context that identifies the memory entry. DOCX context follows explicit Title/Subtitle styles and the real outline hierarchy, including inherited paragraph styles; without a title, a leading ordinary paragraph supplies a conservative document anchor. Independent sibling sections remain independent. Headers and notes bind the relevant document heading set. XLSX context binds worksheet names, selected row/column facts and every shared-string use. Readable excerpts retain both beginnings and endings; full hashes also cover facts beyond those excerpts. Sampled document-wide text is not an additional hidden model input for project-memory translation. This avoids both cross-topic exact reuse and invalidation from unrelated later body edits.
+
+## Older memory and interrupted work
+
+The context-v2 generation is separate from older machine/checkpoint profiles. Equivalent connection aliases stay inside the same context version; they cannot promote an older unscoped result to a current exact hit. Old approved wording, completed machine results and drafts remain in the database. When the original local/source/role/policy proof matches, an eligible older entry can supply one mandatory bilingual editorial pass using the current scope. The new result is saved as machine output; the old approval/status/history is retained. A subsequent match can reuse that newly completed current-scope result. With editorial review disabled, incompatible old entries do not become automatic translations. Explicitly importing and approving a verified source/output pair reconstructs the current scope from actual source XML.
 
 ## Adapt a similar passage
 

@@ -17,7 +17,7 @@ from docx.oxml.ns import qn
 
 from forma.core.models import FormaError, Options
 from forma.documents.ooxml import OfficeDocument
-from forma.memory.context import segment_context, segment_role
+from forma.memory.context import scoped_segment_context, segment_role
 from forma.memory.session import MemoryRun
 from forma.memory.store import TranslationMemory, exact_fingerprint
 from forma.settings.config import Settings, data_directory
@@ -97,7 +97,7 @@ def translate(case, source, provider, *, options=None, settings=None, run=None):
 def entry_for(source, run):
     document = OfficeDocument(source)
     segment = next(item for item in document.segments if "Energy" in item.plain)
-    context, role = segment_context(document, segment), segment_role(document, segment)
+    context, role = scoped_segment_context(document, segment), segment_role(document, segment)
     return {
         "key": exact_fingerprint(run.policy, segment.source, context, role),
         "source_markup": segment.source, "context": context, "role": role, "policy": run.policy,
