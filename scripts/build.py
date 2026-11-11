@@ -239,12 +239,35 @@ def build_command(
     if system == "windows":
         if not desktop_only:
             command[-1:-1] = [
-                "--add-data", f"{runtime_bundle / 'runtime'}:runtimes",
                 "--add-data", f"{runtime_bundle / 'BUNDLE.json'}:runtimes-meta",
             ]
         command[-1:-1] = ["--icon", str(root / "src/forma/ui/forma.ico"), "--version-file",
                          str(root / "build/release" / name / "windows-version.txt")]
     return command, artifact
+
+
+def runtime_build_command(command: list[str], runtime_bundle: Path) -> list[str]:
+    """Add isolated worker files after dependency analysis, preserving their DLL scope."""
+    from PyInstaller.__main__ import generate_parser, run_makespec
+
+    options = vars(generate_parser().parse_args(command[3:]))
+    scripts = options.pop("filenames")
+    spec = Path(run_makespec(scripts, **options))
+    source = spec.read_text(encoding="utf-8")
+    boundary = "\npyz = PYZ("
+    if source.count(boundary) != 1:
+        raise RuntimeError("Unexpected PyInstaller spec layout; isolated runtime payload was not added")
+    # Analysis reclassifies --add-data DLLs as BINARY and scans their imports.
+    # That copies worker dependencies into the desktop's root DLL directory,
+    # where independent OCR/PDF versions can override Qt/Python dependencies.
+    insertion = (
+        "\nfrom PyInstaller.building.datastruct import Tree\n"
+        f"a.datas += Tree({str((runtime_bundle / 'runtime').resolve())!r}, "
+        "prefix='runtimes', typecode='DATA')\n"
+    )
+    spec.write_text(source.replace(boundary, insertion + boundary), encoding="utf-8")
+    return [*command[:3], "--noconfirm", "--clean", "--distpath", options["distpath"],
+            "--workpath", options["workpath"], str(spec)]
 
 
 def package_release(
@@ -369,6 +392,8 @@ def main() -> None:
     (ROOT / "build" / "specs").mkdir(parents=True, exist_ok=True)
     payload = prepare_release_materials(ROOT, artifact, runtime_bundle=runtime_bundle,
                                         runtime_candidate=args.runtime_candidate)
+    if runtime_bundle is not None:
+        command = runtime_build_command(command, runtime_bundle)
     subprocess.run(command, cwd=ROOT, check=True)
     if not artifact.is_file():
         raise SystemExit(f"Build did not produce the expected executable: {artifact}")

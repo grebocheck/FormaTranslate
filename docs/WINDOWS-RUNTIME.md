@@ -129,7 +129,7 @@ uv run python scripts/windows_runtime.py verify build/windows-runtime
 uv run --group build python scripts/build.py
 ```
 
-The complete build embeds `runtime/` under `runtimes/`, with its inventory under `runtimes-meta/BUNDLE.json`. Runtime notices accompany the executable; corresponding runtime source archives enter the release ZIP outside the executable. The existing Qt/PySide source-archive release requirements still apply. The release metadata distinguishes a complete embedded build from external-tool or desktop-only builds.
+The complete build embeds `runtime/` under `runtimes/`, with its inventory under `runtimes-meta/BUNDLE.json`. The build generates a spec that appends worker files as `DATA` after the desktop dependency analysis. Passing worker DLL trees directly through `--add-data` lets PyInstaller reclassify them as binaries and promote their dependencies into the desktop DLL directory; retain the generated spec procedure to preserve each worker’s independent runtime. Runtime notices accompany the executable; corresponding runtime source archives enter the release ZIP outside the executable. The existing Qt/PySide source-archive release requirements still apply. The release metadata distinguishes a complete embedded build from external-tool or desktop-only builds.
 
 For development only, `scripts/build.py --desktop-only` produces the clearly named `Forma-windows-x86_64-desktop-only.exe`. It is not the complete Windows distribution. No complete Windows build is silently substituted with this smaller mode.
 

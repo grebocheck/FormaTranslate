@@ -66,6 +66,50 @@ def test_windows_full_build_refuses_missing_prepared_runtimes(tmp_path):
         build["build_command"](tmp_path, system="Windows", machine="AMD64")
 
 
+def test_worker_dlls_enter_spec_after_analysis_without_changing_desktop_dependencies(
+    tmp_path, monkeypatch
+):
+    build = runpy.run_path(str(Path(__file__).parents[1] / "scripts/build.py"))
+    runtime = tmp_path / "prepared"
+    for name in ("ocr/_internal/torch_cpu.dll", "babeldoc/_internal/MSVCP140.dll", "docling-models/layout.onnx"):
+        path = runtime / "runtime" / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(b"prepared runtime file")
+    command = [sys.executable, "-m", "PyInstaller", "--onefile", "--windowed",
+               "--noconfirm", "--clean", "--name", "isolated-workers",
+               "--specpath", str(tmp_path / "specs"), "--distpath", str(tmp_path / "dist"),
+               "--workpath", str(tmp_path / "work"), str(Path(__file__).parents[1] / "scripts/desktop.py")]
+    generated = build["runtime_build_command"](command, runtime)
+    spec = Path(generated[-1])
+    assert generated[:3] == command[:3]
+    assert "--add-data" not in generated
+    analyzed = False
+    desktop_binary = ("Qt6Core.dll", "desktop-Qt6Core.dll", "BINARY")
+
+    def analysis(scripts, **options):
+        nonlocal analyzed
+        assert not options["datas"]  # Workers must never seed dependency discovery.
+        analyzed = True
+        return SimpleNamespace(scripts=scripts, pure=[], binaries=[desktop_binary], datas=[])
+
+    def tree(path, *, prefix, typecode):
+        assert analyzed
+        return [(prefix + "/" + item.relative_to(path).as_posix(), str(item), typecode)
+                for item in sorted(Path(path).rglob("*")) if item.is_file()]
+
+    monkeypatch.setattr("PyInstaller.building.datastruct.Tree", tree)
+    namespace = {"Analysis": analysis, "PYZ": lambda _: "python-code", "EXE": lambda *a, **kw: a}
+    exec(compile(spec.read_text(), str(spec), "exec"), namespace)
+    frozen = namespace["a"]
+    assert frozen.binaries == [desktop_binary]
+    assert {name for name, _, _ in frozen.datas} == {
+        "runtimes/ocr/_internal/torch_cpu.dll",
+        "runtimes/babeldoc/_internal/MSVCP140.dll",
+        "runtimes/docling-models/layout.onnx",
+    }
+    assert all(kind == "DATA" for _, _, kind in frozen.datas)
+
+
 def test_release_refuses_stale_corresponding_source_manifest(tmp_path, monkeypatch):
     build = runpy.run_path(str(Path(__file__).parents[1] / "scripts/build.py"))
     (tmp_path / "third_party").mkdir()

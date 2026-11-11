@@ -105,7 +105,7 @@ def test_full_windows_build_embeds_verified_payload_and_keeps_sources_outside_ex
         tmp_path, system="Windows", machine="AMD64", runtime_bundle=runtime_bundle
     )
     assert artifact.name == "Forma-windows-x86_64.exe"
-    assert f"{runtime_bundle / 'runtime'}:runtimes" in command
+    assert f"{runtime_bundle / 'runtime'}:runtimes" not in command
     assert f"{runtime_bundle / 'BUNDLE.json'}:runtimes-meta" in command
     assert not any(str(runtime_bundle / "sources") in item for item in command)
     with pytest.raises(ValueError, match="x86-64 only"):
@@ -120,7 +120,7 @@ def test_complete_candidate_never_uses_the_publishable_filename_or_claims_native
         runtime_candidate=True,
     )
     assert artifact.name == "Forma-windows-x86_64-candidate.exe"
-    assert f"{runtime_bundle / 'runtime'}:runtimes" in command
+    assert f"{runtime_bundle / 'runtime'}:runtimes" not in command
     with pytest.raises(ValueError, match="not prepared"):
         build["build_command"](tmp_path, system="Windows", machine="AMD64", runtime_bundle=runtime_bundle)
     with pytest.raises(ValueError, match="complete Windows"):
