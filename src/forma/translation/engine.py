@@ -459,10 +459,16 @@ class TranslationEngine:
         checkpoint = data_directory() / "checkpoints" / f"{fingerprint}.json"
         try:
             state = json.loads(checkpoint.read_text(encoding="utf-8"))
-        except (OSError, ValueError):
+        except (OSError, ValueError, RecursionError):
             state = {}
         if not isinstance(state, dict):
             state = {}
+        saved_glossary = state.get("glossary")
+        if not isinstance(saved_glossary, dict) or not all(
+            isinstance(term, str) and isinstance(value, str)
+            for term, value in saved_glossary.items()
+        ):
+            state.pop("glossary", None)
         translations, drafts = {}, {}
         for segment in document.segments:
             for key, destination in (("translations", translations), ("drafts", drafts)):

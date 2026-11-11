@@ -5,51 +5,11 @@ import threading
 import time
 
 import pytest
+from support import FakeProvider, local_settings
 
 from forma.core.models import Cancelled, FormaError, Options
 from forma.documents.ooxml import OfficeDocument
-from forma.settings.config import Settings
 from forma.translation.engine import TranslationEngine, read_response
-
-
-class FakeProvider:
-    input_tokens = 120
-    output_tokens = 80
-
-    def __init__(self, *, invalid=False, interrupt_after=None, control=None):
-        self.calls = []
-        self.invalid = invalid
-        self.interrupt_after = interrupt_after
-        self.control = control
-
-    def complete(self, instruction, payload, schema, **kwargs):
-        self.calls.append((instruction, payload))
-        if self.interrupt_after is not None and len(self.calls) > self.interrupt_after:
-            raise Cancelled("Interrupted")
-        if "terms" in schema["properties"]:
-            return {"terms": [{"source": "heat meter", "target": "лічильник тепла"}]}
-        segments = [
-            {
-                "id": s["id"],
-                "text": s["text"]
-                .replace("Heat meter", "Лічильник тепла")
-                .replace("sensor", "датчик"),
-            }
-            for s in payload["segments"]
-        ]
-        if self.invalid:
-            for segment in segments:
-                segment["text"] += "<r999>hallucination 999</r999>"
-        return {"segments": segments}
-
-
-def local_settings():
-    return Settings(
-        base_url="http://localhost/v1",
-        model="test-model",
-        max_parallel_requests=1,
-        parallel_documents=1,
-    )
 
 
 def test_complete_pipeline_review_glossary_report_and_cache(docx_file, tmp_path):
@@ -76,6 +36,34 @@ def test_complete_pipeline_review_glossary_report_and_cache(docx_file, tmp_path)
     data = json.loads(result.report.read_text())
     assert data["model"] == "test-model"
     assert "api_key" not in data
+
+
+@pytest.mark.parametrize("damage", ["glossary", "deep-json"])
+def test_damaged_checkpoint_recovers_and_keeps_valid_paid_fragments(docx_file, tmp_path, damage):
+    from forma.settings.config import data_directory
+
+    settings, options = local_settings(), Options(review=False)
+    first = TranslationEngine(settings, provider=FakeProvider()).translate(
+        docx_file, tmp_path / "output", options,
+    )
+    checkpoint = next((data_directory() / "checkpoints").glob("*.json"))
+    if damage == "glossary":
+        state = json.loads(checkpoint.read_text())
+        state["glossary"] = []
+        state["translations"].pop(next(iter(state["translations"])))
+        checkpoint.write_text(json.dumps(state))
+        expected_cached = len(first.segments) - 1
+    else:
+        checkpoint.write_text('[' * 20000 + '0' + ']' * 20000)
+        expected_cached = 0
+    provider = FakeProvider()
+    result = TranslationEngine(settings, provider=provider).translate(
+        docx_file, tmp_path / "output", options,
+    )
+    assert result.output.exists()
+    assert result.cached_segments == expected_cached
+    assert len(result.translations) == len(first.segments)
+    assert isinstance(json.loads(checkpoint.read_text())["glossary"], dict)
 
 
 def test_invalid_translation_blocks_export(docx_file, tmp_path):

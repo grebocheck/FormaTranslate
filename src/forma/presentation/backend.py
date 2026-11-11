@@ -74,6 +74,8 @@ class Backend(
         self._documents = []
         self._selected = ""
         self._threads: list[TaskThread] = []
+        self._inspection_pending: dict[str, str] = {}
+        self._inspection_active: dict[str, str] = {}
         self._busy = False
         self._translation_active = False
         self._scan_active = False

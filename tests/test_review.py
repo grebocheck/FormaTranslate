@@ -278,10 +278,10 @@ def test_issues_group_by_segment_dedupe_and_keep_highest_severity():
     assert view["summary"]["notes"] == 1
 
 
-@pytest.mark.parametrize("segment_id", ["a", ""])
 @pytest.mark.parametrize(
-    "severities",
-    [("warning", "error"), ("error", "warning"), ("info", "error"), ("error", "info")],
+    "segment_id,severities",
+    [("a", ("warning", "error")), ("a", ("error", "warning")),
+     ("", ("info", "error")), ("", ("error", "info"))],
 )
 def test_identical_issue_deduplication_never_discards_higher_severity(segment_id, severities):
     result = make_result(

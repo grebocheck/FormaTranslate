@@ -1,33 +1,10 @@
 from __future__ import annotations
 
-import copy
-
 import pytest
+from support import TextProvider
 
 from forma.core.models import Cancelled, FormaError
-from forma.providers.client import JobControl
-from forma.settings.config import Settings
 from forma.translation.text import MAX_TEXT_CHARACTERS, translate_text
-
-
-class TextProvider:
-    def __init__(self, transform=None, *, review_model=""):
-        self.control = JobControl()
-        self.settings = Settings(model="translator", review_model=review_model)
-        self.calls = []
-        self.transform = transform
-
-    def complete(self, instruction, payload, schema, **kwargs):
-        self.calls.append((instruction, copy.deepcopy(payload), kwargs))
-        segments = [
-            {"id": item["id"], "text": item.get("draft", item.get("text", ""))}
-            for item in payload["segments"]
-        ]
-        if self.transform:
-            return self.transform(segments, len(self.calls))
-        for segment in segments:
-            segment["text"] = segment["text"].replace("Hello", "Вітаю").replace("world", "світ")
-        return {"segments": segments}
 
 
 def test_two_passes_preserve_line_breaks_whitespace_and_context():

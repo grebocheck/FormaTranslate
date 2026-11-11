@@ -185,3 +185,13 @@ def test_incomplete_settings_can_be_saved_but_not_used_for_connection():
     Settings().validate(require_connection=False)
     with pytest.raises(FormaError, match="модель"):
         Settings().validate()
+
+
+def test_deeply_nested_preferences_do_not_prevent_startup(store, tmp_path):
+    path = tmp_path / "appdata/preferences.json"
+    path.parent.mkdir(exist_ok=True)
+    content = '{"model":' + "[" * 20000 + "0" + "]" * 20000 + "}"
+    path.write_text(content)
+    assert load_preferences() == {}
+    assert Settings.load().model == ""
+    assert path.read_text() == content

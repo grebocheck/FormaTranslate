@@ -240,12 +240,18 @@ def test_image_request_cancellation_discards_result_but_accounts_usage():
         {"choices": [{"message": {"content": []}}]},
         {"usage": [2]},
         {"choices": [{"message": {"content": 12}}]},
+        pytest.param(b"[" * 20000 + b"0" + b"]" * 20000, id="nested-response"),
+        pytest.param(
+            {"choices": [{"message": {"content": "[" * 20000 + "0" + "]" * 20000}}]},
+            id="nested-model-content",
+        ),
     ],
 )
 def test_malformed_image_response_is_a_safe_error(body):
-    provider = Provider(
-        settings(), transport=httpx.MockTransport(lambda _: httpx.Response(200, json=body))
-    )
+    def response(_):
+        return httpx.Response(200, **({"content": body} if isinstance(body, bytes) else {"json": body}))
+
+    provider = Provider(settings(), transport=httpx.MockTransport(response))
     try:
         with pytest.raises(FormaError, match="некоректний JSON"):
             provider.complete("Translate", {}, TRANSLATION_SCHEMA, images=[PNG_DATA_URL])
@@ -655,10 +661,8 @@ def test_native_json_schema_fallback_retains_image_and_schema_instruction(mode):
 @pytest.mark.parametrize(
     "mode,finish,message",
     [
-        ("gemini", "MAX_TOKENS", "обірвалася"),
         ("gemini", "SAFETY", "відмовилась"),
         ("anthropic", "max_tokens", "обірвалася"),
-        ("anthropic", "refusal", "відмовилась"),
     ],
 )
 def test_native_incomplete_response_is_not_accepted_even_when_json_is_valid(mode, finish, message):

@@ -184,7 +184,36 @@ class DocumentWorkflow:
             self._review_document_id = self._selected
 
     def _inspect_document(self, document):
-        path, did = Path(document["path"]), document["id"]
+        if self._closing or document.get("status") != "loading":
+            return
+        did, path = document["id"], document["path"]
+        if self._inspection_active.get(did) != path:
+            self._inspection_pending[did] = path
+        self._drain_inspections()
+
+    def _drain_inspections(self):
+        if self._closing:
+            self._inspection_pending.clear()
+            return
+        limit = max(1, min(2, self._settings.parallel_documents))
+        while len(self._inspection_active) < limit:
+            candidate = next(
+                ((did, path) for did, path in self._inspection_pending.items()
+                 if did not in self._inspection_active),
+                None,
+            )
+            if candidate is None:
+                return
+            did, path = candidate
+            self._inspection_pending.pop(did)
+            document = next((item for item in self._documents if item["id"] == did), None)
+            if not document or document["path"] != path or document["status"] != "loading":
+                continue
+            self._inspection_active[did] = path
+            self._start_inspection(did, path)
+
+    def _start_inspection(self, did, source_path):
+        path = Path(source_path)
 
         def inspect(emit):
             try:
@@ -219,7 +248,20 @@ class DocumentWorkflow:
                     },
                 )
 
-        self._launch(inspect)
+        def receive(kind, payload):
+            document = next((item for item in self._documents if item["id"] == did), None)
+            if (
+                self._closing or not document or document["path"] != source_path
+                or document["status"] != "loading"
+            ):
+                return
+            self._handle_event(kind, payload)
+
+        def finish():
+            self._inspection_active.pop(did, None)
+            self._drain_inspections()
+
+        self._launch(inspect, handler=receive, done=finish)
 
     def _can_remove(self, document):
         if self._closing or (self._busy and not self._translation_active):
@@ -238,6 +280,7 @@ class DocumentWorkflow:
             return
         if document["status"] == "queued" and self._queue and not self._queue.remove(document_id):
             return  # The scheduler has already claimed this file.
+        self._inspection_pending.pop(document_id, None)
         self._documents.remove(document)
         if self._selected == document_id:
             self._selected = self._documents[0]["id"] if self._documents else ""
@@ -261,6 +304,10 @@ class DocumentWorkflow:
         self._documents[a], self._documents[b] = self._documents[b], self._documents[a]
         if self._queue:
             self._queue.reorder([d["id"] for d in self._documents])
+        positions = {document["id"]: index for index, document in enumerate(self._documents)}
+        self._inspection_pending = dict(sorted(
+            self._inspection_pending.items(), key=lambda item: positions.get(item[0], len(positions)),
+        ))
         self._persist_queue()
         self.changed.emit()
 
@@ -426,6 +473,7 @@ class DocumentWorkflow:
             self.reviewEditChanged.emit()
             return False
         self._persist_queue()
+        self._inspection_pending.clear()
         if not self._threads:
             return True
         self._closing = True

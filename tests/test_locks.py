@@ -1,6 +1,6 @@
 import pytest
 
-from forma.core.models import ValidationError, plain_text
+from forma.core.models import ValidationError
 from forma.translation.locks import lock_draft, lock_markup, unlock_markup
 from forma.translation.quality import check_segment, protected_values
 
@@ -44,13 +44,3 @@ def test_invalid_model_markup_is_a_repairable_error():
 
     with pytest.raises(ValidationError):
         english_decimals("<r2>bad</r3>")
-
-
-def test_curated_terms_preserve_original_identifiers_and_references():
-    from forma.translation.terminology import curate_english
-
-    text = "<r0>ТСН 200 кВа, КВПіА, ТН-1А; Звіт_Демо.docx</r0>"
-    result, changes = curate_english(text)
-    assert "200 kVA" in plain_text(result) and "I&C" in plain_text(result)
-    assert "ТН-1А" in result and "Звіт_Демо.docx" in result
-    assert changes

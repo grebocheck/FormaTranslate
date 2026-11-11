@@ -82,7 +82,7 @@ ApplicationWindow {
     property var themeLabels: [qsTr("Як у системі"), qsTr("Світла"), qsTr("Темна")]
     property var scanProviderCodes: ["auto", "forma", "abbyy", "abbyy_extended"]
     property var scanProviderLabels: [qsTr("Автоматично"), qsTr("Вбудований / локальний OCR"), qsTr("ABBYY FineReader — вручну"), qsTr("ABBYY Extended CLI")]
-    readonly property bool showLocalOcrSettings: scanProvider.currentIndex === 1 || (scanProvider.currentIndex === 0 && (backend.settings.scanConverterReady || !backend.settings.abbyyReady))
+    readonly property bool showLocalOcrSettings: scanProvider.currentIndex === 1 || (scanProvider.currentIndex === 0 && (scanConverterPath.text.trim().length > 0 || backend.settings.scanConverterReady || !backend.settings.abbyyReady))
     readonly property bool manualAbbyy: backend.settings.scanProviderEffective === "abbyy" || backend.settings.scanProvider === "abbyy"
     readonly property var currentAbbyyHandoff: typeof backend.abbyyHandoff === "object" && backend.abbyyHandoff ? backend.abbyyHandoff : ({})
     readonly property bool preparingDocuments: backend.recognizingScan || backend.translationPreparing

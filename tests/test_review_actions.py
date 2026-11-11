@@ -1,59 +1,12 @@
 from __future__ import annotations
 
 import json
-import time
 
 import pytest
-from PySide6.QtTest import QTest
+from support import pump
 
-from forma.core.models import Options, TranslationResult
 from forma.documents.ooxml import OfficeDocument
 from forma.persistence.review_store import ReviewStore
-from forma.presentation.backend import Backend
-from forma.settings.config import Settings
-from forma.translation.reports import write_translation_report
-
-
-def pump(app, predicate, seconds=8):
-    deadline = time.monotonic() + seconds
-    while not predicate() and time.monotonic() < deadline:
-        app.processEvents()
-        QTest.qWait(5)
-    assert predicate()
-
-
-@pytest.fixture
-def reviewed(qapp, monkeypatch, docx_file, tmp_path):
-    monkeypatch.setattr(Backend, "_read_settings", lambda _: Settings())
-    source = OfficeDocument(docx_file)
-    translations = {segment.id: segment.source for segment in source.segments}
-    output = tmp_path / "translated.uk.docx"
-    source.write(translations, output)
-    result = TranslationResult(docx_file, output, source.segments, translations, source.issues)
-    write_translation_report(result, Options("en", "uk"), "fixture-model")
-    backend = Backend()
-    record = {
-        "id": "attempt",
-        "name": docx_file.name,
-        "format": "DOCX",
-        "source": str(docx_file),
-        "output": str(output),
-        "report": str(result.report),
-        "status": "done",
-        "sourceLanguage": "en",
-        "targetLanguage": "uk",
-        "model": "fixture-model",
-    }
-    backend._library.add_history(record)
-    backend._history = backend._library.list_history()
-    backend.reviewHistory("attempt")
-    pump(qapp, lambda: not backend._threads)
-    backend.setReviewFilter("all")
-    segment = next(s for s in source.segments if s.plain == "Heat meter commissioning")
-    backend.selectReviewEntry(segment.id)
-    yield backend, result, segment
-    backend.cancelReviewEdit()
-    pump(qapp, lambda: not backend._threads)
 
 
 def test_confirm_and_reopen_persist_without_changing_document(reviewed, qapp):

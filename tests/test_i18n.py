@@ -164,114 +164,76 @@ def test_catalogs_cover_every_qml_key_and_preserve_placeholders():
                 assert "uv tool install --python 3.12 BabelDOC==0.7.1" in translated
 
 
-def test_quick_translator_messages_are_available_in_every_interface_language():
+NON_UK_LANGUAGES = ("en", "pl", "de", "fr", "es")
+
+
+def message_literals(filenames, *, include_fragments=False):
+    """Collect presentation messages while keeping f-string fragments explicit."""
     keys = set()
-    for filename in ("presentation/quick_controller.py", "translation/text.py", "translation/images.py"):
+    for filename in filenames:
         tree = ast.parse((Path("src/forma") / filename).read_text(encoding="utf-8"))
+        fragments = set() if include_fragments else {
+            id(child)
+            for node in ast.walk(tree)
+            if isinstance(node, ast.JoinedStr)
+            for child in ast.walk(node)
+        }
         keys.update(
             node.value
             for node in ast.walk(tree)
             if isinstance(node, ast.Constant)
+            and id(node) not in fragments
             and isinstance(node.value, str)
             and re.search(r"[А-Яа-яІіЇїЄєҐґ]", node.value)
+        )
+    return keys
+
+
+@pytest.mark.parametrize(
+    "boundary,filenames,languages",
+    [
+        ("quick", ("presentation/quick_controller.py", "translation/text.py", "translation/images.py"), NON_UK_LANGUAGES),
+        ("ocr", ("documents/ocr.py", "documents/abbyy.py", "presentation/ocr_workflow.py", "translation/preparation.py", "translation/handoff.py"), NON_UK_LANGUAGES),
+        ("memory", ("memory/importing.py", "memory/session.py", "memory/engine.py"), (*NON_UK_LANGUAGES, "uk")),
+        ("glossary", ("presentation/glossary_controller.py", "translation/failures.py"), (*NON_UK_LANGUAGES, "uk")),
+        ("provider", ("settings/config.py", "providers/presets.py", "providers/protocol.py"), NON_UK_LANGUAGES),
+    ],
+    ids=("quick", "ocr", "memory", "glossary", "provider"),
+)
+def test_python_workflow_messages_have_complete_interface_translations(boundary, filenames, languages):
+    keys = message_literals(filenames, include_fragments=boundary == "quick")
+    if boundary == "memory":
+        from forma.memory import store
+
+        keys.update((store._ERROR, store._INVALID, str(store.MemoryConflict())))
+        tree = ast.parse(Path("src/forma/memory/store.py").read_text(encoding="utf-8"))
+        keys.update(
+            node.args[0].value
+            for node in ast.walk(tree)
+            if isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Name)
+            and node.func.id in {"FormaError", "MemoryConflict"}
+            and node.args
+            and isinstance(node.args[0], ast.Constant)
+            and isinstance(node.args[0].value, str)
+        )
+    elif boundary == "glossary":
+        keys.add(
+            "Експорт зупинено: переклад не пройшов перевірку після трьох спроб. "
+            "Перегляньте звіт про проблемні фрагменти та повторіть переклад."
         )
     assert keys
-    for language in ("en", "pl", "de", "fr", "es"):
+    for language in languages:
         assert keys <= i18n._catalogs()[language].keys(), (
-            language,
-            sorted(keys - i18n._catalogs()[language].keys()),
+            boundary, language, sorted(keys - i18n._catalogs()[language].keys())
         )
 
 
-def test_ocr_messages_are_available_in_every_interface_language():
-    keys = set()
-    for filename in ("documents/ocr.py", "documents/abbyy.py", "presentation/ocr_workflow.py"):
-        tree = ast.parse((Path("src/forma") / filename).read_text(encoding="utf-8"))
-        fragments = {
-            id(child)
-            for node in ast.walk(tree)
-            if isinstance(node, ast.JoinedStr)
-            for child in ast.walk(node)
-        }
-        keys.update(
-            node.value
-            for node in ast.walk(tree)
-            if isinstance(node, ast.Constant)
-            and id(node) not in fragments
-            and isinstance(node.value, str)
-            and re.search(r"[А-Яа-яІіЇїЄєҐґ]", node.value)
-        )
-    for language in ("en", "pl", "de", "fr", "es"):
-        assert keys <= i18n._catalogs()[language].keys(), (
-            language,
-            sorted(keys - i18n._catalogs()[language].keys()),
-        )
 
 
-def test_translation_memory_errors_have_complete_interface_translations():
-    from forma.memory import store as translation_memory
-    keys = set()
-    for filename in ("memory/importing.py", "memory/session.py", "memory/engine.py"):
-        tree = ast.parse((Path("src/forma") / filename).read_text(encoding="utf-8"))
-        fragments = {
-            id(child)
-            for node in ast.walk(tree)
-            if isinstance(node, ast.JoinedStr)
-            for child in ast.walk(node)
-        }
-        keys.update(
-            node.value
-            for node in ast.walk(tree)
-            if isinstance(node, ast.Constant)
-            and id(node) not in fragments
-            and isinstance(node.value, str)
-            and re.search(r"[А-Яа-яІіЇїЄєҐґ]", node.value)
-        )
-    keys.update((translation_memory._ERROR, translation_memory._INVALID))
-    tree = ast.parse(Path("src/forma/memory/store.py").read_text(encoding="utf-8"))
-    keys.update(
-        node.args[0].value
-        for node in ast.walk(tree)
-        if isinstance(node, ast.Call)
-        and isinstance(node.func, ast.Name)
-        and node.func.id in {"FormaError", "MemoryConflict"}
-        and node.args
-        and isinstance(node.args[0], ast.Constant)
-        and isinstance(node.args[0].value, str)
-    )
-    keys.add(str(translation_memory.MemoryConflict()))
-    for language in ("en", "uk", "pl", "de", "fr", "es"):
-        assert keys <= i18n._catalogs()[language].keys(), (
-            language, sorted(keys - i18n._catalogs()[language].keys())
-        )
 
 
-def test_glossary_and_validation_workflows_have_complete_interface_translations():
-    keys = set()
-    for filename in ("presentation/glossary_controller.py", "translation/failures.py"):
-        tree = ast.parse((Path("src/forma") / filename).read_text(encoding="utf-8"))
-        fragments = {
-            id(child)
-            for node in ast.walk(tree)
-            if isinstance(node, ast.JoinedStr)
-            for child in ast.walk(node)
-        }
-        keys.update(
-            node.value
-            for node in ast.walk(tree)
-            if isinstance(node, ast.Constant)
-            and id(node) not in fragments
-            and isinstance(node.value, str)
-            and re.search(r"[А-Яа-яІіЇїЄєҐґ]", node.value)
-        )
-    keys.add(
-        "Експорт зупинено: переклад не пройшов перевірку після трьох спроб. "
-        "Перегляньте звіт про проблемні фрагменти та повторіть переклад."
-    )
-    for language in ("en", "uk", "pl", "de", "fr", "es"):
-        assert keys <= i18n._catalogs()[language].keys(), (
-            language, sorted(keys - i18n._catalogs()[language].keys())
-        )
+
 
 
 def test_workflow_templates_interpolate_counts_in_all_languages():
@@ -284,32 +246,6 @@ def test_workflow_templates_interpolate_counts_in_all_languages():
             assert not re.search(r"[А-Яа-яІіЇїЄєҐґ]", message)
 
 
-def test_provider_presets_and_protocol_messages_have_translations():
-    keys = set()
-    for filename in ("settings/config.py", "providers/presets.py", "providers/protocol.py"):
-        tree = ast.parse((Path("src/forma") / filename).read_text(encoding="utf-8"))
-        # Interpolated legacy config errors use separately translated templates;
-        # their fragments are not standalone presentation messages.
-        fragments = {
-            id(child)
-            for node in ast.walk(tree)
-            if isinstance(node, ast.JoinedStr)
-            for child in ast.walk(node)
-        }
-        keys.update(
-            node.value
-            for node in ast.walk(tree)
-            if isinstance(node, ast.Constant)
-            and id(node) not in fragments
-            and isinstance(node.value, str)
-            and re.search(r"[А-Яа-яІіЇїЄєҐґ]", node.value)
-        )
-    assert keys
-    for language in ("en", "pl", "de", "fr", "es"):
-        assert keys <= i18n._catalogs()[language].keys(), (
-            language,
-            sorted(keys - i18n._catalogs()[language].keys()),
-        )
 
 
 def test_concurrent_language_changes_return_only_complete_catalog_values():

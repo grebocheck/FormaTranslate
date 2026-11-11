@@ -55,6 +55,16 @@ def test_pdf_preparation_is_secondary_and_does_not_offer_pause(qapp, monkeypatch
         qapp.processEvents()
         assert recognize.isVisible()
 
+        # An explicitly configured converter remains editable in Auto mode,
+        # including when it is missing and an installed ABBYY is available.
+        backend._worker_availability.update(scanConverterReady=False, abbyyReady=True)
+        backend._worker_probe_generation += 1
+        backend.changed.emit()
+        converter = window.findChild(QQuickItem, "scanConverterPathField")
+        converter.setProperty("text", "missing/forma-ocr")
+        qapp.processEvents()
+        assert window.property("showLocalOcrSettings")
+
         document = backend._documents[0]
         document.update(status="translating", phase="preparing")
         backend._translation_active = True

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import re
@@ -76,7 +77,9 @@ def needs_ocr(info: dict) -> bool:
     """Use the same scan threshold for queue planning and paid PDF dispatch."""
     pages = info["pages"]
     image_pages = sum(bool(page["image_without_text"]) for page in pages)
-    return bool(info["scanned"] or (image_pages >= 2 and image_pages > len(pages) / 2))
+    # A one-page scan can contain a short native footer such as "Page 1".
+    # That text does not make the raster body translatable by BabelDOC.
+    return bool(info["scanned"] or image_pages > len(pages) / 2)
 
 
 def _check_pdf_language(before, after, options):
@@ -209,6 +212,8 @@ def translate_pdf(
         raise FormaError("BabelDOC використовує Chat Completions. Виберіть режим chat для PDF.")
     start = time.monotonic()
     progress(2, "Перевіряємо PDF")
+    with source.open("rb") as stream:
+        source_hash = hashlib.file_digest(stream, "sha256").hexdigest()
     before = inspect_pdf(source)
     issues = [
         Issue(
@@ -365,9 +370,13 @@ def translate_pdf(
             )
         _check_pdf_language(before, after, options)
         control.check()
+        output_bytes = candidate.read_bytes()
+        with source.open("rb") as stream:
+            if hashlib.file_digest(stream, "sha256").hexdigest() != source_hash:
+                raise FormaError("Оригінал змінився під час перекладу. Повторіть запуск із поточним файлом.")
         folder.mkdir(parents=True, exist_ok=True)
         output = available_output(source, options.target_language, folder)
-        atomic_bytes(output, candidate.read_bytes(), overwrite=False)
+        atomic_bytes(output, output_bytes, overwrite=False)
         statistics = api.summary()
         statistics_path = output.with_suffix(output.suffix + ".api.json")
         atomic_json(statistics_path, statistics)
@@ -380,6 +389,8 @@ def translate_pdf(
         input_tokens=statistics["input_tokens"],
         output_tokens=statistics["output_tokens"],
         engine="babeldoc",
+        source_sha256=source_hash,
+        output_sha256=hashlib.sha256(output_bytes).hexdigest(),
         elapsed_seconds=time.monotonic() - start,
         usage_note="API-статистика поточного запуску: "
         + statistics_path.name

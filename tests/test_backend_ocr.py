@@ -3,24 +3,15 @@ from __future__ import annotations
 import json
 import shutil
 import threading
-import time
 from pathlib import Path
 
-from PySide6.QtTest import QTest
+from support import settle
 
 import forma.presentation.ocr_workflow as backend_module
 from forma.core.models import Cancelled, FormaError
 from forma.localization.catalog import translate
 from forma.presentation.backend import Backend
 from forma.settings.config import Settings
-
-
-def settle(qapp, backend, timeout=5):
-    deadline = time.monotonic() + timeout
-    while backend._threads and time.monotonic() < deadline:
-        qapp.processEvents()
-        QTest.qWait(10)
-    assert not backend._threads
 
 
 def pdf_backend(qapp, monkeypatch, pdf_file, tmp_path):

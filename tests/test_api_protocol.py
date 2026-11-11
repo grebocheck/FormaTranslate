@@ -163,7 +163,6 @@ def test_gemini_model_name_cannot_change_origin_or_inject_query():
     assert url == "https://provider.invalid/v1/models/odd%2Fmodel%3Fkey%3Dsecret:generateContent"
 
 
-@pytest.mark.parametrize("mode", ["gemini", "anthropic"])
 @pytest.mark.parametrize(
     "body",
     [
@@ -186,9 +185,11 @@ def test_gemini_model_name_cannot_change_origin_or_inject_query():
         {"messages": [{"role": "user", "content": "hello"}], "max_tokens": False},
     ],
 )
-def test_adapter_rejects_unsupported_input_without_sending_a_request(mode, body):
+def test_adapter_rejects_unsupported_input_without_sending_a_request(body):
+    # Native request validation is shared before provider-specific serialization.
+    # The valid request mapping test above exercises both serialization branches.
     with pytest.raises(ValueError):
-        adapt_chat_request(config(mode), body)
+        adapt_chat_request(config("gemini"), body)
 
 
 @pytest.mark.parametrize("mode", ["gemini", "anthropic"])

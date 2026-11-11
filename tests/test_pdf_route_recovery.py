@@ -1,6 +1,5 @@
 """Route hints survive completed scan recovery without starting paid work."""
-from test_backend_ocr import settle
-from test_ocr import scan as scan
+from support import settle
 
 from forma.presentation.backend import Backend
 from forma.settings.config import Settings

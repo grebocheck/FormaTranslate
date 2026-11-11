@@ -317,5 +317,5 @@ def load_preferences() -> dict:
     try:
         values = json.loads(path.read_text(encoding="utf-8"))
         return _safe_preferences(values) if isinstance(values, dict) else {}
-    except (OSError, ValueError):
+    except (OSError, ValueError, RecursionError):
         return {}

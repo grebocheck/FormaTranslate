@@ -2,6 +2,14 @@
 
 Versions follow semantic versioning. Changes before 1.0 may evolve as document compatibility improves.
 
+## Unreleased
+
+- Route a one-page raster PDF with a short text footer through OCR, and reject direct PDF output if its original changes during translation; record source/output hashes.
+- Recover safely from deeply nested JSON in preferences, provider responses, usage records and Office checkpoints; discard invalid cached glossaries while retaining valid translated fragments.
+- Keep an explicitly configured local OCR path editable in automatic mode when ABBYY is also available.
+- Bound document inspection to at most two parsers while honoring a lower document limit; skip removed files and drop waiting inspections when closing.
+- Remove unused corpus/terminology prototypes and their tests, consolidate shared test fixtures/helpers and duplicate matrices, and reduce fake HTTP server shutdown delays while retaining critical document, cost, privacy and cancellation checks.
+
 ## 0.9.0 — 2026-11-11
 
 - Make Translate choose each PDF's route automatically: prepare scanned PDFs as a validated DOCX, then continue Office translation in the same run; translate text PDFs through BabelDOC while preserving the project glossary and keeping Office memory enabled.

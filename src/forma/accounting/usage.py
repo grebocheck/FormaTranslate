@@ -269,7 +269,7 @@ class UsageLedger:
         now = time.time() if timestamp is None else timestamp
         try:
             data = json.loads(raw) if isinstance(raw, (str, bytes)) else raw
-        except (ValueError, UnicodeError):
+        except (ValueError, UnicodeError, RecursionError):
             data = None
         data = data if isinstance(data, dict) else {}
         requested = model_name(model or settings.model, settings.api_key)

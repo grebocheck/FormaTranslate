@@ -5,11 +5,7 @@ import json
 import threading
 from pathlib import Path
 
-from test_backend_library import pump
-from test_backend_ocr import settle
-from test_engine import FakeProvider
-from test_ocr import local_converter as local_converter
-from test_ocr import scan as scan
+from support import FakeProvider, pump, settle
 
 from forma.core.models import FormaError
 from forma.presentation.backend import Backend

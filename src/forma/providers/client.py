@@ -402,7 +402,7 @@ class Provider:
                     if response.status_code == 429:
                         try:
                             error_data = response.json()
-                        except ValueError:
+                        except (ValueError, RecursionError):
                             pass
                         if terminal_quota_error(self.settings, error_data):
                             raise FormaError(
@@ -432,7 +432,7 @@ class Provider:
                         if isinstance(error_data, dict)
                         else ""
                     )
-                except ValueError:
+                except (ValueError, RecursionError):
                     error = ""
                 if images and _unsupported_vision(error):
                     raise FormaError(
@@ -523,7 +523,7 @@ class Provider:
                 if not isinstance(parsed, dict):
                     raise ValueError("Expected an object")
                 return parsed
-            except (ValueError, KeyError, IndexError, TypeError, AttributeError) as exc:
+            except (ValueError, KeyError, IndexError, TypeError, AttributeError, RecursionError) as exc:
                 self.control.check()
                 raise FormaError(
                     "API повернув некоректний JSON. Спробуйте інший режим відповіді або модель."

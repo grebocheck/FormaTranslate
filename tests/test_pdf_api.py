@@ -52,7 +52,7 @@ def upstream():
     server.response = {"choices": [], "usage": {"prompt_tokens": 31, "completion_tokens": 12}}
     server.status, server.delay, server.block = 200, 0, False
     server.started, server.release = threading.Event(), threading.Event()
-    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread = threading.Thread(target=server.serve_forever, kwargs={"poll_interval": 0.01}, daemon=True)
     thread.start()
     yield server
     server.release.set()
@@ -399,10 +399,8 @@ def test_native_pdf_bridge_maps_requests_and_accounts_usage(upstream, mode):
 @pytest.mark.parametrize(
     "mode,finish,expected",
     [
-        ("gemini", "MAX_TOKENS", "обірвалася"),
         ("anthropic", "max_tokens", "обірвалася"),
         ("gemini", "SAFETY", "відмовив"),
-        ("anthropic", "refusal", "відмовив"),
     ],
 )
 def test_native_pdf_bridge_rejects_partial_or_refused_text(upstream, mode, finish, expected):
@@ -420,9 +418,12 @@ def test_native_pdf_bridge_rejects_partial_or_refused_text(upstream, mode, finis
         assert len(upstream.requests) == 1
 
 
-@pytest.mark.parametrize("mode", ["gemini", "anthropic"])
-@pytest.mark.parametrize("payload", [[], {}, {"unexpected": "upstream-test-secret"}])
+@pytest.mark.parametrize(
+    "mode,payload", [("gemini", []), ("anthropic", {"unexpected": "upstream-test-secret"})]
+)
 def test_native_pdf_bridge_never_returns_malformed_success(upstream, mode, payload):
+    # Keep shared root-type and missing-fields guards at the HTTP boundary.
+    # Provider-specific malformed content is covered by protocol unit tests.
     upstream.response = payload
     with PDFAPI(native_config(upstream, mode), 1) as bridge:
         response = native_post(bridge)

@@ -3,11 +3,11 @@ from __future__ import annotations
 import json
 import shutil
 import threading
-import time
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
-from PySide6.QtTest import QTest
+from support import pump
 
 from forma.core.models import Cancelled, FormaError, TranslationResult
 from forma.documents.ooxml import OfficeDocument
@@ -15,14 +15,6 @@ from forma.persistence.files import available_output
 from forma.presentation.backend import Backend
 from forma.settings.config import ENV_FIELDS, Settings
 from forma.settings.credentials import CredentialError
-
-
-def pump(app, predicate, timeout=5):
-    until = time.monotonic() + timeout
-    while not predicate() and time.monotonic() < until:
-        app.processEvents()
-        QTest.qWait(5)
-    assert predicate(), "Desktop operation did not finish"
 
 
 class FakeEngine:
@@ -92,6 +84,74 @@ def factory(qapp, monkeypatch, tmp_path):
     for backend in instances:
         backend.cancel()
     pump(qapp, lambda: all(not backend._threads for backend in instances))
+
+
+@pytest.fixture
+def inspection_batch(factory, qapp, monkeypatch, tmp_path):
+    release = threading.Event()
+    lock = threading.Lock()
+    state = {"active": 0, "peak": 0, "calls": []}
+
+    def inspect(path):
+        with lock:
+            state["calls"].append(path)
+            state["active"] += 1
+            state["peak"] = max(state["peak"], state["active"])
+        try:
+            assert release.wait(10), "Inspection must be released by its test"
+            return SimpleNamespace(segments=[])
+        finally:
+            with lock:
+                state["active"] -= 1
+
+    monkeypatch.setattr("forma.presentation.documents_workflow.OfficeDocument", inspect)
+    paths = [tmp_path / f"inspection-{index}.docx" for index in range(12)]
+    for path in paths:
+        path.write_bytes(b"Offline fixture parsed by the blocked stand-in")
+    backend = factory()
+    try:
+        yield backend, paths, state, release
+    finally:
+        release.set()
+        pump(qapp, lambda: not backend._threads)
+        assert state["active"] == 0
+
+
+def test_inspection_honors_single_document_limit_and_removal_skips_waiting_files(
+    inspection_batch, qapp,
+):
+    backend, paths, state, release = inspection_batch
+    backend._settings = backend._settings.with_overrides(parallel_documents=1)
+    backend.addFiles([str(path) for path in paths])
+    pump(qapp, lambda: state["active"] == 1)
+    assert len(backend._threads) == 1 and len(backend._inspection_pending) == 11
+    backend._inspect_document(backend._documents[0])
+    assert len(backend._inspection_pending) == 11  # Repeated restore/inspection is coalesced.
+    for document_id in list(backend._inspection_pending):
+        backend.removeDocument(document_id)
+    assert len(backend.documents) == 1 and not backend._inspection_pending
+    release.set()
+    pump(qapp, lambda: not backend._threads)
+    assert state["calls"] == [paths[0]] and state["peak"] == 1
+    assert backend.documents[0]["status"] == "ready"
+
+
+def test_closing_drops_waiting_inspections_and_drains_only_two_active_parsers(
+    inspection_batch, qapp,
+):
+    backend, paths, state, release = inspection_batch
+    backend._settings = backend._settings.with_overrides(parallel_documents=8)
+    backend.addFiles([str(path) for path in paths])
+    pump(qapp, lambda: state["active"] == 2)
+    assert len(backend._threads) == 2 and len(backend._inspection_pending) == 10
+    closed = []
+    backend.closedReady.connect(lambda: closed.append(True))
+    assert not backend.requestClose()
+    assert not backend._inspection_pending and not closed
+    release.set()
+    pump(qapp, lambda: not backend._threads)
+    assert set(state["calls"]) == set(paths[:2]) and state["peak"] == 2
+    assert not backend._inspection_active and closed == [True]
 
 
 def test_queue_survives_restart_without_starting_api_and_missing_files_are_safe(

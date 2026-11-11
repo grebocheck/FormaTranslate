@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import os
 import tomllib
 from contextlib import contextmanager
@@ -63,9 +64,31 @@ def test_pdf_adapter_keeps_key_out_of_arguments(pdf_file, tmp_path, monkeypatch)
     assert result.output.exists()
     assert result.report.exists()
     assert result.engine == "babeldoc"
+    assert result.source_sha256 == hashlib.sha256(pdf_file.read_bytes()).hexdigest()
+    assert result.output_sha256 == hashlib.sha256(result.output.read_bytes()).hexdigest()
     assert not config_paths[0].exists()
     assert len(calls) == 1
     assert "secret-test-key" not in result.report.read_text()
+
+
+def test_changed_pdf_source_is_rejected_before_any_output_is_published(pdf_file, tmp_path, monkeypatch):
+    original = pdf_file.read_bytes()
+    monkeypatch.setattr("forma.documents.pdf.find_babeldoc", lambda _: "babeldoc-test")
+
+    def run(arguments, *_):
+        config_path = Path(arguments[arguments.index("--config") + 1])
+        config = tomllib.loads(config_path.read_text(encoding="utf-8"))["babeldoc"]
+        (Path(config["output"]) / "translated.mono.pdf").write_bytes(original)
+        pdf_file.write_bytes(original + b"\nchanged during translation\n")
+
+    monkeypatch.setattr("forma.documents.pdf._run_babeldoc", run)
+    folder = tmp_path / "out"
+    with pytest.raises(FormaError, match="Оригінал змінився"):
+        translate_pdf(
+            pdf_file, folder, Options(source_language="en", target_language="en"),
+            Settings(model="test"), JobControl(), lambda *_: None,
+        )
+    assert not folder.exists() or not list(folder.iterdir())
 
 
 def test_pdf_scans_fail_explicitly(tmp_path, monkeypatch):

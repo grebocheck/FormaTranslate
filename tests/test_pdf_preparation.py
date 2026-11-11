@@ -9,7 +9,7 @@ from pathlib import Path
 
 import pytest
 from pypdf import PdfWriter
-from test_engine import FakeProvider, local_settings
+from support import FakeProvider, local_settings
 
 import forma.documents.pdf as pdf_module
 import forma.translation.preparation as preparation
@@ -73,6 +73,31 @@ def test_pdf_scan_threshold_is_shared_with_dispatch(scanned, images, expected):
     assert pdf_module.needs_ocr({
         "scanned": scanned, "pages": [{"image_without_text": value} for value in images],
     }) is expected
+
+
+def test_one_page_scan_with_native_footer_uses_ocr_instead_of_translating_only_footer(
+    monkeypatch, docx_file, tmp_path,
+):
+    from PIL import Image, ImageDraw
+    from reportlab.lib.utils import ImageReader
+    from reportlab.pdfgen.canvas import Canvas
+
+    source = tmp_path / "scan-with-footer.pdf"
+    image = Image.new("RGB", (600, 800), "white")
+    ImageDraw.Draw(image).text((40, 80), "Heat meter 12345", fill="black")
+    canvas = Canvas(str(source), pagesize=(600, 800))
+    canvas.drawImage(ImageReader(image), 0, 20, 600, 780)
+    canvas.drawString(260, 5, "Page 1")
+    canvas.save()
+    info = pdf_module.inspect_pdf(source)
+    assert not info["scanned"] and info["pages"][0]["image_without_text"]
+    calls = fake_converter(monkeypatch, docx_file)
+    monkeypatch.setattr(pdf_module, "translate_pdf", lambda *_: pytest.fail("Raster text needs OCR"))
+    result = TranslationEngine(
+        local_settings().with_overrides(scan_provider="forma"), provider=FakeProvider(),
+    ).translate(source, tmp_path / "out", Options(source_language="en", auto_glossary=False))
+    assert calls == [(source, "en", "")]
+    assert result.output.suffix == ".docx" and result.preparation["kind"] == "ocr"
 
 
 def test_scan_is_prepared_and_translated_in_one_run_with_reviewable_provenance(

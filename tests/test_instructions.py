@@ -2,8 +2,7 @@ import json
 from dataclasses import replace
 
 import pytest
-from test_engine import FakeProvider, local_settings
-from test_quick_translation import TextProvider
+from support import FakeProvider, TextProvider, local_settings
 
 from forma.core.models import MAX_TRANSLATION_INSTRUCTIONS, FormaError, Options
 from forma.documents.pdf_api import PDFAPI

@@ -4,7 +4,7 @@ import hashlib
 import json
 from pathlib import Path
 
-from test_backend_ocr import settle
+from support import settle
 
 import forma.presentation.ocr_workflow as workflow
 from forma.presentation.backend import Backend

@@ -7,7 +7,7 @@ from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
 
 import pytest
-from test_engine import FakeProvider, local_settings
+from support import FakeProvider, local_settings
 
 from forma.core.models import Cancelled, FormaError, Options
 from forma.providers.client import JobControl

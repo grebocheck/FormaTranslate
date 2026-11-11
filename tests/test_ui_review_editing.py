@@ -4,8 +4,7 @@ from PySide6.QtCore import QCoreApplication, QEvent, QPointF, Qt, QUrl
 from PySide6.QtQml import QQmlApplicationEngine
 from PySide6.QtQuick import QQuickItem
 from PySide6.QtTest import QTest
-from test_review_actions import pump
-from test_review_actions import reviewed as reviewed
+from support import pump
 
 
 def test_real_review_confirm_edit_apply_and_export_controls(qapp, reviewed):
