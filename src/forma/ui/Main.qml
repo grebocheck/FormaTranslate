@@ -19,7 +19,11 @@ ApplicationWindow {
     property color accent: "#2859c5"
     property color accentLight: "#edf3ff"
     property int page: 0
-    onPageChanged: if (page === 1) backend.activateReview()
+    onPageChanged: {
+        if (page === 1) backend.activateReview()
+        if (page === 2) backend.refreshWorkerAvailability()
+        if (page === 1 || page === 3) backend.refreshFileAvailability()
+    }
     property bool translationOptionsOpen: false
     property bool previewOpen: false
     property bool connectionOptionsOpen: false
@@ -48,10 +52,11 @@ ApplicationWindow {
     readonly property var navigationPages: [0, 4, 1, 3, 2]
     readonly property bool hasCompleted: backend.documents.some(function(d) { return d.status === "done" })
     readonly property int reviewEntryIndex: backend.reviewEntries.findIndex(function(entry) { return entry.id === backend.selectedReviewId })
-    readonly property bool reviewLocked: backend.reviewEditing || backend.reviewSaving
+    readonly property bool reviewLocked: backend.reviewEditing || backend.reviewSaving || backend.memoryWorking
+    property string languageMemoryProjectId: ""
 
     onClosing: function(close) { close.accepted = backend.requestClose() }
-    Component.onCompleted: loadConfig()
+    Component.onCompleted: { loadConfig(); syncMemoryLanguages() }
     Shortcut { sequences: [StandardKey.Open]; enabled: root.page !== 4 && backend.canAddDocuments && !root.reviewLocked; onActivated: backend.pickDocuments() }
     Timer { interval: 1000; repeat: true; running: backend.translating; onTriggered: root.clockNow = Date.now() }
 
@@ -378,7 +383,22 @@ ApplicationWindow {
                 Qt.callLater(root.scrollToScanConverter)
         }
     }
+    Connections {
+        target: backend
+        function onChanged() {
+            root.syncMemoryLanguages()
+            if (backend.memoryConflict.active && !rememberWordingDialog.visible)
+                rememberWordingDialog.open()
+        }
+    }
     InstructionsDialog { id: instructionsDialog; controller: backend }
+    function openGlossary() {
+        backend.glossaryEditor.prepare(root.sourceCodes[sourceLanguage.currentIndex], root.targetCodes[targetLanguage.currentIndex], root.domainValues[domain.currentIndex])
+        glossaryDialog.open()
+    }
+    GlossaryDialog { id: glossaryDialog; controller: backend.glossaryEditor }
+    TranslationMemoryDialog { id: memoryDialog; controller: backend; sourceLanguageCode: root.sourceCodes[sourceLanguage.currentIndex]; targetLanguageCode: root.targetCodes[targetLanguage.currentIndex]; onEditGlossaryRequested: root.openGlossary() }
+    RememberWordingDialog { id: rememberWordingDialog; controller: backend }
     UsagePanel { id: usagePanel; parent: Overlay.overlay; controller: backend.usage }
 
     header: Rectangle {
@@ -544,7 +564,9 @@ ApplicationWindow {
                                 Action { text: root.previewOpen ? qsTr("Сховати текст") : qsTr("Переглянути текст"); iconName: root.previewOpen ? "eye-off" : "eye"; subtle: true; implicitHeight: 30; visible: backend.selectedDocument.format !== "PDF"; onClicked: root.previewOpen = !root.previewOpen }
                                 Item { Layout.fillWidth: true }
                                 Action { text: backend.selectedDocument.warningCount ? qsTr("Зауваження: %1").arg(backend.selectedDocument.warningCount) : qsTr("Звіт"); iconName: "review"; subtle: true; implicitHeight: 30; visible: !!backend.selectedDocument.report; onClicked: root.page = 1 }
+                                Action { text: qsTr("Переглянути помилки"); objectName: "openFailureReportButton"; iconName: "review"; subtle: true; implicitHeight: 30; visible: !!backend.selectedDocument.diagnosticReport; onClicked: backend.openFailureReport() }
                             }
+                              Caption { text: qsTr("З пам’яті: %1 · повтори: %2 · адаптовано: %3").arg(backend.selectedDocument.memorySegments || 0).arg(backend.selectedDocument.repeatedSegments || 0).arg(backend.selectedDocument.adaptedSegments || 0); visible: (backend.selectedDocument.memorySegments || 0) > 0 || (backend.selectedDocument.repeatedSegments || 0) > 0 || (backend.selectedDocument.adaptedSegments || 0) > 0; Layout.fillWidth: true; wrapMode: Text.WordWrap }
                             Divider { }
                             RowLayout {
                                 Layout.fillWidth: true
@@ -590,18 +612,35 @@ ApplicationWindow {
                         ScrollView {
                             id: translationScroll
                             Layout.fillWidth: true; Layout.fillHeight: true; clip: true; contentWidth: availableWidth
+                              ScrollBar.vertical: ReadingScrollBar { }
+                              ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
                             ColumnLayout {
                                 width: translationScroll.availableWidth; spacing: 10
                                 Heading { text: qsTr("Мови перекладу"); Layout.bottomMargin: 6 }
                                 Caption { text: qsTr("Мова оригіналу") }
-                                Select { id: sourceLanguage; objectName: "sourceLanguage"; model: root.sourceCodes; optionLabels: [qsTr("Автовизначення")].concat(root.languageLabels); Layout.fillWidth: true; enabled: !backend.busy }
+                                  Select { id: sourceLanguage; objectName: "sourceLanguage"; model: root.sourceCodes; optionLabels: [qsTr("Автовизначення")].concat(root.languageLabels); Layout.fillWidth: true; enabled: !backend.busy && !backend.memoryProject.id }
                                 Caption { text: qsTr("Перекласти на"); Layout.topMargin: 7 }
-                                Select { id: targetLanguage; objectName: "targetLanguage"; model: root.targetCodes; optionLabels: root.languageLabels; currentIndex: 0; Layout.fillWidth: true; enabled: !backend.busy }
+                                  Select { id: targetLanguage; objectName: "targetLanguage"; model: root.targetCodes; optionLabels: root.languageLabels; currentIndex: 0; Layout.fillWidth: true; enabled: !backend.busy && !backend.memoryProject.id }
                                 Caption {
                                     visible: root.needsSourceLanguage || root.sameLanguage
                                     text: root.needsSourceLanguage ? qsTr("Для PDF виберіть мову оригіналу.") : qsTr("Виберіть іншу мову перекладу.")
                                     color: "#9b4c22"; wrapMode: Text.WordWrap; Layout.fillWidth: true
                                 }
+                                  Caption { text: qsTr("Пам’ять проєкту") }
+                                  Select {
+                                      objectName: "memoryProjectSelector"
+                                      Layout.fillWidth: true
+                                      model: backend.memoryProjects.map(function(project) { return project.id })
+                                      optionLabels: backend.memoryProjects.map(function(project) { return project.name })
+                                      currentIndex: Math.max(0, model.indexOf(backend.memoryProject.id || ""))
+                                      enabled: !backend.busy && !root.reviewLocked
+                                      onActivated: function(index) { backend.selectMemoryProject(model[index]); root.syncMemoryLanguages() }
+                                      Accessible.name: qsTr("Пам’ять проєкту")
+                                  }
+                                  Action { text: backend.memoryProject.id ? qsTr("Еталони й глосарій…") : qsTr("Створити проєкт…"); objectName: "manageMemoryButton"; iconName: "book"; subtle: true; implicitHeight: 30; Layout.leftMargin: -10; enabled: !backend.busy && !root.reviewLocked; onClicked: memoryDialog.open(); hint: qsTr("Схожі фрагменти потребують платного запиту редактора; точні збіги використовують готовий переклад.") }
+                                  Caption { text: qsTr("Пам’ять поповнюється після перекладу автоматично. Глосарій та еталони необов’язкові."); visible: !!backend.memoryProject.id; Layout.fillWidth: true; wrapMode: Text.WordWrap; font.pixelSize: 11 }
+                                  Action { text: backend.glossaryCount ? qsTr("Глосарій: %1 термінів…").arg(backend.glossaryCount) : qsTr("Глосарій (необов’язково)…"); objectName: "editGlossaryButton"; iconName: "book"; subtle: true; Layout.fillWidth: true; enabled: !backend.busy; onClicked: root.openGlossary(); hint: qsTr("Додайте власні терміни або створіть пропозиції з документів. Готовий CSV не потрібен.") }
+                                  Divider { Layout.topMargin: 2; Layout.bottomMargin: 2 }
                                 Divider { Layout.topMargin: 12; Layout.bottomMargin: 2 }
                                 Action { text: qsTr("Параметри перекладу"); iconName: root.translationOptionsOpen ? "chevron-down" : "chevron-right"; subtle: true; Layout.leftMargin: -10; implicitHeight: 34; onClicked: root.translationOptionsOpen = !root.translationOptionsOpen }
                                 ColumnLayout {
@@ -609,13 +648,8 @@ ApplicationWindow {
                                     Caption { text: qsTr("Тематика") }
                                     Select { id: domain; model: root.domainValues; optionLabels: root.domainLabels; Layout.fillWidth: true; enabled: !backend.busy }
                                     Toggle { id: review; objectName: "reviewEnabled"; text: qsTr("Редакторська перевірка"); checked: true; enabled: !backend.busy }
-                                    Toggle { id: autoGlossary; text: qsTr("Узгоджувати термінологію"); checked: true; enabled: !backend.busy }
-                                    RowLayout {
-                                        Layout.fillWidth: true
-                                        Action { text: backend.glossaryCount ? qsTr("Глосарій: %1").arg(backend.glossaryCount) : qsTr("Додати глосарій…"); iconName: "book"; subtle: true; implicitHeight: 30; enabled: !backend.busy; onClicked: backend.pickGlossary() }
-                                        Item { Layout.fillWidth: true }
-                                        Action { text: ""; iconName: "close"; hint: qsTr("Прибрати глосарій"); subtle: true; implicitWidth: 30; implicitHeight: 30; visible: backend.glossaryCount > 0; enabled: !backend.busy; onClicked: backend.clearGlossary(); Accessible.name: hint }
-                                    }
+                                      Toggle { id: autoGlossary; text: qsTr("Автоматично добирати терміни для документа"); checked: true; enabled: !backend.busy && !backend.memoryProject.id }
+                                      Caption { text: backend.memoryProject.id ? qsTr("У проєкті діє ваш спільний список термінів. Порожній список також дозволений.") : qsTr("Автоматичний добір виконує додатковий API-запит під час перекладу. Ваші власні терміни мають пріоритет."); Layout.fillWidth: true; wrapMode: Text.WordWrap; font.pixelSize: 11 }
                                 }
                                 Action {
                                     text: qsTr("Власні інструкції") + (backend.translationInstructions.trim().length ? " •" : "")
@@ -764,14 +798,15 @@ ApplicationWindow {
                         RowLayout {
                             Layout.fillWidth: true; spacing: 6
                             LabelText { text: backend.selectedReviewEntry.location || qsTr("Документ"); Layout.fillWidth: true; elide: Text.ElideMiddle; font.weight: Font.DemiBold; font.pixelSize: 13 }
-                            Action { text: qsTr("Редагувати"); iconName: "edit"; objectName: "reviewEditButton"; implicitHeight: 32; visible: backend.selectedReviewEntry.kind === "segment" && !backend.reviewEditing; enabled: !!backend.selectedReviewEntry.canEdit && !backend.reviewSaving; onClicked: backend.beginReviewEdit(); hint: backend.selectedReviewEntry.editReason || qsTr("Редагувати текст перекладу цього фрагмента") }
-                            Action { text: ""; iconName: "undo"; objectName: "reviewDiscardEditButton"; implicitWidth: 34; implicitHeight: 32; visible: !!backend.selectedReviewEntry.edited && !backend.reviewEditing; enabled: !backend.reviewSaving; onClicked: backend.discardReviewEdit(); hint: qsTr("Скасувати збережену правку цього фрагмента"); Accessible.name: hint }
+                            Action { text: qsTr("Редагувати"); iconName: "edit"; objectName: "reviewEditButton"; implicitHeight: 32; visible: backend.selectedReviewEntry.kind === "segment" && !backend.reviewEditing; enabled: !!backend.selectedReviewEntry.canEdit && !backend.reviewSaving && !backend.memoryWorking; onClicked: backend.beginReviewEdit(); hint: backend.selectedReviewEntry.editReason || qsTr("Редагувати текст перекладу цього фрагмента") }
+                            Action { text: ""; iconName: "undo"; objectName: "reviewDiscardEditButton"; implicitWidth: 34; implicitHeight: 32; visible: !!backend.selectedReviewEntry.edited && !backend.reviewEditing; enabled: !backend.reviewSaving && !backend.memoryWorking; onClicked: backend.discardReviewEdit(); hint: qsTr("Скасувати збережену правку цього фрагмента"); Accessible.name: hint }
                             Action { text: qsTr("Застосувати"); iconName: "check"; objectName: "reviewApplyButton"; primary: true; implicitHeight: 32; visible: backend.reviewEditing; enabled: !backend.reviewSaving; onClicked: backend.applyReviewEdit(); hint: qsTr("Зберегти правку в чернетці") }
                             Action { text: qsTr("Скасувати"); iconName: "close"; objectName: "reviewCancelEditButton"; implicitHeight: 32; visible: backend.reviewEditing; enabled: !backend.reviewSaving; onClicked: backend.cancelReviewEdit() }
                             Action { text: ""; iconName: "chevron-left"; hint: qsTr("Попередній запис"); objectName: "reviewPreviousButton"; implicitWidth: 34; implicitHeight: 32; visible: !backend.reviewEditing; enabled: !root.reviewLocked && root.reviewEntryIndex > 0; onClicked: backend.stepReviewEntry(-1); Accessible.name: hint }
                             Caption { text: (root.reviewEntryIndex + 1) + " / " + backend.reviewEntries.length; visible: !backend.reviewEditing; Layout.minimumWidth: 46; horizontalAlignment: Text.AlignHCenter }
                             Action { text: ""; iconName: "chevron-right"; hint: qsTr("Наступний запис"); objectName: "reviewNextButton"; implicitWidth: 34; implicitHeight: 32; visible: !backend.reviewEditing; enabled: !root.reviewLocked && root.reviewEntryIndex >= 0 && root.reviewEntryIndex < backend.reviewEntries.length - 1; onClicked: backend.stepReviewEntry(1); Accessible.name: hint }
                         }
+                        Action { text: qsTr("Запам’ятати формулювання"); objectName: "rememberReviewWordingButton"; iconName: "book"; subtle: true; implicitHeight: 30; visible: !!backend.memoryProject.id && backend.selectedReviewEntry.kind === "segment" && !backend.reviewEditing; enabled: backend.canRememberReviewWording; onClicked: rememberWordingDialog.open() }
                         Panel {
                             id: explanationsPanel
                             Layout.fillWidth: true
@@ -1098,6 +1133,17 @@ ApplicationWindow {
         root.page = 2
         root.pdfOptionsOpen = true
         scanSettingsScrollTimer.restart()
+    }
+    function syncMemoryLanguages() {
+        var project = backend.memoryProject
+        var projectId = project.id || ""
+        if (projectId && projectId !== root.languageMemoryProjectId) {
+            var sourceIndex = root.sourceCodes.indexOf(project.sourceLanguage)
+            var targetIndex = root.targetCodes.indexOf(project.targetLanguage)
+            if (sourceIndex >= 0) sourceLanguage.currentIndex = sourceIndex
+            if (targetIndex >= 0) targetLanguage.currentIndex = targetIndex
+        }
+        root.languageMemoryProjectId = projectId
     }
     function scrollToScanConverter() {
         if (root.page !== 2 || !scanConverterPath.activeFocus)

@@ -25,7 +25,7 @@ Get the package for your platform from **[GitHub Releases](https://github.com/gr
 2. Add DOCX, XLSX or PDF files and select the source and target languages. For a scan, use **Scan PDF → DOCX** and check the recognized text before translating.
 3. Translate, open the output folder, and use **Review** to inspect the result.
 
-DOCX and XLSX work directly. **Direct PDF translation requires BabelDOC; scanned PDF preparation requires the separate local OCR helper**. See [PDF setup](docs/PDF.md). Some OpenAI-compatible providers omit features used by particular API modes; choose the mode and response format supported by yours.
+DOCX and XLSX work directly. **Direct PDF translation uses BabelDOC; scanned PDF preparation uses the local OCR helper**. Complete Windows builds include both engines and their local assets; Linux and source installations use separate workers. See [PDF setup](docs/PDF.md) and [complete Windows builds](docs/WINDOWS-RUNTIME.md). Some OpenAI-compatible providers omit features used by particular API modes; choose the mode and response format supported by yours.
 
 ## Gemini and Claude
 
@@ -53,6 +53,12 @@ Quick text and images remain in session memory, without automatic history or cac
 
 Save reusable terminology and style rules with **Custom instructions** in Documents or **Instructions** in Text & photos. They apply to future document, text/photo and editorial requests; changing them refreshes translation caches. See [instructions](docs/INSTRUCTIONS.md).
 
+## Project translation memory
+
+For related DOCX/XLSX files, choose **Project memory** in Documents, or click **Create project…** with explicit source and target languages. The memory fills automatically; a glossary and reference import are optional. **Glossary (optional)…** lets you enter terms yourself or request suggestions from the queued documents, edit the draft and click **Apply glossary**. Suggestions use your configured provider and incur its API charges. CSV import/export is an optional transfer method. **References & glossary…** also accepts verified DOCX/report pairs. This mode uses the project's fixed shared glossary for the queue; separate automatic glossaries are disabled. Memory starts **Off**, which keeps the ordinary translation workflow.
+
+Exact source/context/policy matches can reuse completed machine results. With editorial review enabled, closely related passages can use an earlier translation as a reference for a paid adaptation request. In Review, **Remember wording → Use in project** explicitly approves a preferred translation for future runs; acknowledging a finding does not. Imported references and adapted results are not approved automatically. Conflicts require a separate replacement decision, and a running queue keeps its captured memory revision. See the [translation memory guide](docs/TRANSLATION-MEMORY.md) for matching rules, reference verification, counts and limits.
+
 ## Costs and balance
 
 The **Costs** button shows local spending estimates for today and the last 30 days, request counts and tokens. Recognized standard OpenAI models use bundled prices; other providers can use a custom model tariff. Cache reads and writes use their separate rates; small charges remain visible. Missing usage, unknown prices and incomplete historical estimates are marked explicitly. Recording starts with this update and covers only Forma requests with the current key and server.
@@ -65,9 +71,10 @@ Open the official OpenAI billing page for your actual credit balance, or enter a
 |---|---|
 | DOCX | Translates supported visible text while retaining the OOXML package, styles, tables, rich text and protected fields. |
 | XLSX | Translates supported text cells and rich text while retaining formulas, native numeric cells and workbook structure. |
-| PDF | Text-based PDFs use BabelDOC. Scans can be reconstructed locally as editable DOCX, checked and then translated through the DOCX workflow. Both engines are installed separately. |
+| PDF | Text-based PDFs use BabelDOC. Scans can be reconstructed locally as editable DOCX, checked and then translated through the DOCX workflow. Complete Windows builds include both engines; Linux/source installations use separate workers. |
 
 - Context-aware translation, terminology consistency, optional CSV glossary and an editorial pass for Office files.
+- Optional project memory for exact Office matches, reviewed adaptation of similar passages, a shared glossary and explicitly approved wording across related documents.
 - Shared API concurrency limits and a document queue, with pause/cancel controls and local progress recovery.
 - Translation history, output-folder shortcuts and configurable models, including a separate editor model.
 - Review with source and translation side by side, searchable findings, acknowledgements, and manual DOCX/XLSX corrections saved as a **new copy**.
@@ -79,7 +86,7 @@ These checks help catch mistakes; they are not a score of linguistic accuracy. A
 
 Document text, typed text and images selected for translation are sent to **the API endpoint you configure**. FormaTranslate has no hosted translation backend or telemetry. A connection test makes a small API request that may be billed.
 
-API keys can be stored in the operating system's credential vault, or kept for the current session. Preferences contain no API key. Local translation caches, reports and review drafts **can contain document text**; history stores paths and metadata. The local usage ledger stores only account hashes and request/cost metadata, never keys or document contents. Keep those files private. Data lives in the platform's Forma application-data directory; `FORMA_DATA_DIR` overrides it. An optional `.env` remains available for CLI workflows; see [.env.example](.env.example).
+API keys can be stored in the operating system's credential vault, or kept for the current session. Preferences contain no API key. Local translation caches, reports, review drafts and project memory **can contain document text**; history stores paths and metadata. Project memory uses a separate private bilingual SQLite database. The local usage ledger stores only account hashes and request/cost metadata, never keys or document contents. Keep those files private. User databases are not bundled in releases. Data lives in the platform's Forma application-data directory; `FORMA_DATA_DIR` overrides it. An optional `.env` remains available for CLI workflows; see [.env.example](.env.example).
 
 ## Run from source
 
@@ -103,7 +110,7 @@ The comparison command checks structure; it does not judge translation quality. 
 
 ## Contribute
 
-Bug reports, translation improvements and focused pull requests are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md), [UI translation instructions](docs/I18N.md), [security reporting](SECURITY.md) and the [changelog](CHANGELOG.md). Synthetic examples are included; please do not upload confidential documents or API keys in issues.
+Bug reports, translation improvements and focused pull requests are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md), [code organization](docs/ARCHITECTURE.md), [UI translation instructions](docs/I18N.md), [security reporting](SECURITY.md) and the [changelog](CHANGELOG.md). Synthetic examples are included; please do not upload confidential documents or API keys in issues.
 
 ```sh
 uv sync --locked --group dev
@@ -115,4 +122,4 @@ Releases use semantic versioning, annotated Git tags and manual builds. There is
 
 ## License
 
-FormaTranslate's original code is licensed under the **[MIT License](LICENSE)**. Qt/PySide6 and other dependencies retain their own licenses; see [third-party notices](THIRD_PARTY_NOTICES.md). BabelDOC and the optional local OCR runtime are installed separately and are not included in FormaTranslate packages.
+FormaTranslate's original code is licensed under the **[MIT License](LICENSE)**. Qt/PySide6 and other dependencies retain their own licenses; see [third-party notices](THIRD_PARTY_NOTICES.md). Complete Windows packages include BabelDOC, OCR and model license/source materials; Linux/source workflows use separately installed engines.

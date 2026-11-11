@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from forma.quality import check_segment, introduced_repetition
+from forma.translation.quality import check_segment, introduced_repetition
 
 
 def repeated_issues(source, target):

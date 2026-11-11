@@ -10,8 +10,8 @@ from PySide6.QtCore import QCoreApplication, QEvent, QUrl
 from PySide6.QtQml import QQmlApplicationEngine
 from PySide6.QtTest import QTest
 
-from forma.backend import Backend
-from forma.config import Settings
+from forma.presentation.backend import Backend
+from forma.settings.config import Settings
 
 
 def pump(app, predicate, seconds=10):
@@ -101,6 +101,7 @@ def test_desktop_import_translate_review_all_pages(qapp, docx_file, xlsx_file, t
             assert Path(document["output"]).is_file()
             assert Path(document["report"]).is_file()
         assert len(backend.historyEntries) == 2
+        pump(qapp, lambda: all(entry["outputExists"] for entry in backend.historyEntries))
         assert all(
             entry["outputExists"] and entry["model"] == "local-test"
             for entry in backend.historyEntries

@@ -36,6 +36,8 @@ source modifications are applied by FormaTranslate.
 | AnyIO, platformdirs, keyring and its helpers | MIT, with individual copyright notices in `licenses/`. |
 | lxml | BSD-3-Clause; includes separately licensed libxml2/libxslt and their notices. |
 | pypdf, python-dotenv | BSD-3-Clause. |
+| Pillow, when collected through pypdf's optional image support | MIT-CMU, with the complete bundled-library notices in `licenses/pillow/LICENSE`. The FreeType License option is selected for FreeType; portions of this software are based on the work of the FreeType Project (https://www.freetype.org/). |
+| pytest, Pygments, when optional imports are collected by build hooks | MIT and BSD-2-Clause respectively; individual notices are included in `licenses/`. |
 | certifi | Mozilla Public License 2.0; the included CA data is not modified. |
 | idna | BSD-3-Clause. |
 | SQLite | Public domain; distributed through CPython's sqlite3 module. |
@@ -56,16 +58,20 @@ Data Visualization, Quick 3D, Virtual Keyboard, Quick Timeline, Location and
 WebEngine modules. Build-time Qt tools and source-only material may have other
 licenses; they are not automatically part of the application runtime.
 
-BabelDOC and its dependencies are installed separately and are not distributed
-inside this executable. They retain their own licenses.
+BabelDOC and its dependencies retain their own licenses. Complete Windows
+builds embed a separate worker and its offline assets; Linux/source workflows
+use a separately installed worker. Windows runtime notices and inventories
+are embedded under `legal/runtimes` and shipped under `runtimes/` in the release ZIP, with matching code source archives in the
+release ZIP's `runtime-sources` directory, or in the matching companion `*-runtime-sources.zip` named and hashed in `RELEASE.json`. Both application and companion archives must be delivered together when using that mode. See [Windows runtime packaging](docs/WINDOWS-RUNTIME.md).
 
-The optional `tools/ocr` helper also runs outside the desktop executable. Its
-Docling, RapidOCR, PyTorch, ONNX Runtime, separately downloaded models and all
+The `tools/ocr` helper runs as a separate process. Complete Windows builds
+embed its executable, models and Tesseract; Linux/source installations use a
+separately installed helper. Its Docling, RapidOCR, PyTorch, ONNX Runtime, models and all
 transitive dependencies retain their individual code/model licenses and notices.
 The helper also uses python-docx (MIT), lxml (BSD-3-Clause) and pypdfium2
 (Apache-2.0 or BSD-3-Clause, with PDFium's BSD-style and third-party notices).
-These are installed by the user, not redistributed in the desktop executable.
-If an OCR runtime or model package is distributed separately, include its
+The Windows runtime inventory includes their individual code/model notices
+and corresponding-source materials. If an OCR runtime or model package is distributed separately, include its
 dependency licenses and any corresponding-source obligations in that package.
 
 Upstream references: [Qt LGPL obligations](https://www.qt.io/development/open-source-lgpl-obligations),

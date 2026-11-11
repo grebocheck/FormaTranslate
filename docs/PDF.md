@@ -2,6 +2,8 @@
 
 Text-based PDFs can be translated directly through BabelDOC. Scanned or mixed PDFs need a separate **Scan PDF → DOCX** preparation step, followed by the normal DOCX translation workflow. OCR runs locally and does not use your translation API or key.
 
+Complete Windows builds embed OCR, its models, Tesseract and BabelDOC with offline assets. Separate installation and first-run downloads below apply to Linux/source installations and older desktop-only packages. See [Windows runtime packaging](WINDOWS-RUNTIME.md) for the complete-build contract and native verification requirements.
+
 ## Scanned PDF → editable DOCX
 
 Install the optional OCR helper from a source checkout, separately from the application. Release downloads also include an **OCR helper source ZIP**: extract it and run the same command from the extracted directory containing `tools/ocr`.
@@ -10,7 +12,7 @@ Install the optional OCR helper from a source checkout, separately from the appl
 uv tool install --python 3.12 --torch-backend cpu ./tools/ocr
 ```
 
-The helper uses Docling for document structure and TableFormer table reconstruction, with RapidOCR for local text recognition. Its inference runtime and models are not bundled in the desktop executable. The first run downloads public model files; later runs use the local model cache. The CPU installation option avoids downloading CUDA dependencies. Install on the target platform; Windows and Linux CPU execution are the intended targets.
+The helper uses Docling for document structure and TableFormer table reconstruction, with RapidOCR for local text recognition. For a separate installation, the first run downloads public model files; later runs use the local model cache. Complete Windows builds instead provide these local models. The CPU installation option avoids downloading CUDA dependencies. Install on the target platform; Windows and Linux CPU execution are the intended targets.
 
 For better recognition of uncertain prose, also install [Tesseract](https://tesseract-ocr.github.io/tessdoc/Installation.html) and the source-language data (`eng`, `ukr`, `pol` or `deu`), and put its executable in PATH. When available, the helper retries low-confidence prose crops locally and accepts only a sufficiently confident candidate. Tables retain RapidOCR recognition and TableFormer geometry. This second engine is optional; without it, uncertain text remains highlighted for manual correction. Recognition confidence is a review signal, not an accuracy percentage.
 

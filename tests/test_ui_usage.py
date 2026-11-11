@@ -6,11 +6,11 @@ from PySide6.QtQml import QQmlApplicationEngine
 from PySide6.QtQuick import QQuickItem
 from PySide6.QtTest import QTest
 
-from forma.backend import Backend
-from forma.config import Settings
-from forma.i18n import CatalogTranslator
-from forma.usage import UsageLedger
-from forma.usage_controller import BILLING_URL
+from forma.accounting.usage import UsageLedger
+from forma.localization.catalog import CatalogTranslator
+from forma.presentation.backend import Backend
+from forma.presentation.usage_controller import BILLING_URL
+from forma.settings.config import Settings
 
 
 @pytest.fixture
@@ -81,7 +81,7 @@ def test_controller_updates_usage_balance_rates_and_safe_billing_link(usage_wind
     assert usage.summary["balance"] is None
     opened = []
     monkeypatch.setattr(
-        "forma.usage_controller.QDesktopServices.openUrl",
+        "forma.presentation.usage_controller.QDesktopServices.openUrl",
         lambda url: opened.append(url.toString()) or True,
     )
     usage.openBilling()

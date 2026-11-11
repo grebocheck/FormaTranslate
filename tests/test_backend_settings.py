@@ -7,9 +7,9 @@ import pytest
 from PySide6.QtCore import QCoreApplication, QEvent, QObject, QUrl
 from PySide6.QtQml import QQmlApplicationEngine
 
-from forma import credentials
-from forma.backend import Backend
-from forma.config import ENV_FIELDS, load_preferences
+from forma.presentation.backend import Backend
+from forma.settings import credentials
+from forma.settings.config import ENV_FIELDS, load_preferences
 
 ENDPOINT = "https://translate.example.org/v1"
 

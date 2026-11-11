@@ -9,13 +9,13 @@ import pytest
 from docx import Document
 from pypdf import PdfWriter
 
-from forma.config import Settings
-from forma.editor import export_reviewed_copy
-from forma.engine import TranslationEngine
-from forma.models import Cancelled, FormaError, Options
-from forma.ocr import convert_scan_pdf
-from forma.ooxml import OfficeDocument
-from forma.provider import JobControl
+from forma.core.models import Cancelled, FormaError, Options
+from forma.documents.editor import export_reviewed_copy
+from forma.documents.ocr import convert_scan_pdf
+from forma.documents.ooxml import OfficeDocument
+from forma.providers.client import JobControl
+from forma.settings.config import Settings
+from forma.translation.engine import TranslationEngine
 
 
 @pytest.fixture
@@ -79,8 +79,8 @@ a.output.with_suffix('.ocr.json').write_text(json.dumps(manifest), encoding='utf
         assert arguments[0] == "offline-converter"
         return real_popen([sys.executable, str(script), *arguments[1:]], **kwargs)
 
-    monkeypatch.setattr("forma.ocr.find_scan_converter", lambda _: "offline-converter")
-    monkeypatch.setattr("forma.ocr.subprocess.Popen", launch)
+    monkeypatch.setattr("forma.documents.ocr.find_scan_converter", lambda _: "offline-converter")
+    monkeypatch.setattr("forma.documents.ocr.subprocess.Popen", launch)
     for name in ("OPENAI_API_KEY", "GEMINI_API_KEY", "GOOGLE_API_KEY", "ANTHROPIC_API_KEY"):
         monkeypatch.setenv(name, "synthetic-private-key")
 
@@ -162,7 +162,7 @@ def test_ocr_cli_prepares_docx_without_loading_provider_settings(
     def forbidden(*_args, **_kwargs):
         pytest.fail("An explicit local OCR converter must not load provider credentials")
 
-    monkeypatch.setattr("forma.config.Settings.load", forbidden)
+    monkeypatch.setattr("forma.settings.config.Settings.load", forbidden)
     assert main() == 0
     captured = capsys.readouterr()
     assert captured.out.strip().endswith(".docx")

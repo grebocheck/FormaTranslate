@@ -9,16 +9,16 @@ import pytest
 from pypdf import PdfWriter
 from reportlab.pdfgen.canvas import Canvas
 
-from forma.config import Settings
-from forma.models import Cancelled, FormaError, Options
-from forma.pdf import _check_pdf_language, inspect_pdf, translate_pdf
-from forma.provider import JobControl
+from forma.core.models import Cancelled, FormaError, Options
+from forma.documents.pdf import _check_pdf_language, inspect_pdf, translate_pdf
+from forma.providers.client import JobControl
+from forma.settings.config import Settings
 
 
 def test_pdf_adapter_keeps_key_out_of_arguments(pdf_file, tmp_path, monkeypatch):
     calls = []
     config_paths = []
-    monkeypatch.setattr("forma.pdf.find_babeldoc", lambda _: "babeldoc-test")
+    monkeypatch.setattr("forma.documents.pdf.find_babeldoc", lambda _: "babeldoc-test")
 
     class Process:
         returncode = 0
@@ -47,7 +47,7 @@ def test_pdf_adapter_keeps_key_out_of_arguments(pdf_file, tmp_path, monkeypatch)
         def poll(self):
             return 0
 
-    monkeypatch.setattr("forma.pdf.subprocess.Popen", Process)
+    monkeypatch.setattr("forma.documents.pdf.subprocess.Popen", Process)
     result = translate_pdf(
         pdf_file,
         tmp_path / "out",
@@ -74,7 +74,7 @@ def test_pdf_scans_fail_explicitly(tmp_path, monkeypatch):
     writer.add_blank_page(width=595, height=842)
     writer.write(path)
     assert inspect_pdf(path)["scanned"]
-    monkeypatch.setattr("forma.pdf.find_babeldoc", lambda _: "babeldoc-test")
+    monkeypatch.setattr("forma.documents.pdf.find_babeldoc", lambda _: "babeldoc-test")
     with pytest.raises(FormaError, match="OCR"):
         translate_pdf(
             path,
@@ -87,7 +87,7 @@ def test_pdf_scans_fail_explicitly(tmp_path, monkeypatch):
 
 
 def test_pdf_requires_source_language(pdf_file, tmp_path, monkeypatch):
-    monkeypatch.setattr("forma.pdf.find_babeldoc", lambda _: "babeldoc-test")
+    monkeypatch.setattr("forma.documents.pdf.find_babeldoc", lambda _: "babeldoc-test")
     with pytest.raises(FormaError, match="мову оригіналу"):
         translate_pdf(
             pdf_file,
@@ -100,7 +100,7 @@ def test_pdf_requires_source_language(pdf_file, tmp_path, monkeypatch):
 
 
 def _fake_engine_output(monkeypatch, candidate):
-    monkeypatch.setattr("forma.pdf.find_babeldoc", lambda _: "babeldoc-test")
+    monkeypatch.setattr("forma.documents.pdf.find_babeldoc", lambda _: "babeldoc-test")
 
     class Process:
         returncode = 0
@@ -113,7 +113,7 @@ def _fake_engine_output(monkeypatch, candidate):
         def poll(self):
             return 0
 
-    monkeypatch.setattr("forma.pdf.subprocess.Popen", Process)
+    monkeypatch.setattr("forma.documents.pdf.subprocess.Popen", Process)
 
 
 def _pdf_with_pages(path, texts):
@@ -217,12 +217,12 @@ def test_dominantly_scanned_mixed_pdf_stops_before_engine_or_api(tmp_path, monke
             canvas.drawInlineImage(Image.new("RGB", (100, 100), "black"), 0, 0, 595, 842)
         canvas.showPage()
     canvas.save()
-    monkeypatch.setattr("forma.pdf.find_babeldoc", lambda _: "babeldoc-test")
+    monkeypatch.setattr("forma.documents.pdf.find_babeldoc", lambda _: "babeldoc-test")
 
     def forbidden(*_args, **_kwargs):
         pytest.fail("A mostly scanned PDF must not reach the engine or provider")
 
-    monkeypatch.setattr("forma.pdf.PDFAPI", forbidden)
+    monkeypatch.setattr("forma.documents.pdf.PDFAPI", forbidden)
     with pytest.raises(FormaError, match="Скан PDF → DOCX"):
         _translate(source, tmp_path / "out")
     assert not (tmp_path / "out").exists()
@@ -243,7 +243,7 @@ def test_pdf_streams_live_progress_and_reserves_its_worker_allowance(
     pdf_file, tmp_path, monkeypatch
 ):
     reservations, updates = [], []
-    monkeypatch.setattr("forma.pdf.find_babeldoc", lambda _: "babeldoc-test")
+    monkeypatch.setattr("forma.documents.pdf.find_babeldoc", lambda _: "babeldoc-test")
 
     class Control(JobControl):
         @contextmanager
@@ -283,7 +283,7 @@ def test_pdf_streams_live_progress_and_reserves_its_worker_allowance(
                 return None
             return 0
 
-    monkeypatch.setattr("forma.pdf.subprocess.Popen", Process)
+    monkeypatch.setattr("forma.documents.pdf.subprocess.Popen", Process)
     result = translate_pdf(
         pdf_file,
         tmp_path / "out",
@@ -301,7 +301,7 @@ def test_pdf_streams_live_progress_and_reserves_its_worker_allowance(
 def test_pdf_cancellation_terminates_process_and_releases_slots(pdf_file, tmp_path, monkeypatch):
     control = JobControl(max_parallel_requests=2)
     terminated = []
-    monkeypatch.setattr("forma.pdf.find_babeldoc", lambda _: "babeldoc-test")
+    monkeypatch.setattr("forma.documents.pdf.find_babeldoc", lambda _: "babeldoc-test")
 
     class Process:
         returncode = None
@@ -320,7 +320,7 @@ def test_pdf_cancellation_terminates_process_and_releases_slots(pdf_file, tmp_pa
         def wait(self, **kwargs):
             return self.returncode
 
-    monkeypatch.setattr("forma.pdf.subprocess.Popen", Process)
+    monkeypatch.setattr("forma.documents.pdf.subprocess.Popen", Process)
     with pytest.raises(Cancelled):
         translate_pdf(
             pdf_file,

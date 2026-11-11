@@ -25,12 +25,12 @@ from openpyxl import Workbook
 from openpyxl.comments import Comment
 from openpyxl.styles import Alignment, Font, PatternFill
 
-from forma.comparison import compare_files
-from forma.config import Settings
-from forma.engine import TranslationEngine
-from forma.models import FormaError, Options
-from forma.ooxml import OfficeDocument
-from forma.storage import atomic_bytes, atomic_json
+from forma.core.models import FormaError, Options
+from forma.documents.comparison import compare_files
+from forma.documents.ooxml import OfficeDocument
+from forma.persistence.files import atomic_bytes, atomic_json
+from forma.settings.config import Settings
+from forma.translation.engine import TranslationEngine
 
 FIXTURE_VERSION = 2
 FILENAMES = ("acceptance-conditions.uk.docx", "operating-record.uk.xlsx")

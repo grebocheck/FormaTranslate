@@ -3,10 +3,10 @@ from __future__ import annotations
 import threading
 from concurrent.futures import ThreadPoolExecutor
 
-from forma.config import Settings
-from forma.jobs import document_resources, run_documents
-from forma.models import FormaError, Options
-from forma.provider import JobControl
+from forma.core.models import FormaError, Options
+from forma.providers.client import JobControl
+from forma.settings.config import Settings
+from forma.translation.jobs import document_resources, run_documents
 
 
 def documents(tmp_path, count=4):
@@ -128,7 +128,7 @@ def test_pause_prevents_new_documents_until_resumed(tmp_path):
 
 
 def test_cancelled_queue_does_not_read_files(tmp_path, monkeypatch):
-    import forma.jobs
+    import forma.translation.jobs
 
     control = JobControl()
     control.cancelled.set()
@@ -137,7 +137,7 @@ def test_cancelled_queue_does_not_read_files(tmp_path, monkeypatch):
     def unexpected_read(*_):
         raise AssertionError("Cancelled documents must remain unread")
 
-    monkeypatch.setattr(forma.jobs, "document_resources", unexpected_read)
+    monkeypatch.setattr(forma.translation.jobs, "document_resources", unexpected_read)
     run_documents(
         documents(tmp_path), tmp_path, Options(), Settings(), control, lambda *e: events.append(e)
     )
@@ -192,7 +192,7 @@ def test_duplicate_content_and_output_names_do_not_race(tmp_path):
 
 
 def test_live_queue_add_reorder_remove_and_close(tmp_path):
-    from forma.jobs import DocumentQueue
+    from forma.translation.jobs import DocumentQueue
 
     docs = documents(tmp_path, 5)
     queue = DocumentQueue(docs[:3])
@@ -237,7 +237,7 @@ def test_live_queue_add_reorder_remove_and_close(tmp_path):
 
 
 def test_live_queue_can_expand_concurrency_after_start(tmp_path):
-    from forma.jobs import DocumentQueue
+    from forma.translation.jobs import DocumentQueue
 
     docs = documents(tmp_path, 2)
     queue = DocumentQueue(docs[:1])

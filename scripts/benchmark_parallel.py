@@ -18,11 +18,11 @@ from zipfile import ZipFile
 
 from lxml import etree
 
-from forma.comparison import compare_files
-from forma.config import Settings
-from forma.jobs import run_documents
-from forma.models import Options
-from forma.provider import JobControl
+from forma.core.models import Options
+from forma.documents.comparison import compare_files
+from forma.providers.client import JobControl
+from forma.settings.config import Settings
+from forma.translation.jobs import run_documents
 
 ROOT = Path(__file__).resolve().parents[1]
 

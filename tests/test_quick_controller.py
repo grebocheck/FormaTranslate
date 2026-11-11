@@ -9,11 +9,16 @@ from PySide6.QtGui import QColor, QImage
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QFileDialog
 
-from forma.backend import Backend
-from forma.config import Settings
-from forma.image_translation import ImageTranslation
-from forma.models import FormaError
-from forma.quick_controller import MAX_IMAGE_BYTES, MAX_TEXT_CHARACTERS, checked_image, read_image
+from forma.core.models import FormaError
+from forma.presentation.backend import Backend
+from forma.presentation.quick_controller import (
+    MAX_IMAGE_BYTES,
+    MAX_TEXT_CHARACTERS,
+    checked_image,
+    read_image,
+)
+from forma.settings.config import Settings
+from forma.translation.images import ImageTranslation
 
 
 @pytest.fixture
@@ -160,7 +165,7 @@ class FakeProvider:
 
 
 def test_background_text_job_is_cancelled_on_close_without_stale_output(controller, monkeypatch):
-    import forma.quick_translation as module
+    import forma.translation.text as module
 
     backend, quick = controller
     quick._provider_factory = FakeProvider
@@ -193,7 +198,7 @@ def test_background_text_job_is_cancelled_on_close_without_stale_output(controll
 def test_success_and_failure_job_paths_preserve_source_and_do_not_persist_content(
     controller, monkeypatch, tmp_path
 ):
-    import forma.quick_translation as module
+    import forma.translation.text as module
 
     backend, quick = controller
     quick._provider_factory = FakeProvider
@@ -220,7 +225,7 @@ def test_success_and_failure_job_paths_preserve_source_and_do_not_persist_conten
 
 
 def test_image_worker_publishes_result_preview_and_readable_text(controller, monkeypatch, qapp):
-    import forma.image_translation as module
+    import forma.translation.images as module
 
     backend, quick = controller
     quick._provider_factory = FakeProvider

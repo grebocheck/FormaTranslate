@@ -6,9 +6,9 @@ from PySide6.QtQml import QQmlApplicationEngine
 from PySide6.QtQuick import QQuickItem
 from PySide6.QtTest import QTest
 
-from forma.backend import Backend
-from forma.config import Settings, load_preferences
-from forma.i18n import CatalogTranslator
+from forma.localization.catalog import CatalogTranslator
+from forma.presentation.backend import Backend
+from forma.settings.config import Settings, load_preferences
 
 
 @pytest.fixture
@@ -90,7 +90,7 @@ def test_length_limit_and_failed_save_keep_draft_and_saved_rules(instructions_wi
     def fail(_):
         raise OSError("private filesystem path")
 
-    monkeypatch.setattr("forma.backend.save_preferences", fail)
+    monkeypatch.setattr("forma.presentation.settings_workflow.save_preferences", fail)
     save.clicked.emit()
     assert window.findChild(QObject, "instructionsDialog").property("visible")
     assert editor.property("text") == "New rules"

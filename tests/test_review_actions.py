@@ -6,12 +6,12 @@ import time
 import pytest
 from PySide6.QtTest import QTest
 
-from forma.backend import Backend
-from forma.config import Settings
-from forma.models import Options, TranslationResult
-from forma.ooxml import OfficeDocument
-from forma.reports import write_translation_report
-from forma.review_store import ReviewStore
+from forma.core.models import Options, TranslationResult
+from forma.documents.ooxml import OfficeDocument
+from forma.persistence.review_store import ReviewStore
+from forma.presentation.backend import Backend
+from forma.settings.config import Settings
+from forma.translation.reports import write_translation_report
 
 
 def pump(app, predicate, seconds=8):

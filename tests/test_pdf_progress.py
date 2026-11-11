@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from forma.pdf_progress import PDFProgress
+from forma.documents.pdf_progress import PDFProgress
 
 
 def test_rich_frames_report_real_counters_without_reverting_to_completed_stages():

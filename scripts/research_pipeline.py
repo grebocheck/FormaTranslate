@@ -25,12 +25,12 @@ from docx import Document
 from openpyxl import Workbook
 from openpyxl.styles import Font
 
-from forma.comparison import compare_files
-from forma.config import Settings
-from forma.engine import TranslationEngine
-from forma.models import Cancelled, FormaError, Options
-from forma.ooxml import OfficeDocument
-from forma.provider import JobControl, Provider
+from forma.core.models import Cancelled, FormaError, Options
+from forma.documents.comparison import compare_files
+from forma.documents.ooxml import OfficeDocument
+from forma.providers.client import JobControl, Provider
+from forma.settings.config import Settings
+from forma.translation.engine import TranslationEngine
 
 
 def write_json(path: Path, value: dict) -> None:

@@ -4,10 +4,10 @@ import json
 
 import pytest
 
-from forma.comparison import compare_files, write_comparison
-from forma.config import Settings, save_preferences
-from forma.models import FormaError
-from forma.quality import check_segment, parse_translation
+from forma.core.models import FormaError
+from forma.documents.comparison import compare_files, write_comparison
+from forma.settings.config import Settings, save_preferences
+from forma.translation.quality import check_segment, parse_translation
 
 
 def test_markup_and_protected_values():
@@ -57,7 +57,7 @@ def test_unit_translation_and_decimal_locale_keep_adjacent_numbers_valid():
 
 
 def test_ukrainian_ordinals_and_hour_notation_preserve_value():
-    from forma.quality import numbers_match
+    from forma.translation.quality import numbers_match
 
     assert numbers_match(
         "Тариф по 2-му класу 3,00585 грн", "Tariff for the second class: 3.00585 UAH"
@@ -94,7 +94,7 @@ def test_comparison_pdf_and_html_escaping(pdf_file, tmp_path):
 
 
 def test_script_evidence_never_blocks_bibliography_or_official_names():
-    from forma.quality import check_language
+    from forma.translation.quality import check_language
 
     source = "<r0>Smith, J. The International Journal of Advanced Manufacturing Technology. Springer Nature, London.</r0>"
     issues = check_language(source, source, "en", "uk")

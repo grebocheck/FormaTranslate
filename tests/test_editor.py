@@ -14,12 +14,12 @@ from openpyxl.cell.rich_text import CellRichText, TextBlock
 from openpyxl.cell.text import InlineFont
 from openpyxl.comments import Comment
 
-from forma.editor import edit_translation_markup, export_reviewed_copy
-from forma.models import FormaError, Options, TranslationResult, plain_text
-from forma.ooxml import NS, OfficeDocument
-from forma.quality import parse_translation
-from forma.reports import write_translation_report
-from forma.review import load_report
+from forma.core.models import FormaError, Options, TranslationResult, plain_text
+from forma.documents.editor import edit_translation_markup, export_reviewed_copy
+from forma.documents.ooxml import NS, OfficeDocument
+from forma.documents.review import load_report
+from forma.translation.quality import parse_translation
+from forma.translation.reports import write_translation_report
 
 
 def package(path):
@@ -329,7 +329,7 @@ def test_empty_short_translation_cannot_be_exported(tmp_path):
 
 @pytest.fixture
 def shared_translation(tmp_path):
-    from forma.ooxml import R, S
+    from forma.documents.ooxml import R, S
 
     source = tmp_path / "shared.xlsx"
     parts = {
@@ -384,7 +384,7 @@ def test_shared_string_export_refuses_changed_reference_mapping(shared_translati
 def test_publication_collision_never_overwrites_and_removes_only_own_partial_files(
     office_translation, monkeypatch
 ):
-    import forma.editor as editor
+    import forma.documents.editor as editor
 
     source, output, report, segment_id, markup = office_translation
     original_atomic = editor.atomic_bytes

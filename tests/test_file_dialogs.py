@@ -6,8 +6,8 @@ from PySide6.QtGui import QColor, QPalette
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QFileDialog, QLineEdit
 
-from forma import file_dialogs
-from forma.file_dialogs import FilePickers
+from forma.presentation import file_dialogs
+from forma.presentation.file_dialogs import FilePickers
 
 
 def finish_dialogs(qapp, pickers):
@@ -107,7 +107,7 @@ def corrupt_utf8(value, passes=1):
 
 
 def test_restore_only_missing_bookmarks_with_proven_existing_targets(tmp_path):
-    from forma.file_dialogs import restore_directory_path
+    from forma.presentation.file_dialogs import restore_directory_path
 
     target = tmp_path / "Документи"
     target.mkdir()
@@ -127,7 +127,7 @@ def test_restore_only_missing_bookmarks_with_proven_existing_targets(tmp_path):
 def test_dialog_repairs_unicode_locations_without_changing_valid_or_remote_urls(qapp, tmp_path):
     from PySide6.QtCore import QUrl
 
-    from forma.file_dialogs import restore_dialog_locations
+    from forma.presentation.file_dialogs import restore_dialog_locations
 
     target = tmp_path / "Завантажене"
     target.mkdir()
@@ -178,7 +178,7 @@ def test_fallback_dialog_labels_follow_application_language(qapp):
 def test_normal_and_network_bookmarks_do_not_trigger_filesystem_probes(monkeypatch):
     from pathlib import Path
 
-    from forma.file_dialogs import restore_directory_path
+    from forma.presentation.file_dialogs import restore_directory_path
 
     def unexpected_probe(_):
         raise AssertionError("Opening a picker must not probe ordinary/network bookmarks")

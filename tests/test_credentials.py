@@ -4,9 +4,9 @@ import json
 
 import pytest
 
-from forma import credentials
-from forma.config import ENV_FIELDS, Settings, load_preferences, save_preferences
-from forma.models import FormaError
+from forma.core.models import FormaError
+from forma.settings import credentials
+from forma.settings.config import ENV_FIELDS, Settings, load_preferences, save_preferences
 
 
 class MemoryStore:

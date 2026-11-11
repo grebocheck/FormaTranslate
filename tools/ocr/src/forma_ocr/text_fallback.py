@@ -9,7 +9,9 @@ import os
 import re
 import shutil
 import subprocess
+import sys
 import tempfile
+import threading
 from collections import Counter
 from dataclasses import dataclass, field
 
@@ -19,6 +21,22 @@ TIMEOUT_SECONDS = 20
 MIN_CONFIDENCE = 85
 PROSE_LABELS = {"text", "list_item", "header", "footer", "footnote"}
 NUMBERS = re.compile(r"(?<!\w)[+\-−]?\d+(?:[.,]\d+)*(?:[%‰])?(?!\w)")
+_SPAWN_LOCK = threading.Lock()
+
+
+def _start_process(arguments, **kwargs):
+    # A frozen OCR worker sets its own DLL directory. Tesseract needs the DLLs
+    # beside its executable, rather than inheriting the worker's Torch runtime.
+    if sys.platform == "win32" and getattr(sys, "frozen", False):
+        import ctypes
+
+        with _SPAWN_LOCK:
+            ctypes.windll.kernel32.SetDllDirectoryW(None)
+            try:
+                return subprocess.Popen(arguments, **kwargs)
+            finally:
+                ctypes.windll.kernel32.SetDllDirectoryW(getattr(sys, "_MEIPASS", None))
+    return subprocess.Popen(arguments, **kwargs)
 
 
 @dataclass
@@ -33,7 +51,7 @@ class FallbackResult:
 def run_local(arguments: list[str], payload: bytes | None = None, *, timeout=TIMEOUT_SECONDS) -> bytes:
     """Keep subprocess output out of logs and bound decoded output memory."""
     with tempfile.TemporaryFile() as output:
-        process = subprocess.Popen(
+        process = _start_process(
             arguments,
             stdin=subprocess.PIPE if payload is not None else subprocess.DEVNULL,
             stdout=output,

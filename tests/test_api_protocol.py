@@ -4,7 +4,7 @@ import copy
 
 import pytest
 
-from forma.api_protocol import (
+from forma.providers.protocol import (
     ANTHROPIC_VERSION,
     adapt_chat_request,
     api_base,
@@ -13,7 +13,7 @@ from forma.api_protocol import (
     request_headers,
     terminal_quota_error,
 )
-from forma.config import Settings
+from forma.settings.config import Settings
 
 
 def config(mode):

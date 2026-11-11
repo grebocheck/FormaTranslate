@@ -19,8 +19,9 @@ from PySide6.QtQuickControls2 import QQuickStyle
 from PySide6.QtWidgets import QApplication
 
 from forma import __version__
-from forma.backend import Backend
-from forma.i18n import CatalogTranslator, current_language
+from forma.core.resources import resource_path
+from forma.localization.catalog import CatalogTranslator, current_language
+from forma.presentation.backend import Backend
 
 
 def install_qt_translations(app: QApplication) -> QTranslator | None:
@@ -44,7 +45,7 @@ def main(files: list[str] | None = None, screenshot: str | None = None) -> int:
     app.setApplicationName("Forma")
     app.setApplicationVersion(__version__)
     app.setOrganizationName("Forma")
-    app.setWindowIcon(QIcon(str(Path(__file__).parent / "ui" / "forma.svg")))
+    app.setWindowIcon(QIcon(str(resource_path("ui", "forma.svg"))))
     backend = Backend()
     translator = install_qt_translations(app)
     catalog_translator = CatalogTranslator(app)
@@ -60,7 +61,7 @@ def main(files: list[str] | None = None, screenshot: str | None = None) -> int:
 
     backend.languageChanged.connect(retranslate)
     engine.rootContext().setContextProperty("backend", backend)
-    engine.load(QUrl.fromLocalFile(str(Path(__file__).parent / "ui" / "Main.qml")))
+    engine.load(QUrl.fromLocalFile(str(resource_path("ui", "Main.qml"))))
     if not engine.rootObjects():
         return 1
     backend.setWindow(engine.rootObjects()[0])

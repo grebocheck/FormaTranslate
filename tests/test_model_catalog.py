@@ -8,9 +8,9 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import httpx
 import pytest
 
-from forma.config import Settings
-from forma.model_catalog import MAX_RESPONSE_BYTES, list_models
-from forma.models import FormaError
+from forma.core.models import FormaError
+from forma.providers.catalog import MAX_RESPONSE_BYTES, list_models
+from forma.settings.config import Settings
 
 
 @contextmanager
@@ -159,7 +159,7 @@ def test_client_timeout_is_capped_and_network_error_does_not_leak(monkeypatch):
         def stream(self, *_):
             raise httpx.ConnectError("private-fixture-key https://secret-provider.invalid")
 
-    monkeypatch.setattr("forma.model_catalog.httpx.Client", FailingClient)
+    monkeypatch.setattr("forma.providers.catalog.httpx.Client", FailingClient)
     with pytest.raises(FormaError) as caught:
         list_models(
             Settings(base_url="http://localhost/v1", timeout=120, api_key="private-fixture-key")
@@ -178,7 +178,7 @@ def native_catalog(monkeypatch, responder):
         return responder(request, len(requests))
 
     monkeypatch.setattr(
-        "forma.model_catalog.httpx.Client",
+        "forma.providers.catalog.httpx.Client",
         lambda **kwargs: original(transport=httpx.MockTransport(handle), **kwargs),
     )
     return requests

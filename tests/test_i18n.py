@@ -11,7 +11,7 @@ from string import Formatter
 import pytest
 from PySide6.QtCore import QCoreApplication, QTranslator
 
-from forma import i18n
+from forma.localization import catalog as i18n
 
 
 @pytest.fixture(autouse=True)
@@ -134,7 +134,7 @@ def test_catalogs_cover_every_qml_key_and_preserve_placeholders():
 
 def test_quick_translator_messages_are_available_in_every_interface_language():
     keys = set()
-    for filename in ("quick_controller.py", "quick_translation.py", "image_translation.py"):
+    for filename in ("presentation/quick_controller.py", "translation/text.py", "translation/images.py"):
         tree = ast.parse((Path("src/forma") / filename).read_text(encoding="utf-8"))
         keys.update(
             node.value
@@ -152,7 +152,7 @@ def test_quick_translator_messages_are_available_in_every_interface_language():
 
 
 def test_ocr_messages_are_available_in_every_interface_language():
-    tree = ast.parse(Path("src/forma/ocr.py").read_text(encoding="utf-8"))
+    tree = ast.parse(Path("src/forma/documents/ocr.py").read_text(encoding="utf-8"))
     keys = {
         node.value
         for node in ast.walk(tree)
@@ -167,9 +167,85 @@ def test_ocr_messages_are_available_in_every_interface_language():
         )
 
 
+def test_translation_memory_errors_have_complete_interface_translations():
+    from forma.memory import store as translation_memory
+    keys = set()
+    for filename in ("memory/importing.py", "memory/session.py", "memory/engine.py"):
+        tree = ast.parse((Path("src/forma") / filename).read_text(encoding="utf-8"))
+        fragments = {
+            id(child)
+            for node in ast.walk(tree)
+            if isinstance(node, ast.JoinedStr)
+            for child in ast.walk(node)
+        }
+        keys.update(
+            node.value
+            for node in ast.walk(tree)
+            if isinstance(node, ast.Constant)
+            and id(node) not in fragments
+            and isinstance(node.value, str)
+            and re.search(r"[А-Яа-яІіЇїЄєҐґ]", node.value)
+        )
+    keys.update((translation_memory._ERROR, translation_memory._INVALID))
+    tree = ast.parse(Path("src/forma/memory/store.py").read_text(encoding="utf-8"))
+    keys.update(
+        node.args[0].value
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Name)
+        and node.func.id in {"FormaError", "MemoryConflict"}
+        and node.args
+        and isinstance(node.args[0], ast.Constant)
+        and isinstance(node.args[0].value, str)
+    )
+    keys.add(str(translation_memory.MemoryConflict()))
+    for language in ("en", "uk", "pl", "de"):
+        assert keys <= i18n._catalogs()[language].keys(), (
+            language, sorted(keys - i18n._catalogs()[language].keys())
+        )
+
+
+def test_glossary_and_validation_workflows_have_complete_interface_translations():
+    keys = set()
+    for filename in ("presentation/glossary_controller.py", "translation/failures.py"):
+        tree = ast.parse((Path("src/forma") / filename).read_text(encoding="utf-8"))
+        fragments = {
+            id(child)
+            for node in ast.walk(tree)
+            if isinstance(node, ast.JoinedStr)
+            for child in ast.walk(node)
+        }
+        keys.update(
+            node.value
+            for node in ast.walk(tree)
+            if isinstance(node, ast.Constant)
+            and id(node) not in fragments
+            and isinstance(node.value, str)
+            and re.search(r"[А-Яа-яІіЇїЄєҐґ]", node.value)
+        )
+    keys.add(
+        "Експорт зупинено: переклад не пройшов перевірку після трьох спроб. "
+        "Перегляньте звіт про проблемні фрагменти та повторіть переклад."
+    )
+    for language in ("en", "uk", "pl", "de"):
+        assert keys <= i18n._catalogs()[language].keys(), (
+            language, sorted(keys - i18n._catalogs()[language].keys())
+        )
+
+
+def test_workflow_templates_interpolate_counts_in_all_languages():
+    source = "Додано {count} термінів до чернетки. Наявні переклади збережено."
+    for language in ("en", "uk", "pl", "de"):
+        i18n.set_language(language)
+        message = i18n.translate(source, count=12)
+        assert "12" in message and "{count}" not in message
+        if language != "uk":
+            assert not re.search(r"[А-Яа-яІіЇїЄєҐґ]", message)
+
+
 def test_provider_presets_and_protocol_messages_have_translations():
     keys = set()
-    for filename in ("config.py", "provider_presets.py", "api_protocol.py"):
+    for filename in ("settings/config.py", "providers/presets.py", "providers/protocol.py"):
         tree = ast.parse((Path("src/forma") / filename).read_text(encoding="utf-8"))
         # Interpolated legacy config errors use separately translated templates;
         # their fragments are not standalone presentation messages.

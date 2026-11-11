@@ -9,9 +9,8 @@ from concurrent.futures import ThreadPoolExecutor
 import httpx
 import pytest
 
-from forma.config import Settings
-from forma.models import Cancelled, FormaError
-from forma.provider import (
+from forma.core.models import Cancelled, FormaError
+from forma.providers.client import (
     MAX_IMAGE_INPUTS,
     MAX_IMAGE_PAYLOAD_BYTES,
     TRANSLATION_SCHEMA,
@@ -19,6 +18,7 @@ from forma.provider import (
     Provider,
     retry_delay,
 )
+from forma.settings.config import Settings
 
 
 def settings(**kwargs):
@@ -419,7 +419,7 @@ def test_parallel_format_fallback_does_not_skip_supported_json_mode():
 def test_retry_after_supports_seconds_dates_and_compatible_milliseconds(
     monkeypatch, headers, expected
 ):
-    monkeypatch.setattr("forma.provider.time.time", lambda: 1445412420)
+    monkeypatch.setattr("forma.providers.client.time.time", lambda: 1445412420)
     assert retry_delay(httpx.Headers(headers), 2) == expected
 
 
@@ -753,7 +753,7 @@ def test_gemini_retryinfo_is_shared_and_cancellable():
 
 def test_rpm_gate_does_not_reserve_waiting_calls_and_is_shared_with_pool(monkeypatch):
     now = [10.0]
-    monkeypatch.setattr("forma.provider.time.monotonic", lambda: now[0])
+    monkeypatch.setattr("forma.providers.client.time.monotonic", lambda: now[0])
     control = JobControl(2)
     assert control.request_delay("provider", 5) == 0
     assert control.request_delay("provider", 5) == 12
@@ -789,11 +789,11 @@ def test_rpm_wait_can_be_cancelled_without_network_or_capacity_leak():
 
 
 def test_capped_account_pacing_and_cooldown_survive_new_jobs_without_sharing_cancel(monkeypatch):
-    from forma.api_protocol import rate_limit_key
+    from forma.providers.protocol import rate_limit_key
 
-    monkeypatch.setattr("forma.provider._PACING_DEADLINES", {})
+    monkeypatch.setattr("forma.providers.client._PACING_DEADLINES", {})
     now = [10.0]
-    monkeypatch.setattr("forma.provider.time.monotonic", lambda: now[0])
+    monkeypatch.setattr("forma.providers.client.time.monotonic", lambda: now[0])
     connection = settings(api_key="scoped-fixture-key", requests_per_minute=5)
     key = rate_limit_key(connection)
     assert "scoped-fixture-key" not in key
@@ -813,8 +813,8 @@ def test_capped_account_pacing_and_cooldown_survive_new_jobs_without_sharing_can
 
 
 def test_shared_pacing_cache_has_a_bounded_account_count(monkeypatch):
-    from forma import provider as module
-    from forma.api_protocol import RATE_LIMIT_SCOPE_PREFIX
+    from forma.providers import client as module
+    from forma.providers.protocol import RATE_LIMIT_SCOPE_PREFIX
 
     monkeypatch.setattr(module, "_PACING_DEADLINES", {})
     monkeypatch.setattr(module.time, "monotonic", lambda: 10.0)

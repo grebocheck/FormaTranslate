@@ -4,10 +4,10 @@ import copy
 
 import pytest
 
-from forma.config import Settings
-from forma.models import Cancelled, FormaError
-from forma.provider import JobControl
-from forma.quick_translation import MAX_TEXT_CHARACTERS, translate_text
+from forma.core.models import Cancelled, FormaError
+from forma.providers.client import JobControl
+from forma.settings.config import Settings
+from forma.translation.text import MAX_TEXT_CHARACTERS, translate_text
 
 
 class TextProvider:

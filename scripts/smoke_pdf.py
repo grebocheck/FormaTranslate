@@ -12,10 +12,10 @@ import uuid
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-from forma.config import Settings
-from forma.models import Options
-from forma.pdf import inspect_pdf, translate_pdf
-from forma.provider import JobControl
+from forma.core.models import Options
+from forma.documents.pdf import inspect_pdf, translate_pdf
+from forma.providers.client import JobControl
+from forma.settings.config import Settings
 
 FIXTURE_TRANSLATIONS = {
     "Heat meter commissioning": "Введення теплолічильника в експлуатацію",

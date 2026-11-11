@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import importlib.metadata
 import json
 import runpy
+import subprocess
 import sys
+import zipfile
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -12,7 +15,7 @@ import pytest
 @pytest.mark.parametrize(
     ("system", "machine", "filename", "backend"),
     [
-        ("Windows", "AMD64", "Forma-windows-x86_64.exe", "keyring.backends.Windows"),
+        ("Windows", "AMD64", "Forma-windows-x86_64-desktop-only.exe", "keyring.backends.Windows"),
         ("Linux", "x86_64", "Forma-linux-x86_64", "keyring.backends.SecretService"),
     ],
 )
@@ -20,7 +23,9 @@ def test_onefile_build_bundles_native_credentials_without_user_data(
     tmp_path, system, machine, filename, backend
 ):
     build = runpy.run_path(str(Path(__file__).parents[1] / "scripts/build.py"))
-    command, artifact = build["build_command"](tmp_path, system=system, machine=machine)
+    command, artifact = build["build_command"](
+        tmp_path, system=system, machine=machine, desktop_only=system == "Windows"
+    )
     assert artifact == tmp_path / "dist" / filename
     assert "--onefile" in command and "--onedir" not in command
     assert command[command.index("--hidden-import") + 1] == backend
@@ -45,6 +50,20 @@ def test_version_comes_from_package_without_executing_it(tmp_path):
     package.mkdir(parents=True)
     (package / "__init__.py").write_text('__version__ = "7.8.9"\nraise RuntimeError()\n')
     assert build["release_version"](tmp_path) == "7.8.9"
+
+
+def test_build_cli_help_does_not_depend_on_cwd_or_pythonpath(tmp_path):
+    script = Path(__file__).parents[1] / "scripts/build.py"
+    result = subprocess.run([sys.executable, str(script), "--help"], cwd=tmp_path,
+                            check=True, capture_output=True, text=True)
+    assert "--runtime-bundle" in result.stdout
+    assert "--desktop-only" in result.stdout
+
+
+def test_windows_full_build_refuses_missing_prepared_runtimes(tmp_path):
+    build = runpy.run_path(str(Path(__file__).parents[1] / "scripts/build.py"))
+    with pytest.raises(ValueError, match="not prepared"):
+        build["build_command"](tmp_path, system="Windows", machine="AMD64")
 
 
 def test_release_refuses_stale_corresponding_source_manifest(tmp_path, monkeypatch):
@@ -88,6 +107,24 @@ def test_qml_hook_keeps_controls_and_excludes_unrelated_products(tmp_path, monke
     assert hook["binaries"] == []
 
 
+@pytest.mark.parametrize("optional_installed", [False, True])
+def test_release_inventory_covers_optional_hook_imports(tmp_path, monkeypatch, optional_installed):
+    build = runpy.run_path(str(Path(__file__).parents[1] / "scripts/build.py"))
+    (tmp_path / "pyproject.toml").write_text('[project]\ndependencies = ["pypdf"]\n')
+
+    optional = {"Pillow", "pytest", "Pygments"}
+
+    def distribution(name):
+        if name in optional and not optional_installed:
+            raise importlib.metadata.PackageNotFoundError(name)
+        return SimpleNamespace(metadata={"Name": name}, requires=[])
+
+    monkeypatch.setattr("importlib.metadata.distribution", distribution)
+    names = build["_dependency_names"](tmp_path)
+    assert {"pypdf", "pyinstaller"} <= set(names)
+    assert set(names) & optional == (optional if optional_installed else set())
+
+
 def test_gui_hook_preserves_native_dialogs_without_virtual_keyboard_or_pdf(tmp_path, monkeypatch):
     files = ["platformthemes/libqgtk3.so", "platforms/qwindows.dll", "imageformats/qsvg.dll",
              "platforminputcontexts/libqtvirtualkeyboardplugin.so", "imageformats/libqpdf.so"]
@@ -97,3 +134,48 @@ def test_gui_hook_preserves_native_dialogs_without_virtual_keyboard_or_pdf(tmp_p
     ))
     hook = runpy.run_path(str(Path(__file__).parents[1] / "scripts/pyinstaller_hooks/hook-PySide6.QtGui.py"))
     assert hook["binaries"] == entries[:3]
+
+
+@pytest.mark.parametrize("separate_sources", [False, True])
+def test_release_delivers_matching_runtime_sources(tmp_path, monkeypatch, separate_sources):
+    build = runpy.run_path(str(Path(__file__).parents[1] / "scripts/build.py"))
+    package_release = build["package_release"]
+    monkeypatch.setattr("PyInstaller.archive.readers.CArchiveReader", lambda _: SimpleNamespace(toc={}))
+    monkeypatch.setitem(package_release.__globals__, "validate_bundle", lambda *a, **kw: {
+        "files": {}, "runtime_sha256": "test-runtime-digest",
+    })
+    for name in (
+        "src/forma/__init__.py", "scripts/build.py", "pyproject.toml", "uv.lock",
+        "tools/ocr/pyproject.toml", "tools/ocr/uv.lock", "tools/ocr/LICENSE",
+    ):
+        path = tmp_path / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text('__version__ = "7.8.9"' if name.endswith("__init__.py") else "fixture")
+    artifact = tmp_path / "dist/Forma-windows-x86_64-candidate.exe"
+    artifact.parent.mkdir()
+    artifact.write_bytes(b"fixture executable")
+    payload = tmp_path / "build/release/candidate/legal"
+    payload.mkdir(parents=True)
+    (payload / "LICENSE.txt").write_text("fixture license")
+    source_folder = payload.parent / "runtime-sources"
+    source_folder.mkdir()
+    (source_folder / "worker-1.0.tar.gz").write_bytes(b"exact upstream source")
+    runtime = tmp_path / "runtime"
+    runtime.mkdir()
+    package = package_release(tmp_path, artifact, payload, runtime_bundle=runtime,
+                              runtime_candidate=True, separate_runtime_sources=separate_sources)
+    member = "runtime-sources/worker-1.0.tar.gz"
+    with zipfile.ZipFile(package) as archive:
+        metadata = json.loads(archive.read("RELEASE.json"))
+        assert "LICENSE.txt" in archive.namelist()
+        if separate_sources:
+            assert member not in archive.namelist()
+            delivery = metadata["runtime_sources"]
+            companion = artifact.parent / delivery["archive"]
+            assert build["digest"](companion) == delivery["sha256"]
+            assert companion.stat().st_size == delivery["bytes"]
+            with zipfile.ZipFile(companion) as sources:
+                assert sources.read(member) == b"exact upstream source"
+        else:
+            assert archive.read(member) == b"exact upstream source"
+            assert metadata["runtime_sources"]["delivery"] == "included"

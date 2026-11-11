@@ -9,9 +9,9 @@ from pathlib import Path
 
 import pytest
 
-import forma.review_store as module
-from forma.models import FormaError
-from forma.review_store import ReviewStore
+import forma.persistence.review_store as module
+from forma.core.models import FormaError
+from forma.persistence.review_store import ReviewStore
 
 ENTRY_FINGERPRINT = hashlib.sha256(b"source, translation, current findings").hexdigest()
 

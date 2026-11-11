@@ -24,7 +24,7 @@ def qapp():
 def isolated_data(tmp_path, monkeypatch):
     monkeypatch.setenv("FORMA_DATA_DIR", str(tmp_path / "appdata"))
     monkeypatch.setenv("FORMA_UI_LANGUAGE", "uk")
-    from forma.i18n import set_language
+    from forma.localization.catalog import set_language
 
     set_language("uk")
     yield

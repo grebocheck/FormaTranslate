@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import argparse
 import ast
 import hashlib
 import importlib.metadata
+import importlib.util
 import json
 import platform
 import re
@@ -16,6 +18,16 @@ import tomllib
 import zipfile
 from datetime import UTC, datetime
 from pathlib import Path
+
+_runtime_spec = importlib.util.spec_from_file_location(
+    "_forma_windows_runtime", Path(__file__).with_name("windows_runtime.py")
+)
+if _runtime_spec is None or _runtime_spec.loader is None:
+    raise RuntimeError("Missing Windows runtime packaging helper")
+_runtime_tools = importlib.util.module_from_spec(_runtime_spec)
+_runtime_spec.loader.exec_module(_runtime_tools)
+digest = _runtime_tools.digest
+validate_bundle = _runtime_tools.validate_bundle
 
 ROOT = Path(__file__).resolve().parents[1]
 EXCLUDED_QT = (
@@ -42,6 +54,16 @@ def _dependency_names(root: Path) -> list[str]:
     project = tomllib.loads((root / "pyproject.toml").read_text(encoding="utf-8"))
     pending = [Requirement(value) for value in project["project"]["dependencies"]]
     pending.append(Requirement("pyinstaller"))
+    # Hooks discover optional image, test and highlighting imports when these
+    # packages are installed. Collect their notices before freezing, including
+    # Pillow's complete bundled image/font library notices, without requiring
+    # optional packages in a clean application build environment.
+    for optional in ("Pillow", "pytest", "Pygments"):
+        try:
+            importlib.metadata.distribution(optional)
+        except importlib.metadata.PackageNotFoundError:
+            continue
+        pending.append(Requirement(optional))
     names = {}
     while pending:
         requirement = pending.pop()
@@ -58,7 +80,8 @@ def _dependency_names(root: Path) -> list[str]:
 
 
 def prepare_release_materials(
-    root: Path, artifact: Path, *, system_legal: Path | None = None
+    root: Path, artifact: Path, *, system_legal: Path | None = None,
+    runtime_bundle: Path | None = None, runtime_candidate: bool = False,
 ) -> Path:
     """Only repository notices and installed package licenses enter this folder."""
     sources = json.loads((root / "third_party/SOURCES.json").read_text(encoding="utf-8"))
@@ -84,6 +107,16 @@ def prepare_release_materials(
             destination.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(source, destination)
     shutil.copytree(root / "third_party", payload / "third_party")
+    if runtime_bundle is not None:
+        validate_bundle(runtime_bundle, require_validation=not runtime_candidate)
+        shutil.copytree(runtime_bundle / "legal", payload / "runtimes")
+        shutil.copy2(runtime_bundle / "BUNDLE.json", payload / "runtimes/BUNDLE.json")
+        if (runtime_bundle / "VALIDATION.json").is_file():
+            shutil.copy2(runtime_bundle / "VALIDATION.json", payload / "runtimes/VALIDATION.json")
+        runtime_sources = payload.parent / "runtime-sources"
+        if runtime_sources.exists():
+            shutil.rmtree(runtime_sources)
+        shutil.copytree(runtime_bundle / "sources", runtime_sources)
     if system_legal is not None:
         destination = payload / "third_party" / "linux-system"
         destination.mkdir(parents=True)
@@ -137,7 +170,9 @@ def prepare_release_materials(
 
 
 def build_command(
-    root: Path = ROOT, *, system: str | None = None, machine: str | None = None
+    root: Path = ROOT, *, system: str | None = None, machine: str | None = None,
+    runtime_bundle: Path | None = None, desktop_only: bool = False,
+    runtime_candidate: bool = False,
 ) -> tuple[list[str], Path]:
     system = (system or platform.system()).lower()
     machine = (machine or platform.machine()).lower()
@@ -148,7 +183,19 @@ def build_command(
     }
     if system not in backends:
         raise SystemExit("One-file builds are currently supported on Windows and Linux.")
+    if runtime_candidate and (system != "windows" or desktop_only):
+        raise ValueError("Runtime candidates require a complete Windows build")
     name = f"Forma-{system}-{machine}"
+    if system == "windows":
+        if desktop_only:
+            name += "-desktop-only"
+        else:
+            if machine != "x86_64":
+                raise ValueError("Complete Windows runtime bundles currently support x86-64 only")
+            runtime_bundle = Path(runtime_bundle or root / "build/windows-runtime").expanduser().resolve()
+            validate_bundle(runtime_bundle, require_validation=not runtime_candidate)
+            if runtime_candidate:
+                name += "-candidate"
     artifact = root / "dist" / (name + (".exe" if system == "windows" else ""))
     command = [
         sys.executable,
@@ -187,13 +234,20 @@ def build_command(
     for module in EXCLUDED_QT:
         command[-1:-1] = ["--exclude-module", "PySide6." + module]
     if system == "windows":
+        if not desktop_only:
+            command[-1:-1] = [
+                "--add-data", f"{runtime_bundle / 'runtime'}:runtimes",
+                "--add-data", f"{runtime_bundle / 'BUNDLE.json'}:runtimes-meta",
+            ]
         command[-1:-1] = ["--icon", str(root / "src/forma/ui/forma.ico"), "--version-file",
                          str(root / "build/release" / name / "windows-version.txt")]
     return command, artifact
 
 
 def package_release(
-    root: Path, artifact: Path, payload: Path, *, validation: dict | None = None
+    root: Path, artifact: Path, payload: Path, *, validation: dict | None = None,
+    runtime_bundle: Path | None = None, runtime_candidate: bool = False,
+    separate_runtime_sources: bool = False,
 ) -> Path:
     from PyInstaller.archive.readers import CArchiveReader
 
@@ -206,6 +260,8 @@ def package_release(
         raise RuntimeError("Unexpected optional Qt libraries: " + ", ".join(bad))
     version = release_version(root)
     target = artifact.stem.removeprefix("Forma-")
+    if separate_runtime_sources and runtime_bundle is None:
+        raise ValueError("Separate runtime sources require an embedded runtime bundle")
     metadata = {
         "name": "FormaTranslate", "version": version, "platform": target,
         "python": platform.python_version(), "system": platform.platform(),
@@ -214,11 +270,42 @@ def package_release(
         "pyside6": importlib.metadata.version("PySide6"),
         "pyinstaller": importlib.metadata.version("pyinstaller"),
         "executable": artifact.name, "bytes": artifact.stat().st_size,
-        "sha256": hashlib.sha256(artifact.read_bytes()).hexdigest(),
+        "sha256": digest(artifact),
         "runtime_members": members,
         "native_windows_validation": "Required separately; a build does not certify GUI behavior",
         "validation": validation or {"runtime": "Not tested by the packaging script"},
     }
+    if runtime_bundle is not None:
+        runtime = validate_bundle(runtime_bundle, require_validation=not runtime_candidate)
+        expected = {
+            "runtimes/" + path.removeprefix("runtime/")
+            for path in runtime["files"] if path.startswith("runtime/")
+        }
+        if not expected <= set(members):
+            raise RuntimeError("The executable is missing prepared runtime payload files")
+        metadata["runtime_mode"] = "complete-embedded-candidate" if runtime_candidate else "complete-embedded"
+        metadata["publication_ready"] = not runtime_candidate
+        metadata["runtime_sha256"] = runtime["runtime_sha256"]
+        validation_path = runtime_bundle / "VALIDATION.json"
+        metadata["runtime_validation"] = json.loads(validation_path.read_text(encoding="utf-8")) if validation_path.is_file() else None
+        if separate_runtime_sources:
+            sources_archive = root / "dist" / f"FormaTranslate-{version}-{target}-runtime-sources.zip"
+            # Upstream source archives are already compressed. Storing them
+            # avoids a second expensive compression pass and keeps each
+            # downloadable artifact below hosting size limits.
+            with zipfile.ZipFile(sources_archive, "w", compression=zipfile.ZIP_STORED) as bundle:
+                for path in sorted((payload.parent / "runtime-sources").rglob("*")):
+                    if path.is_file():
+                        bundle.write(path, "runtime-sources/" + path.relative_to(payload.parent / "runtime-sources").as_posix())
+            metadata["runtime_sources"] = {
+                "delivery": "separate-archive", "archive": sources_archive.name,
+                "bytes": sources_archive.stat().st_size, "sha256": digest(sources_archive),
+                "instructions": "Publish this corresponding-source archive alongside the application archive. Extract both into the same directory to restore the runtime-sources paths in runtimes/SOURCES.json.",
+            }
+        else:
+            metadata["runtime_sources"] = {"delivery": "included", "directory": "runtime-sources"}
+    else:
+        metadata["runtime_mode"] = "desktop-only-development" if "desktop-only" in target else "external-tools"
     if target.startswith("linux-"):
         glibc_versions = set()
         for name in archive.toc:
@@ -232,7 +319,12 @@ def package_release(
                     if path.is_file() and "__pycache__" not in path.parts]
     source_files += [root / "scripts/build.py", root / "pyproject.toml", root / "uv.lock"]
     source_files += list((root / "scripts/pyinstaller_hooks").glob("*.py"))
-    file_hashes = {path.relative_to(root).as_posix(): hashlib.sha256(path.read_bytes()).hexdigest()
+    source_files += [root / "scripts" / name for name in ("windows_runtime.py", "ocr_entry.py", "babeldoc_entry.py")
+                       if (root / "scripts" / name).is_file()]
+    if runtime_bundle is not None:
+        source_files += list((root / "tools/ocr/src").rglob("*.py"))
+        source_files += [root / "tools/ocr" / name for name in ("pyproject.toml", "uv.lock", "LICENSE")]
+    file_hashes = {path.relative_to(root).as_posix(): digest(path)
                    for path in sorted(source_files)}
     source_manifest = {
         "version": version, "algorithm": "sha256",
@@ -250,18 +342,38 @@ def package_release(
         for path in sorted(payload.rglob("*")):
             if path.is_file():
                 bundle.write(path, path.relative_to(payload).as_posix())
+        if runtime_bundle is not None and not separate_runtime_sources:
+            for path in sorted((payload.parent / "runtime-sources").rglob("*")):
+                if path.is_file():
+                    bundle.write(path, "runtime-sources/" + path.relative_to(payload.parent / "runtime-sources").as_posix())
     return destination
 
 
 def main() -> None:
-    command, artifact = build_command()
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--runtime-bundle", type=Path, help="Prepared complete Windows runtime bundle")
+    parser.add_argument("--desktop-only", action="store_true", help="Development Windows build without embedded OCR/PDF tools")
+    parser.add_argument("--runtime-candidate", action="store_true", help="Complete Windows candidate pending native offline validation; never publication-ready")
+    parser.add_argument("--separate-runtime-sources", action="store_true", help="Deliver matching worker source archives in a companion ZIP, which must accompany the release")
+    args = parser.parse_args()
+    runtime_bundle = None
+    if platform.system().lower() == "windows" and not args.desktop_only:
+        runtime_bundle = args.runtime_bundle or ROOT / "build/windows-runtime"
+    if args.separate_runtime_sources and runtime_bundle is None:
+        parser.error("--separate-runtime-sources requires a complete Windows runtime bundle")
+    command, artifact = build_command(runtime_bundle=runtime_bundle, desktop_only=args.desktop_only,
+                                      runtime_candidate=args.runtime_candidate)
     (ROOT / "build" / "specs").mkdir(parents=True, exist_ok=True)
-    payload = prepare_release_materials(ROOT, artifact)
+    payload = prepare_release_materials(ROOT, artifact, runtime_bundle=runtime_bundle,
+                                        runtime_candidate=args.runtime_candidate)
     subprocess.run(command, cwd=ROOT, check=True)
     if not artifact.is_file():
         raise SystemExit(f"Build did not produce the expected executable: {artifact}")
     print(f"Built standalone executable: {artifact}")
-    print(f"Built release package: {package_release(ROOT, artifact, payload)}")
+    package = package_release(ROOT, artifact, payload, runtime_bundle=runtime_bundle,
+                              runtime_candidate=args.runtime_candidate,
+                              separate_runtime_sources=args.separate_runtime_sources)
+    print(f"Built release package: {package}")
 
 
 if __name__ == "__main__":

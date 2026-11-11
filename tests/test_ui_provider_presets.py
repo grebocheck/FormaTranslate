@@ -6,9 +6,9 @@ from PySide6.QtQml import QQmlApplicationEngine
 from PySide6.QtQuick import QQuickItem
 from PySide6.QtTest import QTest
 
-from forma.backend import Backend
-from forma.config import Settings
-from forma.i18n import CatalogTranslator
+from forma.localization.catalog import CatalogTranslator
+from forma.presentation.backend import Backend
+from forma.settings.config import Settings
 
 
 @pytest.fixture

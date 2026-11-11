@@ -6,8 +6,8 @@ from concurrent.futures import ThreadPoolExecutor
 
 import pytest
 
-from forma.library import TranslationLibrary
-from forma.models import FormaError
+from forma.core.models import FormaError
+from forma.persistence.library import TranslationLibrary
 
 
 def queue_item(identifier="job-1", **values):
@@ -236,7 +236,7 @@ def test_default_data_directory_failure_has_safe_message(monkeypatch):
     def unavailable():
         raise OSError('private filesystem diagnostics')
 
-    monkeypatch.setattr('forma.library.data_directory', unavailable)
+    monkeypatch.setattr('forma.persistence.library.data_directory', unavailable)
     with pytest.raises(FormaError) as error:
         TranslationLibrary()
     assert 'private filesystem' not in str(error.value)

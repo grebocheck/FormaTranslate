@@ -1,0 +1,35 @@
+{
+  "python-envs.workspaceSearchPaths": [
+    ".venv",
+    "tools/ocr/.venv"
+  ],
+  "python.analysis.exclude": [
+    "**/.venv/**",
+    "**/__pycache__/**",
+    "build/**",
+    "dist/**",
+    "temp/**",
+    "output/**",
+    "third_party/**",
+    ".codebase-memory/**"
+  ],
+  "files.watcherExclude": {
+    "**/.venv/**": true,
+    "**/__pycache__/**": true,
+    "**/build/**": true,
+    "**/dist/**": true,
+    "**/temp/**": true,
+    "**/output/**": true,
+    "**/.codebase-memory/**": true
+  },
+  "search.exclude": {
+    "**/.venv/**": true,
+    "**/__pycache__/**": true,
+    "**/build/**": true,
+    "**/dist/**": true,
+    "**/temp/**": true,
+    "**/output/**": true,
+    "**/third_party/**": true,
+    "**/.codebase-memory/**": true
+  }
+}

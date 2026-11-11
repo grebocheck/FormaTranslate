@@ -5,8 +5,8 @@ from concurrent.futures import ThreadPoolExecutor
 
 import pytest
 
-from forma.config import Settings
-from forma.usage import UsageLedger, cache_write_counts, estimate, scope
+from forma.accounting.usage import UsageLedger, cache_write_counts, estimate, scope
+from forma.settings.config import Settings
 
 
 def config():

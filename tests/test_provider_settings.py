@@ -4,9 +4,9 @@ import json
 
 import pytest
 
-from forma.config import ENV_FIELDS, Settings, load_preferences, save_preferences
-from forma.models import FormaError
-from forma.provider_presets import PRESETS, provider_presets
+from forma.core.models import FormaError
+from forma.providers.presets import PRESETS, provider_presets
+from forma.settings.config import ENV_FIELDS, Settings, load_preferences, save_preferences
 
 
 @pytest.fixture(autouse=True)

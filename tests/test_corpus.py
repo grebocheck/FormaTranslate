@@ -5,9 +5,9 @@ from zipfile import ZipFile
 import pytest
 from docx import Document
 
-from forma.config import Settings
-from forma.corpus import Corpus, CorpusRun, Unit, usage_cost
-from forma.models import Options
+from forma.core.models import Options
+from forma.settings.config import Settings
+from forma.translation.corpus import Corpus, CorpusRun, Unit, usage_cost
 
 
 class FakeCorpusProvider:

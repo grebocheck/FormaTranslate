@@ -9,12 +9,12 @@ from pathlib import Path
 import pytest
 from PySide6.QtTest import QTest
 
-from forma.backend import Backend
-from forma.config import ENV_FIELDS, Settings
-from forma.credentials import CredentialError
-from forma.models import Cancelled, FormaError, TranslationResult
-from forma.ooxml import OfficeDocument
-from forma.storage import available_output
+from forma.core.models import Cancelled, FormaError, TranslationResult
+from forma.documents.ooxml import OfficeDocument
+from forma.persistence.files import available_output
+from forma.presentation.backend import Backend
+from forma.settings.config import ENV_FIELDS, Settings
+from forma.settings.credentials import CredentialError
 
 
 def pump(app, predicate, timeout=5):
@@ -77,8 +77,8 @@ def factory(qapp, monkeypatch, tmp_path):
     for name in [*ENV_FIELDS.values(), "OPENAI_API_KEY"]:
         monkeypatch.delenv(name, raising=False)
     monkeypatch.chdir(tmp_path)
-    monkeypatch.setattr("forma.backend.TranslationEngine", FakeEngine)
-    monkeypatch.setattr("forma.backend.load_api_key", lambda _: "")
+    monkeypatch.setattr("forma.presentation.documents_workflow.TranslationEngine", FakeEngine)
+    monkeypatch.setattr("forma.presentation.settings_workflow.load_api_key", lambda _: "")
     FakeEngine.calls, FakeEngine.outcomes = [], {}
     instances = []
 
@@ -130,7 +130,7 @@ def test_restoration_does_not_inspect_newly_added_files_twice(
         calls.append(path)
         return OfficeDocument(path)
 
-    monkeypatch.setattr("forma.backend.OfficeDocument", inspect)
+    monkeypatch.setattr("forma.presentation.documents_workflow.OfficeDocument", inspect)
     backend = factory()
     backend.addFiles([str(docx_file)])
     pump(qapp, lambda: not backend._threads)
@@ -225,6 +225,7 @@ def test_terminal_attempts_enter_history_and_repeat_creates_new_attempt(
     pump(qapp, lambda: not backend._threads)
     backend.start("uk", "en", "General", True, False)
     pump(qapp, lambda: not backend.busy)
+    pump(qapp, lambda: backend.historyEntries[0]["reportExists"])
     first = backend.historyEntries[0]
     assert first["status"] == "done" and first["outputExists"] and first["reportExists"]
     assert first["inputTokens"] == 11 and first["outputTokens"] == 7
@@ -330,7 +331,7 @@ def test_catalog_uses_unsaved_endpoint_without_reusing_key_or_saving_preferences
         calls.append(settings)
         return ["available-model"]
 
-    monkeypatch.setattr("forma.backend.list_models", catalogue)
+    monkeypatch.setattr("forma.presentation.settings_workflow.list_models", catalogue)
     backend.refreshModels({"baseUrl": "http://another-provider/v1", "apiKey": ""})
     pump(qapp, lambda: not backend.modelsBusy)
     assert len(calls) == 1
@@ -349,7 +350,7 @@ def test_stale_catalog_response_is_ignored_after_clear(factory, qapp, monkeypatc
         assert release.wait(4)
         return ["obsolete-model"]
 
-    monkeypatch.setattr("forma.backend.list_models", catalogue)
+    monkeypatch.setattr("forma.presentation.settings_workflow.list_models", catalogue)
     try:
         backend.refreshModels({})
         pump(qapp, started.is_set)
@@ -368,7 +369,7 @@ def test_catalog_failure_keeps_manual_settings(factory, qapp, monkeypatch):
     def unavailable(_):
         raise FormaError("Провайдер не підтримує список моделей; введіть назву вручну.")
 
-    monkeypatch.setattr("forma.backend.list_models", unavailable)
+    monkeypatch.setattr("forma.presentation.settings_workflow.list_models", unavailable)
     backend.refreshModels({"baseUrl": "http://another-provider/v1", "apiKey": "draft-key"})
     pump(qapp, lambda: not backend.modelsBusy)
     assert backend._settings == original
@@ -388,8 +389,8 @@ def test_catalog_can_query_new_local_endpoint_without_available_vault(factory, q
         calls.append(settings)
         return ["local-model"]
 
-    monkeypatch.setattr("forma.backend.load_api_key", unavailable_vault)
-    monkeypatch.setattr("forma.backend.list_models", catalogue)
+    monkeypatch.setattr("forma.presentation.settings_workflow.load_api_key", unavailable_vault)
+    monkeypatch.setattr("forma.presentation.settings_workflow.list_models", catalogue)
     backend.refreshModels({"baseUrl": "http://localhost:11434/v1", "apiKey": ""})
     pump(qapp, lambda: not backend.modelsBusy)
     assert len(calls) == 1 and not calls[0].api_key
@@ -405,7 +406,7 @@ def test_catalog_can_query_corrected_endpoint_without_saving_it(factory, qapp, m
         calls.append(settings.base_url)
         return ["available-model"]
 
-    monkeypatch.setattr("forma.backend.list_models", catalogue)
+    monkeypatch.setattr("forma.presentation.settings_workflow.list_models", catalogue)
     backend.refreshModels({"baseUrl": "http://localhost:11434/v1"})
     pump(qapp, lambda: not backend.modelsBusy)
     assert calls == ["http://localhost:11434/v1"]

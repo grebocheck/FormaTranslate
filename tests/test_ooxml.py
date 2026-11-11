@@ -5,9 +5,9 @@ from zipfile import ZIP_DEFLATED, ZipFile
 import pytest
 from lxml import etree
 
-from forma.comparison import compare_files, office_signature
-from forma.models import FormaError
-from forma.ooxml import OfficeDocument, W
+from forma.core.models import FormaError
+from forma.documents.comparison import compare_files, office_signature
+from forma.documents.ooxml import OfficeDocument, W
 
 
 def translated(document):
@@ -129,7 +129,7 @@ def test_nested_textbox_is_not_translated_twice(docx_file, tmp_path):
 
 
 def test_rejects_dtd_and_signed_documents(tmp_path):
-    from forma.ooxml import parse_xml
+    from forma.documents.ooxml import parse_xml
 
     with pytest.raises(FormaError):
         parse_xml(b'<!DOCTYPE a [<!ENTITY secret SYSTEM "file:///etc/passwd">]><a>&secret;</a>')
@@ -251,7 +251,7 @@ def test_word_table_context_contains_header_and_numeric_row_values(tmp_path):
 
 
 def test_shared_strings_use_named_worksheet_context_not_storage_order(tmp_path):
-    from forma.ooxml import R, S
+    from forma.documents.ooxml import R, S
 
     path = tmp_path / "context.xlsx"
     parts = {
@@ -286,7 +286,7 @@ def test_shared_strings_use_named_worksheet_context_not_storage_order(tmp_path):
 
 @pytest.mark.parametrize("index", ["-1", "1", "invalid"])
 def test_invalid_shared_string_reference_fails_instead_of_omitting_text(tmp_path, index):
-    from forma.ooxml import S
+    from forma.documents.ooxml import S
 
     path = tmp_path / "broken.xlsx"
     with ZipFile(path, "w") as archive:
@@ -365,9 +365,9 @@ def test_uppercase_descriptive_labels_reach_translation_while_codes_remain_intac
     from openpyxl import Workbook, load_workbook
     from openpyxl.styles import Font
 
-    from forma.config import Settings
-    from forma.engine import TranslationEngine
-    from forma.models import Options
+    from forma.core.models import Options
+    from forma.settings.config import Settings
+    from forma.translation.engine import TranslationEngine
 
     translations = {
         "IN-SERVICE": "В ЕКСПЛУАТАЦІЇ",

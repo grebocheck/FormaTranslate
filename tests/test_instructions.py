@@ -5,11 +5,11 @@ import pytest
 from test_engine import FakeProvider, local_settings
 from test_quick_translation import TextProvider
 
-from forma.config import Settings, load_preferences
-from forma.engine import TranslationEngine
-from forma.instructions import translation_prompt
-from forma.models import MAX_TRANSLATION_INSTRUCTIONS, FormaError, Options
-from forma.pdf_api import PDFAPI
+from forma.core.models import MAX_TRANSLATION_INSTRUCTIONS, FormaError, Options
+from forma.documents.pdf_api import PDFAPI
+from forma.settings.config import Settings, load_preferences
+from forma.translation.engine import TranslationEngine
+from forma.translation.instructions import translation_prompt
 
 
 def test_rules_are_explicit_preferences_and_never_replace_formatting_contract():
@@ -54,7 +54,7 @@ def test_office_rules_reach_glossary_translation_editor_and_partition_cache(docx
 
 
 def test_quick_text_rules_reach_both_passes_without_becoming_translated_content():
-    from forma.quick_translation import translate_text
+    from forma.translation.text import translate_text
 
     provider = TextProvider()
     provider.settings = provider.settings.with_overrides(
@@ -83,7 +83,7 @@ def test_pdf_cache_identity_changes_with_rules_without_exposing_them():
 
 
 def test_backend_saves_rules_without_touching_connection_and_restarts(qapp, monkeypatch):
-    from forma.backend import Backend
+    from forma.presentation.backend import Backend
 
     config = local_settings().with_overrides(api_key="session-private-key")
     monkeypatch.setattr(Backend, "_read_settings", lambda _: config)

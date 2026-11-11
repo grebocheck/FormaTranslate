@@ -8,11 +8,11 @@ from pathlib import Path
 
 from PySide6.QtTest import QTest
 
-import forma.backend as backend_module
-from forma.backend import Backend
-from forma.config import Settings
-from forma.i18n import translate
-from forma.models import Cancelled, FormaError
+import forma.presentation.documents_workflow as backend_module
+from forma.core.models import Cancelled, FormaError
+from forma.localization.catalog import translate
+from forma.presentation.backend import Backend
+from forma.settings.config import Settings
 
 
 def settle(qapp, backend, timeout=5):
@@ -50,8 +50,7 @@ def test_scan_conversion_replaces_pdf_queue_entry_without_provider_or_translatio
 
     monkeypatch.setattr(backend_module, "convert_scan_pdf", convert)
     monkeypatch.setattr(
-        backend_module,
-        "Provider",
+        "forma.presentation.settings_workflow.Provider",
         lambda *_: (_ for _ in ()).throw(AssertionError("OCR must not create an API provider")),
     )
     backend.recognizeSelectedPdf("en")

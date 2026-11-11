@@ -9,8 +9,8 @@ from zipfile import ZipFile
 import httpx
 import pytest
 
-from forma.models import FormaError, Issue, Options, Segment, TranslationResult
-from forma.review import (
+from forma.core.models import FormaError, Issue, Options, Segment, TranslationResult
+from forma.documents.review import (
     actionable_count,
     build_review,
     entry_fingerprint,

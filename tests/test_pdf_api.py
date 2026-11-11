@@ -12,12 +12,12 @@ from pathlib import Path
 import httpx
 import pytest
 
-from forma.config import Settings
-from forma.models import FormaError, Options
-from forma.pdf import translate_pdf
-from forma.pdf_api import MAX_BODY, PDFAPI, completion_body
-from forma.provider import JobControl, Provider
-from forma.usage import UsageLedger
+from forma.accounting.usage import UsageLedger
+from forma.core.models import FormaError, Options
+from forma.documents.pdf import translate_pdf
+from forma.documents.pdf_api import MAX_BODY, PDFAPI, completion_body
+from forma.providers.client import JobControl, Provider
+from forma.settings.config import Settings
 
 
 @pytest.fixture
@@ -227,7 +227,7 @@ def test_pdf_api_respects_configured_timeout(upstream):
 
 
 def test_pdf_api_bounds_oversized_upstream_response(upstream, monkeypatch):
-    monkeypatch.setattr("forma.pdf_api.MAX_RESPONSE", 512)
+    monkeypatch.setattr("forma.documents.pdf_api.MAX_RESPONSE", 512)
     upstream.response = {"message": "x" * 1024}
     with PDFAPI(config(upstream), 1) as bridge:
         response = post(bridge)
@@ -288,7 +288,7 @@ def test_incomplete_pdf_response_cannot_export_even_if_engine_writes_file(
             "message": {"content": "Partial paragraph", "refusal": "Denied" if refused else None},
         }
     ]
-    monkeypatch.setattr("forma.pdf.find_babeldoc", lambda _: "babeldoc-test")
+    monkeypatch.setattr("forma.documents.pdf.find_babeldoc", lambda _: "babeldoc-test")
 
     class Process:
         returncode = 0
@@ -307,7 +307,7 @@ def test_incomplete_pdf_response_cannot_export_even_if_engine_writes_file(
         def poll(self):
             return 0
 
-    monkeypatch.setattr("forma.pdf.subprocess.Popen", Process)
+    monkeypatch.setattr("forma.documents.pdf.subprocess.Popen", Process)
     with pytest.raises(FormaError, match="відмовив" if refused else "обірвалася"):
         translate_pdf(
             pdf_file,
@@ -595,7 +595,7 @@ def test_pdf_native_mode_reaches_babeldoc_without_exposing_key(
     upstream, pdf_file, tmp_path, monkeypatch, mode
 ):
     upstream.response = native_response(mode)
-    monkeypatch.setattr("forma.pdf.find_babeldoc", lambda _: "babeldoc-test")
+    monkeypatch.setattr("forma.documents.pdf.find_babeldoc", lambda _: "babeldoc-test")
 
     class Process:
         returncode = 0
@@ -619,7 +619,7 @@ def test_pdf_native_mode_reaches_babeldoc_without_exposing_key(
         def poll(self):
             return 0
 
-    monkeypatch.setattr("forma.pdf.subprocess.Popen", Process)
+    monkeypatch.setattr("forma.documents.pdf.subprocess.Popen", Process)
     result = translate_pdf(
         pdf_file,
         tmp_path / "out",

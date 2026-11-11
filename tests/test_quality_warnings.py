@@ -4,7 +4,7 @@ from xml.sax.saxutils import escape
 
 import pytest
 
-from forma.quality import check_language, check_segment
+from forma.translation.quality import check_language, check_segment
 
 
 def marked(text: str) -> str:

@@ -16,13 +16,13 @@ import threading
 from datetime import UTC, datetime
 from pathlib import Path
 
-from forma.comparison import compare_files
-from forma.config import Settings
-from forma.engine import TranslationEngine
-from forma.models import FormaError, Options, plain_text
-from forma.provider import Provider
-from forma.reports import document_html
-from forma.storage import atomic_bytes, atomic_json
+from forma.core.models import FormaError, Options, plain_text
+from forma.documents.comparison import compare_files
+from forma.persistence.files import atomic_bytes, atomic_json
+from forma.providers.client import Provider
+from forma.settings.config import Settings
+from forma.translation.engine import TranslationEngine
+from forma.translation.reports import document_html
 
 ROOT = Path(__file__).resolve().parents[1]
 

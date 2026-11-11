@@ -8,9 +8,9 @@ from pathlib import Path
 import pytest
 from PySide6.QtTest import QTest
 
-from forma.backend import Backend
-from forma.config import Settings
-from forma.models import Issue, TranslationResult
+from forma.core.models import Issue, TranslationResult
+from forma.presentation.backend import Backend
+from forma.settings.config import Settings
 
 
 def pump(app, predicate, seconds=5):
@@ -140,7 +140,7 @@ def test_history_review_filter_search_and_navigation_without_queue_changes(
 def test_review_reads_only_one_report_at_a_time_and_ignores_stale_result(
     qapp, tmp_path, monkeypatch
 ):
-    import forma.backend as module
+    import forma.presentation.review_workflow as module
 
     monkeypatch.setattr(Backend, "_read_settings", lambda _: Settings())
     backend = Backend()
@@ -225,7 +225,7 @@ def test_successful_completion_does_not_create_banner_or_erase_another_error(
 def test_requeue_clears_old_review_and_ignores_in_flight_results(
     qapp, tmp_path, monkeypatch, review_backend, docx_file, in_flight
 ):
-    import forma.backend as module
+    import forma.presentation.review_workflow as module
 
     backend = review_backend
     document, report = completed_queue_document(backend, tmp_path, docx_file)
@@ -303,7 +303,7 @@ def test_history_review_never_writes_queue_snapshot(
 def test_forgotten_history_disappears_from_review_and_cannot_be_restored_by_pending_read(
     qapp, tmp_path, monkeypatch, review_backend, in_flight
 ):
-    import forma.backend as module
+    import forma.presentation.review_workflow as module
 
     backend = review_backend
     report = add_history(backend, tmp_path)
@@ -349,7 +349,7 @@ def test_forgotten_history_disappears_from_review_and_cannot_be_restored_by_pend
 def test_restored_completed_report_loads_only_when_review_is_requested(
     qapp, tmp_path, monkeypatch, review_backend, docx_file
 ):
-    import forma.backend as module
+    import forma.presentation.review_workflow as module
 
     document, report = completed_queue_document(review_backend, tmp_path, docx_file)
     original = module.load_report
@@ -363,7 +363,7 @@ def test_restored_completed_report_loads_only_when_review_is_requested(
         pytest.fail("Restoring or reviewing the queue must not launch a translation")
 
     monkeypatch.setattr(module, "load_report", observed)
-    monkeypatch.setattr(module, "TranslationEngine", no_translation)
+    monkeypatch.setattr("forma.presentation.documents_workflow.TranslationEngine", no_translation)
     restored = Backend()
     try:
         qapp.processEvents()

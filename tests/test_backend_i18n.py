@@ -7,9 +7,9 @@ from PySide6.QtQuick import QQuickItem
 from PySide6.QtTest import QTest
 
 from forma import __version__
-from forma.backend import Backend
-from forma.config import Settings, load_preferences
-from forma.i18n import CatalogTranslator, current_language
+from forma.localization.catalog import CatalogTranslator, current_language
+from forma.presentation.backend import Backend
+from forma.settings.config import Settings, load_preferences
 
 
 def test_switch_language_persists_without_changing_document_or_review_state(qapp, monkeypatch):

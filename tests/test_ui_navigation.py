@@ -6,8 +6,8 @@ from PySide6.QtQml import QQmlApplicationEngine
 from PySide6.QtQuick import QQuickItem
 from PySide6.QtTest import QTest
 
-from forma.backend import Backend
-from forma.config import Settings
+from forma.presentation.backend import Backend
+from forma.settings.config import Settings
 
 
 def contrast(a, b):
@@ -114,7 +114,7 @@ def test_model_picker_preserves_manual_input_and_accepts_keyboard_selection(qapp
 def test_review_groups_findings_searches_pairs_and_keeps_text_selectable(
     qapp, docx_file, monkeypatch
 ):
-    from forma.models import Issue, Segment, TranslationResult
+    from forma.core.models import Issue, Segment, TranslationResult
 
     monkeypatch.setattr(Backend, "_read_settings", lambda _: Settings())
     backend = Backend()

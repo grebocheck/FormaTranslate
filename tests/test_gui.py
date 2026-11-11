@@ -9,7 +9,7 @@ os.environ.setdefault("QT_QUICK_BACKEND", "software")
 from PySide6.QtCore import QCoreApplication, QEvent, QUrl
 from PySide6.QtQml import QQmlApplicationEngine
 
-from forma.backend import Backend
+from forma.presentation.backend import Backend
 
 
 def test_qml_loads_and_renders(tmp_path, qapp):

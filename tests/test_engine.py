@@ -6,10 +6,10 @@ import time
 
 import pytest
 
-from forma.config import Settings
-from forma.engine import TranslationEngine, read_response
-from forma.models import Cancelled, FormaError, Options
-from forma.ooxml import OfficeDocument
+from forma.core.models import Cancelled, FormaError, Options
+from forma.documents.ooxml import OfficeDocument
+from forma.settings.config import Settings
+from forma.translation.engine import TranslationEngine, read_response
 
 
 class FakeProvider:
@@ -122,8 +122,8 @@ def test_changed_options_do_not_reuse_another_language(docx_file, tmp_path):
 
 
 def test_context_samples_end_of_document_without_duplicate_boilerplate():
-    from forma.engine import document_context
-    from forma.models import Segment
+    from forma.core.models import Segment
+    from forma.translation.engine import document_context
 
     segments = [
         Segment(str(i), f"paragraph {i}", f"<r0>Heading {i} {'text ' * 120}</r0>")
@@ -391,7 +391,7 @@ def test_parallel_batches_keep_review_order_repair_and_checkpoint_complete(tmp_p
 def test_failed_parallel_batch_drains_checkpoint_without_cancelling_other_documents(tmp_path):
     from docx import Document
 
-    from forma.provider import JobControl
+    from forma.providers.client import JobControl
 
     source = tmp_path / "failure.docx"
     doc = Document()
@@ -532,7 +532,7 @@ def test_cancel_retains_only_valid_completed_response_without_starting_more_requ
     import httpx
     from docx import Document
 
-    from forma.provider import JobControl, Provider
+    from forma.providers.client import JobControl, Provider
 
     source = tmp_path / "cancel-completed.docx"
     doc = Document()
@@ -604,7 +604,7 @@ def test_cancel_retains_only_valid_completed_response_without_starting_more_requ
 
 
 def test_cancellation_at_export_boundary_does_not_write_final_document(docx_file, tmp_path):
-    from forma.provider import JobControl
+    from forma.providers.client import JobControl
 
     control = JobControl(1)
 

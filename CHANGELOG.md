@@ -2,6 +2,20 @@
 
 Versions follow semantic versioning. Changes before 1.0 may evolve as document compatibility improves.
 
+## 0.7.0 — 2026-11-11
+
+- Organize implementation into focused translation, document, memory, provider, settings, persistence, accounting, localization and presentation packages; retain the application entry points and existing local data formats.
+- Prepare document context once per source segment instead of repeatedly converting the same markup, preserving identical request context.
+- Fix false numeric-validation failures when correctly space-grouped thousands become ungrouped English values, retaining precision, sign, percent and duplicate-value checks. Provide private per-fragment diagnostics and explicit numeric repair feedback while preserving completed work.
+- Keep OCR/PDF worker discovery out of QML property reads so document clicks and progress updates do not repeatedly scan PATH; refresh cached availability in the background.
+- Add an optional in-app glossary editor with manual terms, explicit document suggestions, editable previews and a separate Apply action; keep CSV transfer and reference imports secondary and localize the workflow in all four languages.
+- Make complete Windows builds embed OCR, local models, Tesseract and BabelDOC assets, with checked runtime inventories, source/license materials and recorded native offline validation; keep desktop-only builds clearly named for development.
+- Add optional project translation memory for exact DOCX/XLSX source, context, role and policy matches, with a fixed shared glossary and separate checkpoint, memory and run-repeat accounting.
+- Reuse completed machine results under matching generation settings; resume usable drafts through the requested editorial pass and prioritize explicitly approved wording over old machine checkpoints in future runs.
+- Adapt closely related passages through a paid bilingual editorial pass using previous source/target wording and the full new source/context; keep adapted machine results separate from exact reuse and human approval.
+- Add verified DOCX/source/report reference imports and individual wording approval, with explicit conflict replacement, retained revisions and protection against stale decisions. Review acknowledgements do not approve memory entries.
+- Keep bilingual memory private in a separate local SQLite database and retain ordinary translation when project memory is off. Direct PDF translation requires memory to be off; OCR-prepared DOCX can use it.
+
 ## 0.6.0 — 2026-11-11
 
 - Add local scanned/mixed PDF preparation into editable DOCX through a separately installed Docling/RapidOCR helper, with native tables, merged cells, page provenance and original PDF preservation.

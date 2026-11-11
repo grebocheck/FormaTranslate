@@ -4,9 +4,9 @@ import json
 
 from lxml import html
 
-from forma.i18n import current_language, set_language
-from forma.models import Issue, Options, Segment, TranslationResult
-from forma.reports import write_translation_report
+from forma.core.models import Issue, Options, Segment, TranslationResult
+from forma.localization.catalog import current_language, set_language
+from forma.translation.reports import write_translation_report
 
 
 def test_report_localizes_only_html_presentation_and_keeps_json_and_document_text(tmp_path):

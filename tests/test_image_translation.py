@@ -7,8 +7,10 @@ import pytest
 from PySide6.QtCore import QRect
 from PySide6.QtGui import QColor, QImage
 
-from forma.config import Settings
-from forma.image_translation import (
+from forma.core.models import FormaError
+from forma.providers.client import Cancelled, JobControl
+from forma.settings.config import Settings
+from forma.translation.images import (
     MAX_BLOCKS,
     MAX_IMAGE_PIXELS,
     MAX_UPLOAD_EDGE,
@@ -20,8 +22,6 @@ from forma.image_translation import (
     translate_image,
     validate_image,
 )
-from forma.models import FormaError
-from forma.provider import Cancelled, JobControl
 
 
 class FakeProvider:

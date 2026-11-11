@@ -1,8 +1,8 @@
 import pytest
 
-from forma.locks import lock_draft, lock_markup, unlock_markup
-from forma.models import ValidationError, plain_text
-from forma.quality import check_segment, protected_values
+from forma.core.models import ValidationError, plain_text
+from forma.translation.locks import lock_draft, lock_markup, unlock_markup
+from forma.translation.quality import check_segment, protected_values
 
 
 def test_cyrillic_station_codes_and_urls_round_trip():
@@ -28,7 +28,7 @@ def test_english_hyphenated_headings_are_not_codes():
 
 
 def test_decimal_normalization_preserves_equipment_tags_and_file_references():
-    from forma.locks import english_decimals
+    from forma.translation.locks import english_decimals
 
     source = "<r0>РУ-0,4: 2,95811 грн; «Звіт_Демо_v2.docx»</r0>"
     locked, keys = lock_markup(source)
@@ -40,14 +40,14 @@ def test_decimal_normalization_preserves_equipment_tags_and_file_references():
 
 
 def test_invalid_model_markup_is_a_repairable_error():
-    from forma.locks import english_decimals
+    from forma.translation.locks import english_decimals
 
     with pytest.raises(ValidationError):
         english_decimals("<r2>bad</r3>")
 
 
 def test_curated_terms_preserve_original_identifiers_and_references():
-    from forma.terminology import curate_english
+    from forma.translation.terminology import curate_english
 
     text = "<r0>ТСН 200 кВа, КВПіА, ТН-1А; Звіт_Демо.docx</r0>"
     result, changes = curate_english(text)
