@@ -125,6 +125,7 @@ def test_scan_converter_setting_persists_without_provider_credentials(qapp, monk
     backend = Backend()
     configured = str(Path("converter path") / "forma-ocr")
     assert backend.saveSettings({"scanConverterPath": configured})
+    settle(qapp, backend)
     assert backend.settings["scanConverterPath"] == configured
     assert Backend().settings["scanConverterPath"] == configured
 
@@ -147,7 +148,7 @@ def test_scan_findings_are_visible_and_switch_language_without_exposing_manifest
                             "warnings": ["table_structure_unresolved", "private recognized text"],
                             "recovered_lines": 2,
                         },
-                        {"warnings": ["low_ocr_confidence"]},
+                        {"warnings": ["low_ocr_confidence", "graphic_text_not_editable"]},
                     ],
                 }
             ),
@@ -164,6 +165,7 @@ def test_scan_findings_are_visible_and_switch_language_without_exposing_manifest
         "Відновлені поза структурою рядки виділено жовтим у DOCX. "
         "Перевірте порядок і дублювання.",
         "Є фрагменти з низькою впевненістю OCR. Звірте їх зі сканом, особливо числа та коди.",
+        "Написи в графіках, зображеннях або печатках не є редагованим текстом. Звірте ці ділянки з PDF: вони можуть залишитися мовою оригіналу.",
     ]
     for language in ("uk", "en", "pl", "de"):
         backend.setUiLanguage(language)

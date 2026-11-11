@@ -7,12 +7,15 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
+from PySide6.QtCore import QPersistentModelIndex
+from PySide6.QtTest import QSignalSpy
 from support import pump
 
 from forma.core.models import Cancelled, FormaError, TranslationResult
 from forma.documents.ooxml import OfficeDocument
 from forma.persistence.files import available_output
 from forma.presentation.backend import Backend
+from forma.presentation.documents_workflow import DocumentWorkflow
 from forma.settings.config import ENV_FIELDS, Settings
 from forma.settings.credentials import CredentialError
 
@@ -70,7 +73,7 @@ def factory(qapp, monkeypatch, tmp_path):
         monkeypatch.delenv(name, raising=False)
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr("forma.presentation.documents_workflow.TranslationEngine", FakeEngine)
-    monkeypatch.setattr("forma.presentation.settings_workflow.load_api_key", lambda _: "")
+    monkeypatch.setattr("forma.presentation.settings_workflow.load_api_key", lambda *args, **kwargs: "")
     FakeEngine.calls, FakeEngine.outcomes = [], {}
     instances = []
 
@@ -152,6 +155,30 @@ def test_closing_drops_waiting_inspections_and_drains_only_two_active_parsers(
     pump(qapp, lambda: not backend._threads)
     assert set(state["calls"]) == set(paths[:2]) and state["peak"] == 2
     assert not backend._inspection_active and closed == [True]
+
+
+def test_progress_changes_only_its_document_row_without_resetting_delegates(
+    factory, qapp, docx_file, tmp_path, monkeypatch,
+):
+    other = tmp_path / "second.docx"
+    shutil.copyfile(docx_file, other)
+    backend = factory()
+    backend.addFiles([str(docx_file), str(other)])
+    pump(qapp, lambda: not backend._threads)
+    model = backend.documentModel
+    retained = QPersistentModelIndex(model.index(0))
+    resets, changes = QSignalSpy(model.modelReset), QSignalSpy(model.dataChanged)
+    first_id = backend._documents[0]["id"]
+    with monkeypatch.context() as patch:
+        patch.setattr(DocumentWorkflow, "documents", lambda *_: pytest.fail("Progress rebuilt the queue"))
+        backend._handle_event("progress", {"id": first_id, "percent": 20, "text": "Working"})
+    assert resets.count() == 0 and changes.count() == 1
+    assert retained.isValid() and model.data(retained, model.ROW_ROLE)["progress"] == 20
+    backend._documents.reverse()
+    backend.changed.emit()
+    assert retained.row() == 1 and model.data(retained, model.ROW_ROLE)["id"] == first_id
+    backend.removeDocument(backend._documents[0]["id"])
+    assert retained.isValid() and retained.row() == 0 and resets.count() == 0
 
 
 def test_queue_survives_restart_without_starting_api_and_missing_files_are_safe(
@@ -442,7 +469,7 @@ def test_catalog_can_query_new_local_endpoint_without_available_vault(factory, q
     backend._settings = backend._settings.with_overrides(api_key="old-provider-key")
     calls = []
 
-    def unavailable_vault(_):
+    def unavailable_vault(*args, **kwargs):
         raise CredentialError("Сховище недоступне")
 
     def catalogue(settings):

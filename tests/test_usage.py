@@ -1,3 +1,4 @@
+import hashlib
 import json
 import sqlite3
 from concurrent.futures import ThreadPoolExecutor
@@ -94,6 +95,38 @@ def test_account_and_endpoint_isolation_and_no_credentials_or_content_on_disk():
     raw = ledger.path.read_bytes()
     for secret in (b"private-test-key", b"SECRET DOCUMENT", b"secret-response", b"api.openai.com"):
         assert secret not in raw
+
+
+def test_native_legacy_aliases_preserve_history_balance_and_tariff_conflicts():
+    cfg = Settings(base_url="https://native.example/v1/messages", api_mode="anthropic", model="claude-test",
+                   api_key="native-ledger-key", legacy_connection=("anthropic", "https://native.example/v1/messages"))
+    urls = ("https://native.example/v1", "https://native.example/v1/messages")
+    aliases = [hashlib.sha256((url + "\0" + cfg.api_key).encode()).hexdigest() for url in urls]
+    ledger, now = UsageLedger(), datetime.now(UTC).timestamp()
+    with ledger.connect() as db:
+        for index, account in enumerate(aliases, 1):
+            db.execute("INSERT INTO requests(account,at,model,status,input,cached,output,cost,price_source) VALUES(?,?,?,?,?,?,?,?,?)",
+                       (account, now, cfg.model, 200, 10, 0, 2, index * 1000, "manual"))
+            db.execute("INSERT INTO tariffs VALUES(?,?,?,?,?)", (account, cfg.model, str(index), "0", "3"))
+            db.execute("INSERT INTO balances VALUES(?,?,?,?)", (account, index * 1_000_000, 1, now + index))
+    first = ledger.summary(cfg)
+    assert first["today"]["requests"] == 2 and first["today"]["cost"] == 3000
+    assert first["balance"]["remaining"] == 2_000_000 - 2000  # Latest original balance wins.
+    assert first["tariff"] == []  # Conflicting untimestamped rates are not guessed.
+    equivalent = replace(cfg, base_url="https://native.example", legacy_connection=None)
+    assert ledger.summary(equivalent)["today"] == first["today"]
+    ledger.set_tariff(equivalent, ("5", "1", "8"))
+    assert list(map(Decimal, ledger.summary(equivalent)["tariff"])) == list(map(Decimal, ("5", "1", "8")))
+    assert ledger.summary(replace(equivalent, api_key="other-key"))["today"]["requests"] == 0
+    assert ledger.summary(replace(equivalent, api_mode="chat"))["today"]["requests"] == 0
+    with ledger.connect() as db:
+        assert db.execute("SELECT COUNT(*) FROM requests").fetchone()[0] == 2
+        assert {row[0] for row in db.execute("SELECT account FROM requests")} == set(aliases)
+        assert db.execute("SELECT COUNT(*) FROM balances").fetchone()[0] == 2
+    ledger.set_balance(equivalent, None)
+    ledger.set_tariff(equivalent, None)
+    assert ledger.summary(equivalent)["balance"] is None
+    assert ledger.summary(equivalent)["tariff"] == []
 
 
 def test_calendar_periods_and_parallel_requests_persist():

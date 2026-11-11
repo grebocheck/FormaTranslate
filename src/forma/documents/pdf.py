@@ -17,6 +17,7 @@ from pypdf import PdfReader
 from forma.core.models import Cancelled, FormaError, Issue, Options, TranslationResult
 from forma.documents.bundled_runtime import find_bundled, start_worker, worker_environment
 from forma.documents.pdf_api import PDFAPI
+from forma.documents.pdf_inspection import inspect_page
 from forma.documents.pdf_progress import PDFProgress
 from forma.persistence.files import atomic_bytes, atomic_json, available_output
 from forma.providers.client import JobControl
@@ -49,18 +50,7 @@ def inspect_pdf(path: Path) -> dict:
             raise FormaError("PDF захищений паролем. Створіть незахищену копію.")
         pages = []
         for page in reader.pages:
-            text = page.extract_text() or ""
-            letters = sum(character.isalpha() for character in text)
-            pages.append(
-                {
-                    "width": float(page.mediabox.width),
-                    "height": float(page.mediabox.height),
-                    "text": text,
-                    # Only inspect images on sparse pages: an illustration alone
-                    # is not evidence of a scan.
-                    "image_without_text": letters < 12 and bool(len(page.images)),
-                }
-            )
+            pages.append(inspect_page(page, reader))
         return {
             "pages": pages,
             "scanned": not any(any(c.isalpha() for c in p["text"]) for p in pages),
@@ -236,7 +226,7 @@ def translate_pdf(
     image_pages = [
         str(index) for index, page in enumerate(before["pages"], 1) if page["image_without_text"]
     ]
-    if needs_ocr(before):
+    if needs_ocr(before) and options.pdf_mode != "direct":
         raise FormaError(
             "Більшість сторінок PDF — зображення без текстового шару. "
             "Спочатку скористайтеся «Скан PDF → DOCX», перевірте розпізнаний текст і перекладіть DOCX."
@@ -251,6 +241,11 @@ def translate_pdf(
                 "Якщо це скановані сторінки з текстом, потрібен OCR перед перекладом.",
             )
         )
+    if any(page.get("raster_analysis_limited") for page in before["pages"]):
+        issues.append(Issue(
+            "pdf_raster_analysis_limited",
+            "Геометрію частини зображень PDF не вдалося повністю перевірити. Перегляньте сторінки; за потреби виберіть OCR для цього документа.",
+        ))
     with tempfile.TemporaryDirectory(prefix="forma-pdf-") as temp, ExitStack() as resources:
         root = Path(temp)
         out = root / "output"

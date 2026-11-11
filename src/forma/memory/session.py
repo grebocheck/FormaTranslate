@@ -11,6 +11,7 @@ from forma.memory.store import (
     generation_fingerprint,
     policy_fingerprint,
 )
+from forma.settings.connection import legacy_connection_urls, legacy_route_compatible
 
 
 class MemoryRun:
@@ -25,10 +26,43 @@ class MemoryRun:
         self.glossary = dict(self.snapshot.glossary)
         self.policy = policy_fingerprint(options, self.glossary)
         self.generation = generation_fingerprint(settings, protocol=protocol, review=options.review)
+        self.legacy_generations = tuple(dict.fromkeys(
+            fingerprint for url in legacy_connection_urls(settings)
+            if legacy_route_compatible(url, settings.api_mode)
+            if (fingerprint := generation_fingerprint(
+                settings.with_overrides(base_url=url), protocol=protocol, review=options.review, legacy=True,
+            )) != self.generation
+        ))
         self._lock = threading.Lock()
         self._work: dict[str, Future] = {}
         self._candidate_lock = threading.RLock()
         self._candidate_index = None
+
+    def lookup_many(self, keys, *, include_draft=False):
+        found = self.memory.lookup_many(self.snapshot, keys, self.generation, include_draft=include_draft)
+        canonical_finals = {key for key, hit in found.items() if hit.status != "draft"}
+        for generation in self.legacy_generations:
+            pending = [key for key in keys if key not in canonical_finals]
+            for key, hit in self.memory.lookup_many(self.snapshot, pending, generation, include_draft=include_draft).items():
+                previous = found.get(key)
+                priority = {"draft": 0, "machine_final": 1, "human_approved": 2}
+                if previous is None or (priority[hit.status], hit.entry_id) > (priority[previous.status], previous.entry_id):
+                    found[key] = hit
+        return found
+
+    def adopt(self, hit):
+        """Copy a validated equivalent-connection final; never relabel its old row."""
+        if hit.generation_profile == self.generation or hit.status == "human_approved":
+            return hit
+        if (hit.project_id != self.snapshot.project_id or hit.policy != self.policy
+                or hit.generation_profile not in self.legacy_generations or hit.status != "machine_final"):
+            raise FormaError("Запис пам’яті не відповідає поточному фрагменту. Перевірте цілісність бази пам’яті.")
+        return self.memory.save_machine(
+            hit.project_id, hit.entry_key, hit.source_markup, hit.target, hit.context, hit.role,
+            hit.policy, self.generation, provenance={
+                **hit.provenance, "kind": "connection_identity_migration", "source_entry_id": hit.entry_id,
+            },
+        )
 
     def similar(self, source_markup, role, context):
         """Share one bounded-search index across the queue's document workers."""
@@ -38,9 +72,13 @@ class MemoryRun:
             return None
         with self._candidate_lock:
             if self._candidate_index is None:
-                self._candidate_index = MemoryCandidateIndex(self.memory.candidate_pool(
+                candidates = {hit.entry_key: hit for hit in self.memory.candidate_pool(
                     self.snapshot, self.policy, self.generation,
-                ))
+                )}
+                for generation in self.legacy_generations:
+                    for hit in self.memory.candidate_pool(self.snapshot, self.policy, generation):
+                        candidates.setdefault(hit.entry_key, hit)
+                self._candidate_index = MemoryCandidateIndex(candidates.values())
             return self._candidate_index.find(source_markup, role, context=context)
 
     def claim(self, key: str) -> tuple[bool, Future]:

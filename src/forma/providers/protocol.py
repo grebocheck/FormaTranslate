@@ -10,7 +10,9 @@ import copy
 import hashlib
 import math
 import re
-from urllib.parse import quote, urlsplit
+from urllib.parse import quote
+
+from forma.settings.connection import connection_identity
 
 NATIVE_MODES = frozenset({"gemini", "anthropic"})
 ANTHROPIC_VERSION = "2026-10-21"
@@ -18,17 +20,7 @@ RATE_LIMIT_SCOPE_PREFIX = "forma-rate:"
 
 
 def api_base(settings) -> str:
-    base = settings.base_url.rstrip("/")
-    for suffix in ("/chat/completions", "/responses", "/messages"):
-        base = base.removesuffix(suffix)
-    if settings.api_mode == "gemini":
-        base = re.sub(r"/models/[^/]+:generateContent$", "", base)
-    if not urlsplit(base).path:
-        if settings.api_mode == "anthropic":
-            base += "/v1"
-        elif settings.api_mode == "gemini":
-            base += "/v1beta"
-    return base
+    return connection_identity(settings.base_url, settings.api_mode).root
 
 
 def request_headers(settings) -> dict[str, str]:
@@ -45,7 +37,7 @@ def request_headers(settings) -> dict[str, str]:
 
 def rate_limit_key(settings) -> str:
     """Keep a capped account's pacing across jobs without storing its credential."""
-    base = api_base(settings)
+    base = connection_identity(settings.base_url, settings.api_mode).key
     if not getattr(settings, "requests_per_minute", 0):
         return base
     digest = hashlib.sha256((base + "\0" + settings.api_key).encode()).hexdigest()

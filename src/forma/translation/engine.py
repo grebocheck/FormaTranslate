@@ -23,6 +23,11 @@ from forma.documents.ooxml import OfficeDocument
 from forma.persistence.files import atomic_json, available_output
 from forma.providers.client import GLOSSARY_SCHEMA, TRANSLATION_SCHEMA, JobControl, Provider
 from forma.settings.config import Settings, data_directory
+from forma.settings.connection import (
+    connection_identity,
+    legacy_connection_urls,
+    legacy_route_compatible,
+)
 from forma.translation.instructions import translation_prompt
 from forma.translation.locks import english_decimals, lock_draft, lock_markup, unlock_markup
 from forma.translation.quality import check_language, check_segment, number_differences
@@ -146,15 +151,16 @@ def file_digest(path: Path) -> str:
         return hashlib.file_digest(stream, "sha256").hexdigest()
 
 
-def checkpoint_fingerprint(source_hash: str, options: Options, settings: Settings, *, memory_policy="", memory_generation=""):
+def checkpoint_fingerprint(source_hash: str, options: Options, settings: Settings, *, memory_policy="", memory_generation="", legacy=False):
     values = asdict(options)
+    values.pop("pdf_mode", None)  # A preparation route is not a translation policy.
     if not values.get("memory_project_id"):
         # Preserve checkpoints written before project memory was introduced.
         values.pop("memory_project_id", None)
     identity = {
         "protocol": PROTOCOL_VERSION,
         "file": source_hash,
-        "base": settings.base_url,
+        "base": settings.base_url if legacy else connection_identity(settings.base_url, settings.api_mode).root,
         "model": settings.model,
         "mode": settings.api_mode,
         "format": settings.response_format,
@@ -166,9 +172,39 @@ def checkpoint_fingerprint(source_hash: str, options: Options, settings: Setting
         identity["memory_policy"] = memory_policy
     if memory_generation:
         identity["memory_generation"] = memory_generation
+    if not legacy and not legacy_route_compatible(settings.base_url, settings.api_mode):
+        identity["connection_route"] = 2
     return hashlib.sha256(
         json.dumps(identity, sort_keys=True, ensure_ascii=False).encode()
     ).hexdigest()
+
+
+def load_checkpoint(source_hash, options, settings, *, memory_policy="", memory_generation="", legacy_generations=()):
+    """Read a validated-profile legacy location without discarding paid fragments."""
+    values = {"memory_policy": memory_policy, "memory_generation": memory_generation}
+    folder = data_directory() / "checkpoints"
+    checkpoint = folder / f"{checkpoint_fingerprint(source_hash, options, settings, **values)}.json"
+    candidates = [checkpoint]
+    for base_url in (settings.base_url, *legacy_connection_urls(settings)):
+        if not legacy_route_compatible(base_url, settings.api_mode):
+            continue
+        previous = settings.with_overrides(base_url=base_url)
+        for generation in dict.fromkeys((memory_generation, *legacy_generations)):
+            legacy_values = {**values, "memory_generation": generation}
+            candidates.append(folder / f"{checkpoint_fingerprint(source_hash, options, previous, legacy=True, **legacy_values)}.json")
+    for path in dict.fromkeys(candidates):
+        try:
+            state = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError, RecursionError):
+            continue
+        if isinstance(state, dict):
+            if path != checkpoint:
+                try:
+                    atomic_json(checkpoint, state)
+                except OSError as exc:
+                    raise FormaError("Не вдалося зберегти контрольну точку перекладу. Перевірте доступ до папки даних застосунку.") from exc
+            return checkpoint, state
+    return checkpoint, {}
 
 
 def read_response(response: dict, batch: list[Segment]) -> dict[str, str]:
@@ -373,7 +409,7 @@ class TranslationEngine:
             from forma.memory.session import MemoryRun
 
             self.memory_run = MemoryRun(options, self.settings, protocol=PROTOCOL_VERSION)
-        if not needs_ocr(info):
+        if options.pdf_mode == "direct" or (options.pdf_mode == "auto" and not needs_ocr(info)):
             effective = options
             if options.memory_project_id:
                 effective = replace(
@@ -407,7 +443,7 @@ class TranslationEngine:
 
         try:
             check_original()
-            result = self._translate(prepared.source, folder, options, translate_progress)
+            result = self._translate(prepared.source, folder, replace(options, pdf_mode="auto"), translate_progress)
         except TranslationFailure as failure:
             failure.prepared_source = prepared.source
             failure.preparation = prepared.provenance
@@ -455,14 +491,7 @@ class TranslationEngine:
             raise FormaError(
                 "Документ містить абзац понад 26 000 символів. Розділіть його перед перекладом."
             )
-        fingerprint = checkpoint_fingerprint(source_hash, options, self.settings)
-        checkpoint = data_directory() / "checkpoints" / f"{fingerprint}.json"
-        try:
-            state = json.loads(checkpoint.read_text(encoding="utf-8"))
-        except (OSError, ValueError, RecursionError):
-            state = {}
-        if not isinstance(state, dict):
-            state = {}
+        checkpoint, state = load_checkpoint(source_hash, options, self.settings)
         saved_glossary = state.get("glossary")
         if not isinstance(saved_glossary, dict) or not all(
             isinstance(term, str) and isinstance(value, str)

@@ -146,6 +146,7 @@ def test_native_authentication_and_required_output_default(mode):
         ("anthropic", "https://provider.invalid/v1/messages/", "https://provider.invalid/v1"),
         ("anthropic", "https://provider.invalid", "https://provider.invalid/v1"),
         ("chat", "https://provider.invalid/v1/chat/completions", "https://provider.invalid/v1"),
+        ("chat", "https://provider.invalid/v1/messages", "https://provider.invalid/v1/messages"),
     ],
 )
 def test_api_base_understands_native_and_existing_endpoint_forms(mode, base, expected):

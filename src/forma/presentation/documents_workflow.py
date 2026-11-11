@@ -24,13 +24,39 @@ from forma.documents.review import actionable_count
 from forma.localization.catalog import current_language
 from forma.localization.catalog import translate_ui_message as tr
 from forma.providers.client import JobControl
-from forma.settings.config import load_preferences, save_preferences
+from forma.settings.config import update_preferences
 from forma.translation.engine import TranslationEngine
 from forma.translation.handoff import AbbyyContinuation
-from forma.translation.jobs import DocumentQueue, run_documents
+from forma.translation.jobs import DocumentQueue, RunContext, run_documents
 
 
 class DocumentWorkflow:
+    def pendingHasPdf(self):
+        if self._translation_active:
+            candidates = [d for d in self._documents if d["status"] in {"queued", "translating"}]
+        else:
+            candidates = [d for d in self._documents if d["status"] in {"ready", "error", "cancelled"}]
+            if not candidates and self._documents and all(d["status"] == "done" for d in self._documents):
+                candidates = self._documents
+        return any(d["format"] == "PDF" for d in candidates)
+
+    def canMoveQueue(self, index, delta):
+        return any(
+            self._can_remove(self._documents[position])
+            and self._documents[position]["status"] in {"ready", "loading", "queued"}
+            for position in range(index + delta, len(self._documents) if delta > 0 else -1, delta)
+        ) if delta in {-1, 1} and 0 <= index < len(self._documents) else False
+
+    def setDocumentPdfMode(self, document_id, mode):
+        if self.busy or self._review_editing or self._review_saving or mode not in {"auto", "ocr", "direct"}:
+            return
+        document = next((item for item in self._documents if item["id"] == document_id), None)
+        if not document or document["format"] != "PDF":
+            return
+        document["pdfMode"] = mode
+        self._persist_queue()
+        self.changed.emit()
+
     def translationPreparing(self):
         active = [d for d in self._documents if d["status"] == "translating"]
         return bool(self._translation_active and active and not self._paused) and all(
@@ -45,25 +71,29 @@ class DocumentWorkflow:
         if document.get("phase") == "waiting_ocr":
             text = "Збережіть DOCX в ABBYY та імпортуйте його. Переклад продовжиться автоматично."
             return {"workflowText": tr(text), "workflowKind": "manual"}
-        route = document.get("pdfRoute")
+        route = document.get("pdfMode", "auto")
+        if route == "auto":
+            route = document.get("pdfRoute")
         if route not in {"ocr", "direct"}:
             return {}
         if route == "ocr":
             text = "Скан PDF: під час перекладу програма підготує DOCX через OCR."
+        elif document.get("pdfMode") == "direct" and document.get("pdfRoute") == "ocr":
+            text = "Прямий PDF перекладає лише текстовий шар. Написи у зображеннях можуть залишитися без перекладу; для них виберіть OCR."
         else:
             text = "Текстовий PDF: прямий переклад зі збереженням верстки. Пам’ять абзаців застосовується до DOCX і XLSX; глосарій зберігається."
         return {"workflowText": tr(text), "workflowKind": "info"}
 
     def documents(self):
-        return [
-            {
-                **self._display_document(d),
-                **self._workflow_details(d),
-                "canRemove": self._can_remove(d),
-                "canMove": self._can_remove(d) and d["status"] in ("loading", "ready", "queued"),
-            }
-            for d in self._documents
-        ]
+        return [self._document_row(document) for document in self._documents]
+
+    def _document_row(self, document):
+        return {
+            **self._display_document(document), **self._workflow_details(document),
+            "pdfMode": document.get("pdfMode", "auto"),
+            "canRemove": self._can_remove(document),
+            "canMove": self._can_remove(document) and document["status"] in ("loading", "ready", "queued"),
+        }
 
     def _selected_document(self):
         return next((d for d in self._documents if d["id"] == self._selected), None)
@@ -320,7 +350,7 @@ class DocumentWorkflow:
         value = QUrl(url)
         self._folder = value.toLocalFile() if value.isLocalFile() else url
         try:
-            save_preferences({**load_preferences(), "output_folder": self._folder})
+            update_preferences({"output_folder": self._folder})
         except OSError:
             self._notice(
                 "Папку вибрано для цієї сесії; не вдалося зберегти її в налаштуваннях.", "warning"
@@ -360,13 +390,16 @@ class DocumentWorkflow:
             memory_project_id=self._settings.memory_project_id,
         )
         self._run_options = options
+        self._run_context = RunContext.capture(options, self._settings, self._folder)
+        self._run_options = self._run_context.options
         for document in pending:
             self._prepare_run(document)
         self._queue = DocumentQueue(pending)
         queue = self._queue
         self._persist_queue()
         self._reload_review()
-        settings, control, folder = self._settings, self._control, Path(self._folder)
+        context = self._run_context
+        settings, control, folder = context.settings, self._control, context.folder
         self._pdf_continuation = AbbyyContinuation(settings, folder, control)
         continuation = self._pdf_continuation
         self._message = ""
@@ -375,6 +408,7 @@ class DocumentWorkflow:
             run_documents(
                 queue, folder, options, settings, control, emit, engine_factory=TranslationEngine,
                 pdf_handoff=continuation,
+                run_context=context,
             )
 
         self._launch(run, done=self._finished)
@@ -383,6 +417,7 @@ class DocumentWorkflow:
     def _finished(self):
         self._busy, self._paused, self._translation_active = False, False, False
         self._queue = None
+        self._run_context = None
         self._pdf_continuation = None
         if self._abbyy_handoff.get("continueTranslation"):
             self._abbyy_handoff = {}
@@ -390,13 +425,14 @@ class DocumentWorkflow:
 
     def _prepare_run(self, document):
         options = self._run_options
+        settings = self._run_context.settings if self._run_context else self._settings
         document.pop("result", None)
         document.update(
             runId=uuid.uuid4().hex,
             sourceLanguage=options.source_language,
             targetLanguage=options.target_language,
-            model=self._settings.model,
-            reviewModel=(self._settings.review_model or self._settings.model)
+            model=settings.model,
+            reviewModel=(settings.review_model or settings.model)
             if options.review
             else "",
             status="queued",
@@ -600,4 +636,7 @@ class DocumentWorkflow:
                     self._reload_review()
         if kind != "progress":
             self._persist_queue()
+        else:
+            self._document_model.update_row(self._document_row(doc))
+            self._skip_document_sync = True
         self.changed.emit()

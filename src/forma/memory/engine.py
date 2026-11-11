@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 import threading
 import time
 from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
@@ -15,14 +14,13 @@ from forma.memory.session import MemoryRun
 from forma.memory.store import exact_fingerprint, generation_fingerprint, policy_fingerprint
 from forma.persistence.files import atomic_json, available_output
 from forma.providers.client import Provider
-from forma.settings.config import data_directory
 from forma.translation.engine import (
     PROTOCOL_VERSION,
     batched,
     blocking_issues,
-    checkpoint_fingerprint,
     document_context,
     file_digest,
+    load_checkpoint,
     translation_issues,
     use_english_decimals,
 )
@@ -70,16 +68,10 @@ def translate_with_memory(engine, source, folder, options, progress):
         raise FormaError("У документі немає тексту для перекладу. Текст усередині зображень потребує OCR.")
     if any(len(segment.source) > 26000 for segment in document.segments):
         raise FormaError("Документ містить абзац понад 26 000 символів. Розділіть його перед перекладом.")
-    fingerprint = checkpoint_fingerprint(
+    checkpoint, state = load_checkpoint(
         source_hash, options, settings, memory_policy=run.policy, memory_generation=run.generation,
+        legacy_generations=run.legacy_generations,
     )
-    checkpoint = data_directory() / "checkpoints" / f"{fingerprint}.json"
-    try:
-        state = json.loads(checkpoint.read_text(encoding="utf-8"))
-    except (OSError, ValueError, RecursionError):
-        state = {}
-    if not isinstance(state, dict):
-        state = {}
     translations, drafts, kinds, references = {}, {}, {}, {}
     draft_hits = set()
     for segment in document.segments:
@@ -133,11 +125,14 @@ def translate_with_memory(engine, source, folder, options, progress):
         for member in members:
             if blocking_issues(member, hit.target, options):
                 raise FormaError("Переклад із пам’яті не пройшов перевірку форматування, чисел або кодів.")
+        hit = run.adopt(hit)
+        for member in members:
             translations[member.id] = hit.target
             kinds[member.id] = kind
             references[member.id] = {
                 "entry_id": hit.entry_id, "revision": hit.revision, "status": hit.status, "kind": kind,
             }
+        return hit
 
     def persist():
         state["translations"], state["drafts"] = translations, drafts
@@ -184,9 +179,7 @@ def translate_with_memory(engine, source, folder, options, progress):
 
     try:
         progress(3, "Шукаємо точні переклади в пам’яті проєкту")
-        available = run.memory.lookup_many(
-            run.snapshot, groups, run.generation, include_draft=options.review,
-        )
+        available = run.lookup_many(groups, include_draft=options.review)
         for key, members in groups.items():
             control.check()
             representative = members[0]
@@ -226,7 +219,7 @@ def translate_with_memory(engine, source, folder, options, progress):
                 run.complete(key, hit)
                 continue
             if hit is not None and hit.status != "draft" and not blocking_issues(representative, hit.target, options):
-                remember(hit, members, "memory")
+                hit = remember(hit, members, "memory")
                 run.complete(key, hit)
                 continue
             if hit is not None and hit.status == "draft" and not blocking_issues(representative, hit.target, options, draft=True):

@@ -20,7 +20,7 @@ from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 
 from forma.core.models import FormaError
 from forma.settings.config import data_directory
-from forma.settings.credentials import canonical_endpoint
+from forma.settings.connection import connection_identity, legacy_connection_urls, legacy_endpoint
 
 PRICE_DATE = "2026-11-10"
 PRICE_URL = "https://developers.openai.com/api/docs/pricing"
@@ -75,12 +75,13 @@ _FAILURES: set[tuple[str, str]] = set()
 
 
 def scope(settings) -> str:
-    endpoint = canonical_endpoint(settings.base_url)
-    return hashlib.sha256((endpoint + "\0" + settings.api_key).encode()).hexdigest()
+    identity = connection_identity(settings.base_url, settings.api_mode)
+    return hashlib.sha256((identity.key + "\0" + settings.api_key).encode()).hexdigest()
 
 
 def official_openai(settings) -> bool:
-    return canonical_endpoint(settings.base_url) == "https://api.openai.com/v1"
+    identity = connection_identity(settings.base_url, settings.api_mode)
+    return identity.family == "openai" and identity.root == "https://api.openai.com/v1"
 
 
 def model_name(value, key="") -> str:
@@ -263,7 +264,46 @@ class UsageLedger:
                         )
                         db.execute("PRAGMA user_version=2")
             with db:
+                db.execute("CREATE TABLE IF NOT EXISTS account_aliases (account TEXT NOT NULL, alias TEXT NOT NULL, PRIMARY KEY(account,alias))")
                 yield db
+
+    @staticmethod
+    def _accounts(db, settings):
+        """Link only proven legacy profiles; historical rows are never rewritten.
+
+        Legacy scopes did not record protocol or URL. An active saved profile
+        provides the only migration proof; arbitrary hashed accounts are not
+        guessed. IN queries count each original request ID once.
+        """
+        account = scope(settings)
+        aliases = {
+            hashlib.sha256((legacy_endpoint(url) + "\0" + settings.api_key).encode()).hexdigest()
+            for url in legacy_connection_urls(settings)
+        } - {account}
+        if aliases:
+            db.executemany("INSERT OR IGNORE INTO account_aliases VALUES(?,?)", ((account, alias) for alias in aliases))
+        known = {row[0] for row in db.execute("SELECT alias FROM account_aliases WHERE account=? LIMIT 129", (account,))}
+        if len(known) > 128:
+            raise sqlite3.DatabaseError("Too many usage account aliases")
+        return account, tuple(sorted({account, *known}))
+
+    @staticmethod
+    def _placeholders(accounts):
+        return ",".join("?" for _ in accounts)
+
+    @classmethod
+    def _tariff(cls, db, account, accounts, model):
+        rows = db.execute(
+            f"SELECT account,input,cached,output FROM tariffs WHERE account IN ({cls._placeholders(accounts)}) AND model=?",
+            (*accounts, model),
+        ).fetchall()
+        current = next((tuple(row)[1:] for row in rows if row[0] == account), None)
+        if current is not None:
+            return current
+        values = {tuple(row)[1:] for row in rows}
+        # Conflicting old tariffs have no timestamp: do not guess which rate
+        # the user intended. A new explicit tariff resolves the conflict.
+        return next(iter(values)) if len(values) == 1 else None
 
     def record(self, settings, raw, *, model="", status=200, timestamp=None):
         now = time.time() if timestamp is None else timestamp
@@ -295,12 +335,9 @@ class UsageLedger:
             )
             else "unknown"
         )
-        account = scope(settings)
         with self.connect() as db:
-            tariff = db.execute(
-                "SELECT input,cached,output FROM tariffs WHERE account=? AND model=?",
-                (account, requested),
-            ).fetchone()
+            account, accounts = self._accounts(db, settings)
+            tariff = self._tariff(db, account, accounts, requested)
             cost, source = estimate(settings, returned, counts, safe_tier, tariff, now, writes)
             # Rejected requests without usage do not consume inference tokens.
             if counts is None and status in (400, 401, 403, 404, 413, 422, 429):
@@ -329,8 +366,9 @@ class UsageLedger:
             raise ValueError("Expected three rates")
         account, model = scope(settings), model_name(settings.model, settings.api_key)
         with self.connect() as db:
+            account, accounts = self._accounts(db, settings)
             if parsed is None:
-                db.execute("DELETE FROM tariffs WHERE account=? AND model=?", (account, model))
+                db.execute(f"DELETE FROM tariffs WHERE account IN ({self._placeholders(accounts)}) AND model=?", (*accounts, model))
             else:
                 db.execute(
                     "INSERT OR REPLACE INTO tariffs VALUES(?,?,?,?,?)", (account, model, *parsed)
@@ -341,8 +379,9 @@ class UsageLedger:
         account = scope(settings)
         with self.connect() as db:
             db.execute("BEGIN IMMEDIATE")
+            account, accounts = self._accounts(db, settings)
             if parsed is None:
-                db.execute("DELETE FROM balances WHERE account=?", (account,))
+                db.execute(f"DELETE FROM balances WHERE account IN ({self._placeholders(accounts)})", accounts)
             else:
                 last_id = db.execute("SELECT COALESCE(MAX(id),0) FROM requests").fetchone()[0]
                 db.execute(
@@ -351,14 +390,14 @@ class UsageLedger:
                 )
 
     @staticmethod
-    def _totals(db, account, condition, parameter):
+    def _totals(db, accounts, condition, parameter):
         row = db.execute(
             "SELECT COUNT(*) requests, COALESCE(SUM(input),0) input, "
             "COALESCE(SUM(cached),0) cached, COALESCE(SUM(output),0) output, "
             "COALESCE(SUM(cost),0) cost, COALESCE(SUM(cost IS NULL),0) unknown, "
             "COALESCE(SUM(uncertain>0),0) uncertain, COALESCE(SUM(uncertain=2),0) unbounded, COALESCE(SUM(cache_write),0) cache_write "
-            f"FROM requests WHERE account=? AND {condition}",
-            (account, parameter),
+            f"FROM requests WHERE account IN ({UsageLedger._placeholders(accounts)}) AND {condition}",
+            (*accounts, parameter),
         ).fetchone()
         return dict(row)
 
@@ -373,17 +412,20 @@ class UsageLedger:
             ).timestamp()
         else:
             start_today, start_month = today.timestamp(), (today - timedelta(days=29)).timestamp()
-        account = scope(settings)
         with self.connect() as db:
             db.execute("BEGIN")
+            account, accounts = self._accounts(db, settings)
             result = {
-                "today": self._totals(db, account, "at>=?", start_today),
-                "month": self._totals(db, account, "at>=?", start_month),
+                "today": self._totals(db, accounts, "at>=?", start_today),
+                "month": self._totals(db, accounts, "at>=?", start_month),
             }
-            balance = db.execute("SELECT * FROM balances WHERE account=?", (account,)).fetchone()
+            balance = db.execute(
+                f"SELECT * FROM balances WHERE account IN ({self._placeholders(accounts)}) ORDER BY at DESC, (account=?) DESC, account ASC LIMIT 1",
+                (*accounts, account),
+            ).fetchone()
             result["balance"] = None
             if balance:
-                since = self._totals(db, account, "id>?", balance["after_id"])
+                since = self._totals(db, accounts, "id>?", balance["after_id"])
                 result["balance"] = {
                     "remaining": None
                     if since["unknown"] or since["uncertain"]
@@ -391,10 +433,7 @@ class UsageLedger:
                     "at": balance["at"],
                     "unknown": since["unknown"] + since["uncertain"],
                 }
-            tariff = db.execute(
-                "SELECT input,cached,output FROM tariffs WHERE account=? AND model=?",
-                (account, model_name(settings.model, settings.api_key)),
-            ).fetchone()
+            tariff = self._tariff(db, account, accounts, model_name(settings.model, settings.api_key))
             result["tariff"] = list(tariff) if tariff else []
             result["models"] = [
                 dict(row)
@@ -403,8 +442,8 @@ class UsageLedger:
                     "COALESCE(SUM(cached),0) cached, COALESCE(SUM(output),0) output, "
                     "COALESCE(SUM(cache_write),0) cache_write, COALESCE(SUM(cost),0) cost, "
                     "COALESCE(SUM(uncertain>0),0) uncertain, COALESCE(SUM(uncertain=2),0) unbounded, COALESCE(SUM(cost IS NULL),0) unknown "
-                    "FROM requests WHERE account=? AND at>=? GROUP BY model ORDER BY SUM(cost) DESC",
-                    (account, start_month),
+                    f"FROM requests WHERE account IN ({self._placeholders(accounts)}) AND at>=? GROUP BY model ORDER BY SUM(cost) DESC",
+                    (*accounts, start_month),
                 )
             ]
         with _LOCK:

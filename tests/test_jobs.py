@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import threading
 from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path
 
 from forma.core.models import FormaError, Options
 from forma.providers.client import JobControl
@@ -147,8 +148,6 @@ def test_cancelled_queue_does_not_read_files(tmp_path, monkeypatch):
 def test_duplicate_content_and_output_names_do_not_race(tmp_path):
     docs = documents(tmp_path, 3)
     # Same content with another name shares its checkpoint.
-    from pathlib import Path
-
     Path(docs[1]["path"]).write_bytes(Path(docs[0]["path"]).read_bytes())
     other = tmp_path / "other"
     other.mkdir()
@@ -266,3 +265,44 @@ def test_live_queue_can_expand_concurrency_after_start(tmp_path):
         assert entered.wait(3)
         assert queue.add(docs[1])
         future.result(timeout=4)
+
+
+def test_late_documents_keep_the_captured_configuration_and_pdf_route(tmp_path):
+    from forma.translation.jobs import DocumentQueue, RunContext
+
+    docs = documents(tmp_path, 2)
+    docs[1]["path"] = str(tmp_path / "scan.pdf")
+    Path(docs[1]["path"]).write_bytes(b"Offline route fixture")
+    docs[1]["pdfMode"] = "ocr"
+    options = Options(glossary={"term": "original"})
+    settings = Settings(model="captured", parallel_documents=1)
+    context = RunContext.capture(options, settings, tmp_path)
+    queue = DocumentQueue(docs[:1])
+    entered, release = threading.Event(), threading.Event()
+    seen = []
+
+    class Engine:
+        def __init__(self, configured, *_):
+            self.model = configured.model
+
+        def translate(self, source, folder, effective, *_):
+            seen.append((self.model, dict(effective.glossary), effective.pdf_mode))
+            if source.suffix == ".docx":
+                entered.set()
+                assert release.wait(3)
+            return source
+
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        future = pool.submit(
+            run_documents, queue, tmp_path, options, settings.with_overrides(model="changed"), JobControl(), lambda *_: None,
+            engine_factory=Engine, run_context=context,
+        )
+        try:
+            assert entered.wait(3)
+            options.glossary["term"] = "changed"
+            assert queue.add(docs[1])
+            release.set()
+            future.result(timeout=3)
+        finally:
+            release.set()
+    assert seen == [("captured", {"term": "original"}, "auto"), ("captured", {"term": "original"}, "ocr")]

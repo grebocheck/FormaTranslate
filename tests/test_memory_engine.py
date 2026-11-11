@@ -16,9 +16,9 @@ from forma.documents.editor import export_reviewed_copy
 from forma.documents.ooxml import OfficeDocument
 from forma.memory.importing import prefer_review_segment
 from forma.memory.session import MemoryRun
-from forma.memory.store import TranslationMemory
+from forma.memory.store import TranslationMemory, generation_fingerprint
 from forma.providers.client import JobControl
-from forma.settings.config import Settings
+from forma.settings.config import Settings, data_directory
 from forma.translation.engine import PROTOCOL_VERSION, TranslationEngine, checkpoint_fingerprint
 from forma.translation.jobs import DocumentQueue, run_documents
 
@@ -90,6 +90,38 @@ def test_each_exact_group_is_translated_and_edited_once_then_reused_across_files
     assert report["source_sha256"] == hashlib.sha256(copy.read_bytes()).hexdigest()
     assert report["output_sha256"] == hashlib.sha256(second.output.read_bytes()).hexdigest()
     assert "fake-offline-key" not in second.report.read_text()
+
+
+def test_proven_native_url_alias_preserves_paid_machine_memory(case, tmp_path):
+    store, settings, options = case
+    original_url = settings.base_url + "/messages"
+    settings = settings.with_overrides(api_mode="anthropic", base_url=original_url,
+                                      legacy_connection=("anthropic", original_url))
+    first = TranslationEngine(settings, provider=OfflineProvider()).translate(
+        document(tmp_path / "legacy.docx"), tmp_path / "out", options,
+    )
+    old_generation = generation_fingerprint(settings, protocol=PROTOCOL_VERSION, review=True, legacy=True)
+    with store._connect(write=True) as db:
+        db.execute("UPDATE entries SET generation_profile=? WHERE status='machine_final'", (old_generation,))
+        old_ids = {row[0] for row in db.execute("SELECT id FROM entries WHERE status='machine_final'")}
+    for path in (data_directory() / "checkpoints").glob("*.json"):
+        path.unlink()  # Isolate database compatibility from document-checkpoint reuse.
+    equivalent = settings.with_overrides(base_url=settings.base_url.removesuffix("/messages"))
+    provider = OfflineProvider(failure=True)
+    result = TranslationEngine(equivalent, provider=provider).translate(
+        document(tmp_path / "equivalent.docx"), tmp_path / "out", options,
+    )
+    assert not provider.calls and result.memory_segments == len(first.segments)
+    with store._connect() as db:
+        assert old_ids <= {row[0] for row in db.execute("SELECT id FROM entries WHERE generation_profile=?", (old_generation,))}
+    foreign = MemoryRun(options, equivalent.with_overrides(api_mode="chat"), protocol=PROTOCOL_VERSION)
+    assert foreign.legacy_generations == ()
+    custom = equivalent.with_overrides(api_mode="chat", base_url=original_url,
+                                      legacy_connection=("chat", original_url))
+    assert MemoryRun(options, custom, protocol=PROTOCOL_VERSION).legacy_generations == ()
+    assert generation_fingerprint(custom, protocol=PROTOCOL_VERSION, review=True) != generation_fingerprint(
+        custom, protocol=PROTOCOL_VERSION, review=True, legacy=True,
+    )
 
 
 def test_only_changed_contexts_require_new_requests(case, tmp_path):
@@ -271,6 +303,7 @@ def test_legacy_checkpoint_identity_stays_compatible_without_memory():
     options, settings = Options(), Settings()
     old_options = asdict(options)
     old_options.pop("memory_project_id")
+    old_options.pop("pdf_mode")  # Routing was absent from the original protocol-5 checkpoint.
     identity = {"protocol": 5, "file": "c" * 64, "base": settings.base_url,
                 "model": settings.model, "mode": settings.api_mode, "format": settings.response_format,
                 "review_model": settings.review_model, "reasoning_effort": settings.reasoning_effort,

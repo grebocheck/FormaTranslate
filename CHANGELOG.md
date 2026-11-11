@@ -2,13 +2,19 @@
 
 Versions follow semantic versioning. Changes before 1.0 may evolve as document compatibility improves.
 
-## Unreleased
+## 0.10.0 — 2026-11-11
+
+- Persist validated OCR preparation across interruptions and application restarts. Reuse it only while the PDF, recognized DOCX, manifest, source language and bounded OCR installation identity still match; an explicit retry resumes paid translation checkpoints.
+- Detect raster pages with long native footers using bounded image coverage and body-text inspection. Add per-document automatic, OCR and direct PDF routes, and share OCR provider selection and diagnostic handling between automatic and standalone workflows.
+- Normalize connection identities by API family while preserving custom HTTP routes. Conservatively migrate saved-profile credentials, accounting, translation checkpoints and project-memory generations without merging unrelated providers or keys.
+- Move native credential-vault access and settings/statistics persistence off the UI thread. Preserve form edits on failures and context switches, roll back failed credential changes and merge concurrent preference updates.
+- Split the main QML view into focused pages, retain unsaved drafts, and update document rows through a stable list model. Capture immutable translation settings for the run, including files added while the queue is working.
 
 - Route a one-page raster PDF with a short text footer through OCR, and reject direct PDF output if its original changes during translation; record source/output hashes.
 - Recover safely from deeply nested JSON in preferences, provider responses, usage records and Office checkpoints; discard invalid cached glossaries while retaining valid translated fragments.
 - Keep an explicitly configured local OCR path editable in automatic mode when ABBYY is also available.
 - Bound document inspection to at most two parsers while honoring a lower document limit; skip removed files and drop waiting inspections when closing.
-- Remove unused corpus/terminology prototypes and their tests, consolidate shared test fixtures/helpers and duplicate matrices, and reduce fake HTTP server shutdown delays while retaining critical document, cost, privacy and cancellation checks.
+- Remove unused corpus/terminology prototypes and their tests, consolidate shared test fixtures/helpers and duplicate matrices, and reduce fake HTTP server shutdown delays while retaining critical document, cost, privacy and cancellation checks. Include the build-test dependency in the development environment so a clean default sync can run the complete suite.
 
 ## 0.9.0 — 2026-11-11
 

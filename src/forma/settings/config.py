@@ -4,6 +4,7 @@ import json
 import math
 import os
 import sys
+import threading
 from dataclasses import dataclass, field, replace
 from pathlib import Path
 from urllib.parse import urlparse
@@ -32,6 +33,9 @@ STRING_PREFERENCES = {
     "provider_preset",
     "translation_instructions",
     "memory_project_id",
+    "connection_identity",
+    "legacy_connection_base",
+    "legacy_connection_mode",
 }
 NUMBER_PREFERENCES = {
     "max_output_tokens",
@@ -41,6 +45,7 @@ NUMBER_PREFERENCES = {
     "requests_per_minute",
 }
 BOOL_PREFERENCES = {"abbyy_extended_cli_confirmed"}
+_preferences_lock = threading.RLock()
 ENV_FIELDS = {
     "base_url": "OPENAI_BASE_URL",
     "model": "OPENAI_MODEL",
@@ -61,9 +66,10 @@ ENV_FIELDS = {
 }
 
 
-def data_directory() -> Path:
+def data_directory(*, create: bool = True) -> Path:
     path = Path(os.environ.get("FORMA_DATA_DIR") or user_data_path("Forma", "Forma"))
-    path.mkdir(parents=True, exist_ok=True)
+    if create:
+        path.mkdir(parents=True, exist_ok=True)
     return path
 
 
@@ -99,10 +105,12 @@ class Settings:
     key_source: str = ""
     key_stored: bool = False
     credential_status: str = ""
+    legacy_connection: tuple[str, str] | None = field(default=None, repr=False, compare=False)
 
     @classmethod
-    def load(cls, env_path: Path | None = None) -> Settings:
-        from forma.settings.credentials import CredentialError, canonical_endpoint, load_api_key
+    def load(cls, env_path: Path | None = None, *, load_credentials: bool = True) -> Settings:
+        from forma.settings.connection import connection_identity, legacy_connection_urls
+        from forma.settings.credentials import CredentialError, load_api_key
 
         path = env_path or default_env_path()
         values = {**dotenv_values(path), **os.environ}
@@ -123,6 +131,18 @@ class Settings:
         fields["translation_instructions"] = preferences.get("translation_instructions", "")
         fields["memory_project_id"] = preferences.get("memory_project_id", "")
         fields["abbyy_extended_cli_confirmed"] = preferences.get("abbyy_extended_cli_confirmed", False)
+        legacy = None
+        legacy_base = preferences.get("legacy_connection_base")
+        legacy_mode = preferences.get("legacy_connection_mode")
+        if isinstance(legacy_base, str) and legacy_mode in {"chat", "responses", "gemini", "anthropic"}:
+            legacy = (legacy_mode, legacy_base)
+        elif not preferences.get("connection_identity") and preferences.get("base_url"):
+            # An old saved profile proves its selected protocol. A newly chosen
+            # protocol at the same host must not adopt an untyped old vault key.
+            saved_mode = preferences.get("api_mode", "chat")
+            if saved_mode == fields["api_mode"]:
+                legacy = (saved_mode, preferences["base_url"])
+        fields["legacy_connection"] = legacy
         try:
             timeout = float(fields["timeout"])
             if not math.isfinite(timeout) or timeout <= 0:
@@ -172,8 +192,12 @@ class Settings:
         key, source, stored, status = "", "", False, "Ключ ще не задано"
         mode = preferences.get("credential_mode")
         if mode == "keyring":
+            if not load_credentials:
+                return cls(**fields, env_path=path, key_source="pending_keyring",
+                           credential_status="Ключ збережено в системному сховищі")
             try:
-                key = load_api_key(fields["base_url"])
+                proof = cls(base_url=fields["base_url"], api_mode=fields["api_mode"], legacy_connection=legacy)
+                key = load_api_key(fields["base_url"], fields["api_mode"], legacy_urls=legacy_connection_urls(proof))
                 stored = bool(key)
                 source = "keyring" if key else ""
                 status = (
@@ -187,8 +211,8 @@ class Settings:
             status = "Ключ попередньої сесії не зберігався; введіть його знову"
         elif mode != "none":
             try:
-                same_endpoint = canonical_endpoint(fields["base_url"]) == canonical_endpoint(
-                    environment_base
+                same_endpoint = connection_identity(fields["base_url"], fields["api_mode"]) == connection_identity(
+                    environment_base, environment_mode
                 )
             except FormaError:
                 same_endpoint = False
@@ -236,7 +260,7 @@ class Settings:
             if isinstance(value, bool) or not isinstance(value, int) or not 1 <= value <= limit:
                 raise FormaError(f"{label}: вкажіть ціле число від 1 до {limit}.")
 
-        canonical_endpoint(self.base_url)
+        canonical_endpoint(self.base_url, self.api_mode)
         parsed = urlparse(self.base_url)
         if parsed.scheme not in ("https", "http") or not parsed.hostname or parsed.username:
             raise FormaError("Вкажіть коректну адресу API, наприклад https://api.openai.com/v1.")
@@ -289,9 +313,16 @@ class Settings:
 
 
 def save_preferences(values: dict) -> None:
-    safe = _safe_preferences(values)
-    path = data_directory() / "preferences.json"
-    atomic_json(path, safe)
+    with _preferences_lock:
+        safe = _safe_preferences(values)
+        path = data_directory() / "preferences.json"
+        atomic_json(path, safe)
+
+
+def update_preferences(values: dict) -> None:
+    """Merge a preference delta atomically with other application writers."""
+    with _preferences_lock:
+        save_preferences({**load_preferences(), **values})
 
 
 def _safe_preferences(values: dict) -> dict:

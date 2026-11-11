@@ -61,5 +61,9 @@
   "Скан PDF: під час перекладу програма підготує DOCX через OCR.": "PDF escaneado: la aplicación preparará un DOCX mediante OCR durante la traducción.",
   "Текстовий PDF: прямий переклад зі збереженням верстки. Пам’ять абзаців застосовується до DOCX і XLSX; глосарій зберігається.": "PDF con texto: traducción directa conservando el diseño. La memoria de traducción de párrafos se aplica a DOCX y XLSX; el glosario se conserva.",
   "Очікуємо DOCX з ABBYY": "Esperando el DOCX de ABBYY",
-  "Перевірте текст, числа й таблиці у створеному DOCX. Після імпорту програма перекладе його в межах цього завдання.": "Revise el texto, los números y las tablas del DOCX creado. Tras importarlo, la aplicación lo traducirá como parte de esta tarea."
+  "Перевірте текст, числа й таблиці у створеному DOCX. Після імпорту програма перекладе його в межах цього завдання.": "Revise el texto, los números y las tablas del DOCX creado. Tras importarlo, la aplicación lo traducirá como parte de esta tarea.",
+  "Спосіб обробки цього PDF": "Procesamiento de este PDF",
+  "Розпізнати через OCR перед перекладом": "Reconocer mediante OCR antes de traducir",
+  "Прямий переклад PDF": "Traducción directa del PDF",
+  "Прямий PDF перекладає лише текстовий шар. Написи у зображеннях можуть залишитися без перекладу; для них виберіть OCR.": "La traducción directa de PDF utiliza solo la capa de texto. El texto de las imágenes puede quedar sin traducir; elija OCR para reconocerlo."
 }

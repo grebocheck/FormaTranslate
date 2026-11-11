@@ -16,6 +16,8 @@ from forma.documents.abbyy import (
     launch_abbyy_handoff,
 )
 from forma.documents.ocr import convert_scan_pdf, find_scan_converter
+from forma.documents.ocr_diagnostics import ocr_warning_messages
+from forma.documents.ocr_policy import resolve_scan_provider, validate_scan_provider
 from forma.providers.client import JobControl
 
 
@@ -32,42 +34,9 @@ def _scan_review_warnings(output: Path) -> list[str]:
         if len(raw) > 50 * 1024 * 1024:
             return []
         data = json.loads(raw)
-        if isinstance(data, dict) and data.get("provider") == "abbyy" and data.get("coverage") == "not_verified":
-            return ["ABBYY не підтверджує автоматично повноту сторінок. Звірте весь DOCX з оригінальним PDF перед перекладом."]
-        pages = data.get("pages") if isinstance(data, dict) else None
-        if not isinstance(pages, list):
-            return []
     except (OSError, ValueError, UnicodeError, RecursionError):
         return []
-    codes = {
-        warning
-        for page in pages
-        if isinstance(page, dict) and isinstance(page.get("warnings"), list)
-        for warning in page["warnings"]
-        if isinstance(warning, str)
-    }
-    recovered = any(
-        isinstance(page, dict)
-        and type(page.get("recovered_lines")) is int
-        and page["recovered_lines"] > 0
-        for page in pages
-    )
-    messages = []
-    if "table_structure_unresolved" in codes:
-        messages.append(
-            "Частину таблиць збережено зображеннями та текстом, бо структуру не відновлено. "
-            "Виправте їх у DOCX перед перекладом."
-        )
-    if recovered or "unassigned_ocr_lines_recovered" in codes:
-        messages.append(
-            "Відновлені поза структурою рядки виділено жовтим у DOCX. "
-            "Перевірте порядок і дублювання."
-        )
-    if "low_ocr_confidence" in codes:
-        messages.append(
-            "Є фрагменти з низькою впевненістю OCR. Звірте їх зі сканом, особливо числа та коди."
-        )
-    return messages
+    return ocr_warning_messages(data) if isinstance(data, dict) else []
 
 
 class OcrWorkflow:
@@ -93,21 +62,21 @@ class OcrWorkflow:
             self._recognize_pdf(document, source_language, "abbyy")
 
     def _recognize_pdf(self, document, source_language, provider):
-        if provider not in {"auto", "forma", "abbyy", "abbyy_extended"}:
-            self._notice("Оберіть спосіб розпізнавання PDF у налаштуваннях OCR.", "error")
-            return
-        if provider == "abbyy_extended" and self._settings.abbyy_extended_cli_confirmed is not True:
-            self._notice("Автоматичне збереження DOCX потребує окремої ліцензії ABBYY Extended CLI. Використайте звичайний режим ABBYY або підтвердьте її наявність.", "error")
+        try:
+            validate_scan_provider(
+                provider, extended_cli_confirmed=self._settings.abbyy_extended_cli_confirmed,
+            )
+        except FormaError as exc:
+            self._notice(str(exc), "error")
             return
         source = Path(document["path"])
         folder, settings = Path(self._folder), self._settings
 
         def work(emit, control):
-            effective = provider
-            if effective == "auto":
-                effective = "forma" if settings.scan_converter_path or find_scan_converter("") else (
-                    "abbyy" if find_abbyy(settings.abbyy_path) else "forma"
-                )
+            effective = resolve_scan_provider(
+                settings.with_overrides(scan_provider=provider),
+                local_finder=find_scan_converter, abbyy_finder=find_abbyy,
+            )
             if effective == "abbyy":
                 fingerprint = _digest(source)
                 control.check()

@@ -206,6 +206,9 @@ def test_mixed_image_page_is_reported_without_rejecting_illustrated_cover(tmp_pa
             )
         }
     )
+    content = DecodedStreamObject()
+    content.set_data(b"q 595 0 0 842 0 0 cm /Cover Do Q")
+    cover[NameObject("/Contents")] = writer._add_object(content)
     writer.append(text_pdf)
     source = tmp_path / "illustrated.pdf"
     writer.write(source)
@@ -226,6 +229,84 @@ def test_textual_page_cannot_become_blank(tmp_path, monkeypatch):
     with pytest.raises(FormaError, match="сторінці 1 зник"):
         _translate(source, tmp_path / "out")
     assert not (tmp_path / "out").exists()
+
+
+def _raster_with_native_text(path, *, body=False, nested=False, repeated_small=False, clipped=False):
+    from PIL import Image, ImageDraw
+    from reportlab.lib.utils import ImageReader
+
+    image = Image.new("RGB", (600, 800), "white")
+    ImageDraw.Draw(image).text((40, 80), "Raster contract 12345", fill="black")
+    canvas = Canvas(str(path), pagesize=(600, 800))
+
+    def draw():
+        for _ in range(4 if repeated_small else 1):
+            canvas.drawImage(ImageReader(image), 0, 20, 180 if repeated_small else 600,
+                             220 if repeated_small else 780)
+
+    if nested:
+        canvas.beginForm("Inner", 0, 0, 180 if clipped else 600, 220 if clipped else 800)
+        draw()
+        canvas.endForm()
+        canvas.beginForm("Outer", 0, 0, 600, 800)
+        canvas.doForm("Inner")
+        canvas.endForm()
+        canvas.saveState()
+        canvas.translate(30, 20)
+        canvas.scale(0.9, 0.9)
+        canvas.doForm("Outer")
+        canvas.restoreState()
+    else:
+        draw()
+    canvas.drawString(40, 5, "Confidential copy for review and signature")
+    if body:
+        for y in (700, 680, 660):
+            canvas.drawString(40, y, "This ordinary text paragraph is selectable and must keep the PDF layout.")
+    canvas.save()
+    return path
+
+
+@pytest.mark.parametrize(("body", "nested", "repeated_small", "clipped", "requires_ocr"), [
+    (False, False, False, False, True),
+    (True, False, False, False, False),
+    (False, True, False, False, True),
+    (False, False, True, False, False),
+    (False, True, False, True, False),
+])
+def test_raster_coverage_distinguishes_long_footer_scans_from_native_body_and_small_art(
+    tmp_path, body, nested, repeated_small, clipped, requires_ocr,
+):
+    from forma.documents.pdf import needs_ocr
+
+    info = inspect_pdf(_raster_with_native_text(
+        tmp_path / "raster.pdf", body=body, nested=nested, repeated_small=repeated_small, clipped=clipped,
+    ))
+    page = info["pages"][0]
+    assert not info["scanned"] and len(page["text"]) > 12
+    assert needs_ocr(info) is requires_ocr
+    assert not page["raster_analysis_limited"]
+    if body:
+        assert page["native_body_letters"] >= 80
+    assert 0 <= page["raster_coverage"] <= 1
+    assert page["raster_coverage"] < 0.15 if repeated_small or clipped else page["raster_coverage"] >= 0.75
+
+
+def test_raster_analysis_stops_at_its_budget_without_claiming_complete_coverage(tmp_path, monkeypatch):
+    monkeypatch.setattr("forma.documents.pdf_inspection.MAX_IMAGE_OPERATIONS", 2)
+    page = inspect_pdf(_raster_with_native_text(tmp_path / "limited.pdf"))["pages"][0]
+    assert page["raster_analysis_limited"]
+    assert page["text"] and page["raster_coverage"] == 0
+
+
+def test_explicit_direct_mode_preserves_layout_and_warns_about_the_raster_body(tmp_path, monkeypatch):
+    source = _raster_with_native_text(tmp_path / "direct.pdf")
+    _fake_engine_output(monkeypatch, source)
+    result = translate_pdf(
+        source, tmp_path / "out", Options(source_language="en", target_language="en", pdf_mode="direct"),
+        Settings(model="test"), JobControl(), lambda *_: None,
+    )
+    assert result.output.suffix == ".pdf"
+    assert any(issue.code == "pdf_image_text" for issue in result.issues)
 
 
 def test_dominantly_scanned_mixed_pdf_stops_before_engine_or_api(tmp_path, monkeypatch):

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 
 import pytest
@@ -7,6 +8,7 @@ import pytest
 from forma.core.models import FormaError
 from forma.settings import credentials
 from forma.settings.config import ENV_FIELDS, Settings, load_preferences, save_preferences
+from forma.settings.connection import legacy_connection_urls
 
 
 class MemoryStore:
@@ -195,3 +197,36 @@ def test_deeply_nested_preferences_do_not_prevent_startup(store, tmp_path):
     assert load_preferences() == {}
     assert Settings.load().model == ""
     assert path.read_text() == content
+
+
+@pytest.mark.parametrize("mode,root,old_url", [
+    ("anthropic", "https://native.example/v1", "https://native.example/v1/messages"),
+    ("gemini", "https://native.example/v1beta", "https://native.example/v1beta/models/example:generateContent"),
+])
+def test_saved_legacy_native_profile_migrates_key_without_crossing_protocols(store, mode, root, old_url):
+    old_account = "api-key:" + hashlib.sha256(old_url.encode()).hexdigest()
+    store.set_password(credentials.SERVICE, old_account, "native-profile-key")
+    # A newly selected protocol may not guess the owner of an untyped key.
+    assert credentials.load_api_key(old_url, mode) == ""
+    save_preferences({"base_url": old_url, "api_mode": mode, "model": "test", "credential_mode": "keyring"})
+    loaded = Settings.load()
+    assert loaded.api_key == "native-profile-key" and loaded.key_stored
+    assert credentials.load_api_key(root, mode) == "native-profile-key"
+    assert credentials.load_api_key(root, "chat") == ""
+    assert legacy_connection_urls(loaded.with_overrides(api_mode="chat")) == ()
+    assert store.get_password(credentials.SERVICE, old_account) == "native-profile-key"
+
+
+def test_custom_chat_message_path_is_distinct_from_native_connection(store):
+    root = "https://custom.example/v1"
+    credentials.save_api_key(root, "chat-key")
+    assert credentials.load_api_key(root + "/responses", "responses") == "chat-key"
+    assert credentials.load_api_key(root + "/messages", "chat") == ""
+    assert credentials.load_api_key(root + "/messages", "anthropic") == ""
+    old_url = root + "/messages"
+    old_account = "api-key:" + hashlib.sha256(old_url.encode()).hexdigest()
+    store.set_password(credentials.SERVICE, old_account, "custom-profile-key")
+    save_preferences({"base_url": old_url, "api_mode": "chat", "model": "test", "credential_mode": "keyring"})
+    assert Settings.load().api_key == "custom-profile-key"
+    assert credentials.load_api_key(root, "chat") == "chat-key"
+    assert credentials.load_api_key(old_url, "anthropic") == ""

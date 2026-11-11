@@ -116,7 +116,7 @@ def test_reported_write_without_known_provider_tariff_is_not_regular_input():
             }
         },
     )
-    assert ledger.summary(cfg)["today"]["unknown"] == 2
+    assert ledger.summary(cfg)["today"]["unknown"] == 1  # Native protocol has its own account.
 
 
 def test_migrate_v1_preserves_history_tariffs_baselines_and_marks_missing_details():

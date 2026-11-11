@@ -14,6 +14,7 @@ from forma.localization.catalog import available_languages, set_language
 from forma.localization.catalog import translate_ui_message as tr
 from forma.memory.store import TranslationMemory
 from forma.persistence.library import TranslationLibrary
+from forma.presentation.document_model import DocumentListModel
 from forma.presentation.documents_workflow import DocumentWorkflow
 from forma.presentation.file_availability import FileAvailability
 from forma.presentation.file_dialogs import FilePickers
@@ -57,6 +58,7 @@ class Backend(
     reviewEditChanged = Signal()
     closedReady = Signal()
     workerAvailabilityReady = Signal(int, object)
+    settingsSaved = Signal()
 
     def __init__(self):
         super().__init__()
@@ -72,6 +74,8 @@ class Backend(
         self._segments_cache = None
         self._history_cache = None
         self._documents = []
+        self._document_model = DocumentListModel(self)
+        self._skip_document_sync = False
         self._selected = ""
         self._threads: list[TaskThread] = []
         self._inspection_pending: dict[str, str] = {}
@@ -91,12 +95,18 @@ class Backend(
         self._instructions_error = ""
         self._api_status = "Очікує налаштування"
         self._settings = self._read_settings()
+        self._settings_saving = False
+        self._settings_loading = self._settings.key_source == "pending_keyring"
         self._worker_availability = {"pdfReady": False, "scanConverterReady": False, "abbyyReady": False, "abbyyDetectedPath": ""}
         self._worker_probe_key = None
         self._worker_probe_generation = 0
         self._worker_probe_running = False
         self.workerAvailabilityReady.connect(self._receive_worker_availability)
-        self._usage = UsageController(self, settings=lambda: self._settings)
+        self._usage = UsageController(
+            self, settings=lambda: self._settings, launch=self._launch, closing=lambda: self._closing,
+            available=lambda: not self._settings_loading and self._settings.key_source != "unavailable_keyring",
+            loading=lambda: self._settings_loading,
+        )
         self.languageChanged.connect(self._usage.changed.emit)
         self._folder = load_preferences().get("output_folder") or str(
             Path.home() / "Documents" / "Forma"
@@ -126,6 +136,7 @@ class Backend(
         self._pickers = FilePickers(self)
         self._queue = None
         self._run_options = None
+        self._run_context = None
         self._history = []
         self._history_loading = False
         self._model_choices = []
@@ -224,9 +235,20 @@ class Backend(
         if self._settings.memory_project_id and self._memory_message_error and not self._message:
             self._notice(self._memory_message, "warning")
         self._refresh_worker_availability()
+        self.changed.connect(self._sync_document_model)
+        self.languageChanged.connect(self._sync_document_model)
+        self._sync_document_model()
+        if self._settings_loading:
+            self._load_saved_credentials()
+
+    def _sync_document_model(self):
+        if self._skip_document_sync:
+            self._skip_document_sync = False
+            return
+        self._document_model.sync(DocumentWorkflow.documents(self))
 
     def _read_settings(self):
-        return Settings.load()
+        return Settings.load(load_credentials=False)
 
     @Property(QObject, constant=True)
     def usage(self):
@@ -536,6 +558,30 @@ class Backend(
     def documents(self):
         return DocumentWorkflow.documents(self)
 
+    @Property(QObject, constant=True)
+    def documentModel(self):
+        return self._document_model
+
+    @Property(int, notify=changed)
+    def documentCount(self):
+        return len(self._documents)
+
+    @Property(bool, notify=changed)
+    def hasCompletedDocuments(self):
+        return any(document["status"] == "done" for document in self._documents)
+
+    @Property(bool, notify=changed)
+    def pendingHasPdf(self):
+        return DocumentWorkflow.pendingHasPdf(self)
+
+    @Slot(int, int, result=bool)
+    def canMoveQueue(self, index, delta):
+        return DocumentWorkflow.canMoveQueue(self, index, delta)
+
+    @Slot(str, str)
+    def setDocumentPdfMode(self, document_id, mode):
+        return DocumentWorkflow.setDocumentPdfMode(self, document_id, mode)
+
     @Property(str, notify=changed)
     def selectedId(self):
         return self._selected
@@ -586,7 +632,15 @@ class Backend(
 
     @Property(bool, notify=changed)
     def busy(self):
-        return self._busy or self._quick.busy or self._glossary_editor.working
+        return self._busy or self._settings_saving or self._settings_loading or self._quick.busy or self._glossary_editor.working
+
+    @Property(bool, notify=changed)
+    def settingsSaving(self):
+        return self._settings_saving
+
+    @Property(bool, notify=changed)
+    def settingsLoading(self):
+        return self._settings_loading
 
     @Property(bool, notify=changed)
     def paused(self):

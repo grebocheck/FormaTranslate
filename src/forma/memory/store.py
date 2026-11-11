@@ -194,16 +194,22 @@ def policy_fingerprint(options, glossary: dict) -> str:
     })
 
 
-def generation_fingerprint(settings, *, protocol: int, review: bool) -> str:
+def generation_fingerprint(settings, *, protocol: int, review: bool, legacy: bool = False) -> str:
     """Hash an explicit allowlist; never serialize Settings or its API key."""
-    return _fingerprint({
+    from forma.settings.connection import connection_identity, legacy_route_compatible
+
+    values = {
         "memory_protocol": TM_PROTOCOL,
         "translation_protocol": protocol,
         "review": review,
         **{name: getattr(settings, name) for name in (
             "base_url", "model", "api_mode", "response_format", "review_model", "reasoning_effort", "max_output_tokens",
         )},
-    })
+        "base_url": settings.base_url if legacy else connection_identity(settings.base_url, settings.api_mode).root,
+    }
+    if not legacy and not legacy_route_compatible(settings.base_url, settings.api_mode):
+        values["connection_route"] = 2
+    return _fingerprint(values)
 
 
 def exact_fingerprint(policy: str, source_markup: str, context: str, role: str = "") -> str:

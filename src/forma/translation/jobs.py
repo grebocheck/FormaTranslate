@@ -5,11 +5,41 @@ from __future__ import annotations
 import hashlib
 import threading
 from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 
-from forma.core.models import Cancelled, FormaError, TranslationFailure
+from forma.core.models import Cancelled, FormaError, Options, TranslationFailure
 from forma.memory.session import MemoryRun
+from forma.settings.config import Settings
 from forma.translation.engine import PROTOCOL_VERSION, TranslationEngine
+
+
+@dataclass(frozen=True)
+class RunContext:
+    """One captured configuration for preparation, late additions and translation."""
+
+    options: Options = field(repr=False)
+    settings: Settings = field(repr=False)
+    folder: Path
+
+    @classmethod
+    def capture(cls, options, settings, folder):
+        return cls(
+            replace(options, glossary=dict(options.glossary)), settings.with_overrides(), Path(folder),
+        )
+
+
+@dataclass(frozen=True)
+class DocumentJob:
+    """The worker receives a source and route, never mutable presentation state."""
+
+    id: str
+    source: Path = field(repr=False)
+    pdf_mode: str = "auto"
+
+    @classmethod
+    def capture(cls, document):
+        return cls(document["id"], Path(document["path"]), document.get("pdfMode", "auto"))
 
 
 class DocumentQueue:
@@ -81,7 +111,10 @@ def document_resources(source: Path, control=None) -> set[tuple[str, str]]:
 
 def run_documents(
     documents, folder, options, settings, control, emit, *, engine_factory=None, pdf_handoff=None,
+    run_context=None,
 ):
+    context = run_context or RunContext.capture(options, settings, folder)
+    folder, options, settings = context.folder, context.options, context.settings
     dynamic = isinstance(documents, DocumentQueue)
     pending = documents if dynamic else DocumentQueue(documents)
     initial = pending.snapshot()
@@ -103,7 +136,8 @@ def run_documents(
         return
 
     def translate(document, document_settings):
-        did = document["id"]
+        job = DocumentJob.capture(document)
+        did = job.id
         try:
             control.check()
             emit("progress", {"id": did, "percent": 0, "text": "Починаємо переклад"})
@@ -119,9 +153,10 @@ def run_documents(
                         did, source, language, shared_control, emit, progress,
                     )
             result = engine.translate(
-                Path(document["path"]),
+                job.source,
                 folder,
-                options,
+                replace(options, pdf_mode=job.pdf_mode)
+                if job.source.suffix.lower() == ".pdf" else options,
                 lambda percent, text: emit(
                     "progress", {"id": did, "percent": percent, "text": text, "phase": "translating"}
                 ),

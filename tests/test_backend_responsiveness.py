@@ -10,6 +10,7 @@ import pytest
 from PySide6.QtCore import QCoreApplication, QEvent, QUrl
 from PySide6.QtQml import QQmlApplicationEngine
 from PySide6.QtTest import QTest
+from support import pump
 
 import forma.presentation.settings_workflow as module
 from forma.presentation.backend import Backend
@@ -99,6 +100,7 @@ def test_path_changes_ignore_old_background_results(qapp, monkeypatch):
     try:
         assert started.wait(2)
         assert backend.saveSettings({"babeldocPath": "new", "scanConverterPath": "new-ocr"})
+        pump(qapp, lambda: not backend.settingsSaving)
         settled(qapp, backend)
         assert backend.settings["pdfReady"] and backend.settings["scanConverterReady"]
         release.set()
@@ -126,8 +128,10 @@ def test_settings_reads_cache_availability_until_paths_or_explicit_refresh(qapp,
         assert "pdfReady" in backend.settings
     assert len(calls) == 2
     assert backend.saveSettings({"model": "synthetic-local-model"})
+    pump(qapp, lambda: not backend.settingsSaving)
     assert len(calls) == 2
     assert backend.saveSettings({"babeldocPath": "local-pdf", "scanConverterPath": "local-ocr"})
+    pump(qapp, lambda: not backend.settingsSaving)
     settled(qapp, backend)
     assert len(calls) == 4
     assert backend.settings["pdfReady"] and backend.settings["scanConverterReady"]

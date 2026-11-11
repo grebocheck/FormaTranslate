@@ -44,5 +44,11 @@
   "PDF перекладено зі збереженням глосарія проєкту. Пам’ять абзаців застосовується до DOCX і XLSX; вибраний проєкт залишився активним.": "Das PDF wurde mit dem Projektglossar übersetzt. Der Absatz-Übersetzungsspeicher gilt für DOCX und XLSX; das ausgewählte Projekt bleibt aktiv.",
   "DOCX після OCR змінився. Повторіть переклад із поточним файлом.": "Die DOCX-Datei wurde nach der OCR geändert. Wiederholen Sie die Übersetzung mit der aktuellen Datei.",
   "Оригінальний PDF": "Ursprüngliches PDF",
-  "DOCX після OCR": "DOCX nach OCR"
+  "DOCX після OCR": "DOCX nach OCR",
+  "Оберіть автоматичний переклад PDF, OCR або прямий PDF.": "Wählen Sie automatische PDF-Übersetzung, OCR oder direkte PDF-Übersetzung.",
+  "Написи в графіках, зображеннях або печатках не є редагованим текстом. Звірте ці ділянки з PDF: вони можуть залишитися мовою оригіналу.": "Beschriftungen in Diagrammen, Bildern oder Stempeln liegen nicht als bearbeitbarer Text vor. Vergleichen Sie diese Bereiche mit dem PDF: Sie können in der Originalsprache verbleiben.",
+  "Геометрію частини зображень PDF не вдалося повністю перевірити. Перегляньте сторінки; за потреби виберіть OCR для цього документа.": "Die Geometrie einiger PDF-Bilder konnte nicht vollständig geprüft werden. Prüfen Sie die Seiten und wählen Sie bei Bedarf OCR für dieses Dokument.",
+  "OCR · Використовуємо збережений DOCX": "OCR · Gespeicherte DOCX wird wiederverwendet",
+  "Не вдалося зберегти етап OCR. Перевірте доступ до папки даних застосунку.": "Die OCR-Vorbereitung konnte nicht gespeichert werden. Prüfen Sie den Zugriff auf den Datenordner der Anwendung.",
+  "Використано перевірений DOCX після попереднього OCR.": "Eine geprüfte DOCX aus einem früheren OCR-Durchlauf wurde wiederverwendet."
 }

@@ -12,6 +12,20 @@ For an ordinary FineReader license, Forma opens the OCR Editor. Open the selecte
 
 One translation run keeps its captured languages, provider settings, project memory and glossary through preparation. Changing settings during OCR or an ABBYY handoff applies to a later run. **Stop** cancels both preparation and continuation; a previously opened import picker cannot restart a cancelled job. After an application restart, interrupted work requires a new explicit **Translate** action.
 
+## Resume a prepared scan
+
+A completed, validated OCR stage is remembered locally. Retrying the same PDF reuses the exact recognized DOCX, so its already paid Office fragments can resume from their checkpoints. This works after cancellation, a provider failure or an application restart; it never starts an API request until you click **Translate** again.
+
+Before reuse, Forma checks the PDF path/hash, source language, OCR worker/configuration identity, page count, recognized DOCX hash and its sidecar hash and binding. Changing the PDF, recognition language, worker or known model resources causes fresh OCR. Changing the translation model or target language does not itself require repeating OCR, but follows the normal translation-cache rules. Unknown external worker installations that cannot be identified within bounded inspection are converted without claiming reusable preparation.
+
+The private `prepared-ocr` directory in the application-data folder stores at most 512 small metadata records. Recognized documents remain in their original output folder; eviction removes only metadata. Keep the `.ocr.docx` and `.ocr.json` together. Editing or deleting either prevents automatic reuse. To translate intentional manual corrections, add the edited DOCX itself to the queue.
+
+## Override a PDF's route
+
+The default **Automatic** route considers raster coverage and text in the body of each page, so a text footer does not make an image scan directly translatable. Analysis has limits on streams, drawing operations and nested objects; a limited analysis is a review hint, not a quality score.
+
+Under **Additional PDF actions**, select **Recognize with OCR before translation** when an illustrated or unusual PDF needs full reconstruction. **Direct PDF translation** uses only the existing text layer and can leave image labels untranslated; it still rejects a file with no text layer. The selected route belongs to that document and is captured when it enters a run. Warnings about labels in graphics, charts and seals are retained in the result report.
+
 ## Scanned PDF → editable DOCX
 
 Install the optional OCR helper from a source checkout, separately from the application. The release's **Sources** archive includes the OCR helper source ZIP: extract Sources, then that inner archive, and run the same command from the directory containing `tools/ocr`.

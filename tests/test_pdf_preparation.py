@@ -36,6 +36,17 @@ def scanned_pdf(tmp_path):
 
 def fake_converter(monkeypatch, docx_file, *, warnings=(), during=None, corrupt=None):
     calls = []
+    worker = docx_file.parent / "offline-worker" / "forma-ocr"
+    worker.parent.mkdir(exist_ok=True)
+    worker.write_bytes(b"Offline frozen worker fixture")
+    internal = worker.parent / "_internal"
+    internal.mkdir(exist_ok=True)
+    (internal / "worker.py").write_text("# Synthetic, never executed\n")
+    models = docx_file.parent / "offline-models"
+    models.mkdir(exist_ok=True)
+    monkeypatch.setenv("DOCLING_ARTIFACTS_PATH", str(models))
+    monkeypatch.setenv("TESSDATA_PREFIX", str(models))
+    monkeypatch.setattr(preparation, "find_scan_converter", lambda _: str(worker))
 
     def convert(source, folder, language, configured, control, progress):
         calls.append((source, language, configured))
@@ -153,6 +164,149 @@ def test_project_snapshot_is_captured_before_ocr_and_used_for_the_docx(
     assert options.memory_project_id == project.id
 
 
+def test_interrupted_scan_reuses_durable_ocr_and_paid_office_checkpoint(
+    monkeypatch, scanned_pdf, docx_file, tmp_path,
+):
+    calls = fake_converter(monkeypatch, docx_file)
+    settings = local_settings().with_overrides(scan_provider="forma")
+    options = Options(source_language="en", review=False, auto_glossary=False)
+    with pytest.raises(Cancelled):
+        TranslationEngine(settings, provider=FakeProvider(interrupt_after=1)).translate(
+            scanned_pdf, tmp_path / "out", options,
+        )
+    provider = FakeProvider()
+    result = TranslationEngine(settings, provider=provider).translate(scanned_pdf, tmp_path / "out", options)
+    assert len(calls) == 1
+    assert result.cached_segments == 8
+    assert result.preparation["reused"]
+    loaded, _ = load_report(result.report)
+    assert loaded.preparation["reused"]
+
+
+@pytest.mark.parametrize("changed", ["docx", "manifest"])
+def test_prepared_stage_rechecks_both_artifacts_before_reuse(
+    monkeypatch, scanned_pdf, docx_file, tmp_path, changed,
+):
+    calls = fake_converter(monkeypatch, docx_file)
+    settings = local_settings().with_overrides(scan_provider="forma")
+    engine = TranslationEngine(settings, provider=FakeProvider())
+    options = Options(source_language="en", review=False, auto_glossary=False)
+    result = engine.translate(scanned_pdf, tmp_path / "out", options)
+    altered = result.source if changed == "docx" else result.source.with_suffix(".ocr.json")
+    altered.write_bytes(altered.read_bytes() + b"\nmodified artifact\n")
+    retry = engine.translate(scanned_pdf, tmp_path / "out", options)
+    assert len(calls) == 2 and not retry.preparation["reused"]
+
+
+def test_prepared_stage_identity_tracks_source_language_and_worker_not_translation_model(
+    monkeypatch, scanned_pdf, docx_file, tmp_path,
+):
+    from forma.providers.client import JobControl
+
+    calls = fake_converter(monkeypatch, docx_file)
+    worker = tmp_path / "offline-ocr"
+    worker.write_bytes(b"worker version 1")
+    (tmp_path / "_internal").mkdir()
+    (tmp_path / "_internal/model.onnx").write_bytes(b"synthetic model")
+    monkeypatch.setattr(preparation, "find_scan_converter", lambda _: str(worker))
+    settings = local_settings().with_overrides(scan_provider="forma")
+
+    def prepare(language="en", configured=settings):
+        return preparation.prepare_pdf_scan(
+            scanned_pdf, tmp_path / "out", language, configured, JobControl(), lambda *_: None,
+            source_sha256=digest(scanned_pdf), page_count=1,
+        )
+
+    assert not prepare().provenance["reused"]
+    assert prepare(configured=settings.with_overrides(model="another-model")).provenance["reused"]
+    assert len(calls) == 1
+    worker.write_bytes(b"worker version 2")
+    assert not prepare().provenance["reused"] and len(calls) == 2
+    assert not prepare("de").provenance["reused"] and len(calls) == 3
+    scanned_pdf.write_bytes(scanned_pdf.read_bytes() + b"\n% updated source\n")
+    assert not prepare().provenance["reused"] and len(calls) == 4
+
+
+def test_external_worker_identity_tracks_frozen_and_default_model_resources(
+    monkeypatch, tmp_path,
+):
+    import forma.persistence.prepared as stages
+    from forma.providers.client import JobControl
+
+    worker = tmp_path / "worker/forma-ocr"
+    worker.parent.mkdir()
+    worker.write_bytes(b"frozen worker")
+    internal = worker.parent / "_internal"
+    internal.mkdir()
+    frozen_model = internal / "layout.onnx"
+    frozen_model.write_bytes(b"frozen model version one")
+    hub = tmp_path / "hub"
+    default_model = hub / "models--docling-project--layout/snapshots/revision/weights.bin"
+    default_model.parent.mkdir(parents=True)
+    default_model.write_bytes(b"default model version one")
+    monkeypatch.setenv("HF_HUB_CACHE", str(hub))
+    monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path / "cache"))
+    monkeypatch.delenv("DOCLING_ARTIFACTS_PATH", raising=False)
+    monkeypatch.setattr(stages.shutil, "which", lambda _: None)
+    settings, control = local_settings(), JobControl()
+
+    def identity():
+        return stages.worker_identity(str(worker), "forma", settings, control)
+
+    first = identity()
+    assert identity() == first  # Warm digest cache must not change identity.
+    frozen_model.write_bytes(b"frozen model version two")
+    second = identity()
+    assert second != first
+    default_model.write_bytes(b"default model version two")
+    assert identity() != second
+    # A distribution record without discoverable worker code is not a known
+    # closure (for example, an editable import hook outside the environment).
+    external = tmp_path / "unknown/bin/forma-ocr"
+    external.parent.mkdir(parents=True)
+    external.write_bytes(b"editable launcher")
+    metadata = tmp_path / "unknown/lib/python3.12/site-packages/forma_ocr-1.0.dist-info/METADATA"
+    metadata.parent.mkdir(parents=True)
+    metadata.write_text("Name: forma-ocr\nVersion: 1.0\n")
+    assert stages.worker_identity(str(external), "forma", settings, control) != stages.worker_identity(
+        str(external), "forma", settings, control,
+    )
+    monkeypatch.setattr(stages, "_MAX_IDENTITY_ENTRIES", 1)
+    assert identity() != identity()  # Incomplete closure never authorizes reuse.
+
+
+def test_bundled_worker_identity_survives_onefile_extraction_directory_changes(monkeypatch, tmp_path):
+    import forma.persistence.prepared as stages
+    from forma.providers.client import JobControl
+
+    identities = []
+    for name in ("_MEIfirst", "_MEIsecond"):
+        root = tmp_path / name / "runtimes"
+        worker = root / "ocr/forma-ocr.exe"
+        worker.parent.mkdir(parents=True)
+        worker.write_bytes(b"same worker")
+        inventory = root.parent / "runtimes-meta/BUNDLE.json"
+        inventory.parent.mkdir()
+        inventory.write_text('{"snapshot":"same verified worker and models"}')
+        monkeypatch.setattr(stages, "runtime_root", lambda root=root: root)
+        identities.append(stages.worker_identity(str(worker), "forma", local_settings(), JobControl()))
+    assert identities[0] == identities[1]
+
+
+def test_stop_after_completed_ocr_keeps_stage_without_starting_translation(
+    monkeypatch, scanned_pdf, docx_file, tmp_path,
+):
+    calls = fake_converter(monkeypatch, docx_file, during=lambda source, output, control: control.cancelled.set())
+    settings = local_settings().with_overrides(scan_provider="forma")
+    provider = FakeProvider()
+    options = Options(source_language="en", review=False, auto_glossary=False)
+    with pytest.raises(Cancelled):
+        TranslationEngine(settings, provider=provider).translate(scanned_pdf, tmp_path / "out", options)
+    assert not provider.calls
+    retry = TranslationEngine(settings, provider=FakeProvider()).translate(scanned_pdf, tmp_path / "out", options)
+    assert len(calls) == 1 and retry.preparation["reused"]
+
+
 def test_relative_cli_paths_produce_a_report_that_can_be_reopened(
     monkeypatch, scanned_pdf, docx_file, tmp_path,
 ):
@@ -227,7 +381,13 @@ def test_ordinary_abbyy_without_ui_handoff_provides_a_guided_error(scanned_pdf, 
 def test_ordinary_abbyy_continues_only_with_a_bound_import(
     monkeypatch, scanned_pdf, docx_file, tmp_path,
 ):
+    worker = tmp_path / "FineReaderOCR.exe"
+    worker.write_bytes(b"offline ABBYY fixture")
+    monkeypatch.setattr(preparation, "find_abbyy", lambda _: str(worker))
+    handoffs = []
+
     def handoff(source, language, control, progress):
+        handoffs.append(source)
         output = tmp_path / "reviewed.docx"
         shutil.copyfile(docx_file, output)
         output.with_suffix(".ocr.json").write_text(json.dumps({
@@ -243,6 +403,13 @@ def test_ordinary_abbyy_continues_only_with_a_bound_import(
     assert result.preparation["provider"] == "abbyy"
     assert result.preparation["coverage"] == "not_verified"
     assert any(issue.code == "ocr_coverage_not_verified" for issue in result.issues)
+    provider = FakeProvider()
+    resumed = TranslationEngine(engine.settings, provider=provider).translate(
+        scanned_pdf, tmp_path / "out", Options(source_language="en", auto_glossary=False),
+    )
+    assert resumed.preparation["reused"]
+    assert len(handoffs) == 1 and not provider.calls
+    assert any(issue.code == "ocr_coverage_not_verified" for issue in resumed.issues)
 
 
 @pytest.mark.parametrize("corrupt", [

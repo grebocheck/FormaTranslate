@@ -64,5 +64,6 @@
   "Переглянути помилки": "Review errors",
   "Не вдалося відкрити звіт помилок. Повторіть переклад, щоб створити новий звіт.": "Could not open the error report. Run translation again to create a new report.",
   "Експорт зупинено: переклад не пройшов перевірку після трьох спроб. Перегляньте звіт про проблемні фрагменти та повторіть переклад.": "Export stopped: translation failed validation after three attempts. Review the report of affected segments and run translation again.",
-  "Звіт .forma.json створюється поруч із перекладеним файлом Forma. Його не потрібно робити вручну.": "A .forma.json report is created beside the translated Forma file. You do not need to create it manually."
+  "Звіт .forma.json створюється поруч із перекладеним файлом Forma. Його не потрібно робити вручну.": "A .forma.json report is created beside the translated Forma file. You do not need to create it manually.",
+  "Не вдалося зберегти контрольну точку перекладу. Перевірте доступ до папки даних застосунку.": "Could not save the translation checkpoint. Check access to the application data folder."
 }

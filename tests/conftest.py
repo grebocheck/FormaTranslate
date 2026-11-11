@@ -125,6 +125,9 @@ a.output.with_suffix('.ocr.json').write_text(json.dumps(manifest), encoding='utf
         return real_popen([sys.executable, str(script), *arguments[1:]], **kwargs)
 
     monkeypatch.setattr("forma.documents.ocr.find_scan_converter", lambda _: "offline-converter")
+    # This fixture exercises subprocess IO, not discovery of an installed OCR
+    # environment on the host. The identity boundary has its own regressions.
+    monkeypatch.setattr("forma.translation.preparation.worker_identity", lambda *_: "offline-converter-v1")
     monkeypatch.setattr("forma.documents.ocr.subprocess.Popen", launch)
     for name in ("OPENAI_API_KEY", "GEMINI_API_KEY", "GOOGLE_API_KEY", "ANTHROPIC_API_KEY"):
         monkeypatch.setenv(name, "synthetic-private-key")

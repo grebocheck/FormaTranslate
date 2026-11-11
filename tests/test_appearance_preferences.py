@@ -41,7 +41,7 @@ def test_invalid_theme_and_failed_save_keep_previous_choice(qapp, monkeypatch):
     def fail(_):
         raise OSError('unavailable preferences')
 
-    monkeypatch.setattr('forma.presentation.settings_workflow.save_preferences', fail)
+    monkeypatch.setattr('forma.presentation.settings_workflow.update_preferences', fail)
     backend.setUiTheme('light')
     assert backend.uiTheme == 'dark' and not changes
     assert backend.messageKind == 'error'

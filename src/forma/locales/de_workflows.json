@@ -64,5 +64,6 @@
   "Переглянути помилки": "Fehler ansehen",
   "Не вдалося відкрити звіт помилок. Повторіть переклад, щоб створити новий звіт.": "Der Fehlerbericht konnte nicht geöffnet werden. Starten Sie die Übersetzung erneut, um einen neuen Bericht zu erstellen.",
   "Експорт зупинено: переклад не пройшов перевірку після трьох спроб. Перегляньте звіт про проблемні фрагменти та повторіть переклад.": "Export gestoppt: Die Übersetzung hat die Prüfung nach drei Versuchen nicht bestanden. Prüfen Sie den Bericht zu den betroffenen Abschnitten und starten Sie die Übersetzung erneut.",
-  "Звіт .forma.json створюється поруч із перекладеним файлом Forma. Його не потрібно робити вручну.": "Der Bericht .forma.json wird neben der mit Forma übersetzten Datei erstellt. Sie müssen ihn nicht von Hand anlegen."
+  "Звіт .forma.json створюється поруч із перекладеним файлом Forma. Його не потрібно робити вручну.": "Der Bericht .forma.json wird neben der mit Forma übersetzten Datei erstellt. Sie müssen ihn nicht von Hand anlegen.",
+  "Не вдалося зберегти контрольну точку перекладу. Перевірте доступ до папки даних застосунку.": "Der Übersetzungsfortschritt konnte nicht gespeichert werden. Prüfen Sie den Zugriff auf den Anwendungsdatenordner."
 }

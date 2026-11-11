@@ -136,7 +136,7 @@ def test_formatted_status_and_canonical_locations_are_presentation_only():
 def test_catalogs_cover_every_qml_key_and_preserve_placeholders():
     qml_keys = {
         json.loads(match.group(1))
-        for path in Path("src/forma/ui").glob("*.qml")
+        for path in Path("src/forma/ui").rglob("*.qml")
         for match in re.finditer(r'qsTr\(("(?:[^"\\]|\\.)*")\)', path.read_text(encoding="utf-8"))
     }
     assert qml_keys
@@ -193,7 +193,7 @@ def message_literals(filenames, *, include_fragments=False):
     "boundary,filenames,languages",
     [
         ("quick", ("presentation/quick_controller.py", "translation/text.py", "translation/images.py"), NON_UK_LANGUAGES),
-        ("ocr", ("documents/ocr.py", "documents/abbyy.py", "presentation/ocr_workflow.py", "translation/preparation.py", "translation/handoff.py"), NON_UK_LANGUAGES),
+        ("ocr", ("documents/ocr.py", "documents/abbyy.py", "documents/ocr_policy.py", "documents/ocr_diagnostics.py", "presentation/ocr_workflow.py", "translation/preparation.py", "translation/handoff.py"), NON_UK_LANGUAGES),
         ("memory", ("memory/importing.py", "memory/session.py", "memory/engine.py"), (*NON_UK_LANGUAGES, "uk")),
         ("glossary", ("presentation/glossary_controller.py", "translation/failures.py"), (*NON_UK_LANGUAGES, "uk")),
         ("provider", ("settings/config.py", "providers/presets.py", "providers/protocol.py"), NON_UK_LANGUAGES),

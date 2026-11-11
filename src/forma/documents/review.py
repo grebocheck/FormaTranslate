@@ -72,6 +72,10 @@ def _parse_preparation(data: dict, options: Options) -> dict:
     if not required <= preparation.keys():
         raise ValueError("preparation fields")
     clean = {key: preparation[key] for key in required}
+    if "reused" in preparation:
+        if type(preparation["reused"]) is not bool:
+            raise ValueError("preparation reuse")
+        clean["reused"] = preparation["reused"]
     if (
         clean["kind"] != "ocr" or clean["provider"] not in {"forma", "abbyy", "abbyy_extended"}
         or clean["coverage"] != ("complete" if clean["provider"] == "forma" else "not_verified")

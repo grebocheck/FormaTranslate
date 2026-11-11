@@ -15,18 +15,18 @@ from forma.core.models import (
 )
 from forma.documents.abbyy import find_abbyy
 from forma.documents.ocr import find_scan_converter
+from forma.documents.ocr_policy import choose_scan_provider
 from forma.documents.pdf import find_babeldoc
 from forma.localization.catalog import available_languages, set_language
 from forma.localization.catalog import translate_ui_message as tr
+from forma.presentation.settings_io import persist_settings, settings_save_request
 from forma.providers.catalog import list_models
 from forma.providers.client import Provider
-from forma.settings.config import load_preferences, save_preferences
+from forma.settings.config import update_preferences
+from forma.settings.connection import connection_identity, legacy_connection_urls
 from forma.settings.credentials import (
     CredentialError,
-    canonical_endpoint,
-    delete_api_key,
     load_api_key,
-    save_api_key,
 )
 
 
@@ -35,7 +35,7 @@ class SettingsWorkflow:
         if code not in {item["code"] for item in available_languages()} or code == self._ui_language:
             return
         try:
-            save_preferences({**load_preferences(), "ui_language": code})
+            update_preferences({"ui_language": code})
         except OSError:
             self._notice("Не вдалося зберегти налаштування.", "error")
             return
@@ -54,7 +54,7 @@ class SettingsWorkflow:
         if code not in {"system", "light", "dark"} or code == self._ui_theme:
             return
         try:
-            save_preferences({**load_preferences(), "ui_theme": code})
+            update_preferences({"ui_theme": code})
         except OSError:
             self._notice("Не вдалося зберегти налаштування.", "error")
             return
@@ -68,28 +68,24 @@ class SettingsWorkflow:
         self.changed.emit()
 
     def refreshModels(self, values):
-        if self._models_busy or self._closing:
+        if self._models_busy or self._settings_loading or self._settings_saving or self._closing:
             return
         try:
             base = str(values.get("baseUrl", self._settings.base_url)).strip()
             key = str(values.get("apiKey", "")).strip()
-            endpoint = canonical_endpoint(base)
+            api_mode = str(values.get("apiMode", self._settings.api_mode))
+            endpoint = connection_identity(base, api_mode)
             try:
-                same = endpoint == canonical_endpoint(self._settings.base_url)
+                same = endpoint == connection_identity(self._settings.base_url, self._settings.api_mode)
             except FormaError:
                 same = False
             if not key:
                 if same:
                     key = self._settings.api_key
-                else:
-                    try:
-                        key = load_api_key(base)
-                    except CredentialError:
-                        key = ""  # Local compatible providers may not need authentication.
             settings = self._settings.with_overrides(
                 base_url=base,
                 api_key=key or "",
-                api_mode=str(values.get("apiMode", self._settings.api_mode)),
+                api_mode=api_mode,
             )
             settings.validate(require_connection=False)
         except (FormaError, CredentialError) as exc:
@@ -102,7 +98,14 @@ class SettingsWorkflow:
         self._models_message = "Отримуємо список моделей…"
 
         def fetch(emit):
-            emit("models", list_models(settings))
+            configured = settings
+            if not configured.api_key and not same:
+                try:
+                    key = load_api_key(base, api_mode, legacy_urls=legacy_connection_urls(configured))
+                except CredentialError:
+                    key = ""  # Local compatible providers may not need authentication.
+                configured = configured.with_overrides(api_key=key)
+            emit("models", list_models(configured))
 
         def receive(kind, payload):
             if generation != self._models_generation:
@@ -145,10 +148,11 @@ class SettingsWorkflow:
             "scanProvider": s.scan_provider,
             "abbyyPath": s.abbyy_path,
             "abbyyExtendedCliConfirmed": s.abbyy_extended_cli_confirmed,
-            "scanProviderEffective": (
-                "forma" if s.scan_converter_path or self._worker_availability.get("scanConverterReady")
-                else "abbyy" if self._worker_availability.get("abbyyReady") else "forma"
-            ) if s.scan_provider == "auto" else s.scan_provider,
+            "scanProviderEffective": choose_scan_provider(
+                s.scan_provider, configured_converter=bool(s.scan_converter_path),
+                local_ready=self._worker_availability.get("scanConverterReady", False),
+                abbyy_ready=self._worker_availability.get("abbyyReady", False),
+            ),
             "envPath": str(s.env_path),
             "keyPresent": bool(s.api_key),
             "keyStored": s.key_stored,
@@ -217,7 +221,7 @@ class SettingsWorkflow:
             return False
         try:
             validate_instructions(value)
-            save_preferences({**load_preferences(), "translation_instructions": value})
+            update_preferences({"translation_instructions": value})
         except FormaError as exc:
             self._instructions_error = str(exc)
         except OSError:
@@ -231,128 +235,90 @@ class SettingsWorkflow:
         return False
 
     def saveSettings(self, values):
-        if self.busy:
+        if self.busy or self._closing:
             return False
-        old = self._settings
         try:
-            prefs = {
-                key: str(values.get(ui, getattr(old, key))).strip()
-                for key, ui in (
-                    ("base_url", "baseUrl"),
-                    ("model", "model"),
-                    ("api_mode", "apiMode"),
-                    ("response_format", "responseFormat"),
-                    ("review_model", "reviewModel"),
-                    ("babeldoc_path", "babeldocPath"),
-                    ("scan_converter_path", "scanConverterPath"),
-                    ("scan_provider", "scanProvider"),
-                    ("abbyy_path", "abbyyPath"),
-                    ("reasoning_effort", "reasoningEffort"),
-                    ("provider_preset", "providerPreset"),
-                )
-            }
-            raw_timeout = values.get("timeout", old.timeout)
-            if isinstance(raw_timeout, bool):
-                raise ValueError
-            prefs["timeout"] = float(raw_timeout)
-            prefs["max_output_tokens"] = int(
-                str(values.get("maxOutputTokens", old.max_output_tokens))
-            )
-            for key, ui in (
-                ("max_parallel_requests", "maxParallelRequests"),
-                ("parallel_documents", "parallelDocuments"),
-                ("requests_per_minute", "requestsPerMinute"),
-            ):
-                prefs[key] = int(str(values.get(ui, getattr(old, key))))
-            prefs["abbyy_extended_cli_confirmed"] = values.get("abbyyExtendedCliConfirmed", old.abbyy_extended_cli_confirmed)
-            candidate = old.with_overrides(**prefs)
-            candidate.validate(require_connection=False)
-            try:
-                same_endpoint = canonical_endpoint(old.base_url) == canonical_endpoint(
-                    candidate.base_url
-                )
-            except FormaError:
-                same_endpoint = False
-            supplied = str(values.get("apiKey", "")).strip()
-            remember = bool(values.get("rememberKey", True))
-            remove = bool(values.get("removeKey", False))
-            notice = "Налаштування збережено."
-            warning = False
-            key, mode, key_source, stored = "", "none", "", False
-            status = "API-ключ не задано"
-            if remove:
-                if not same_endpoint:
-                    raise FormaError(
-                        "Спочатку збережіть адресу API, потім видаліть ключ цього підключення."
-                    )
-                try:
-                    delete_api_key(old.base_url)
-                except CredentialError:
-                    if old.key_stored or load_preferences().get("credential_mode") == "keyring":
-                        raise
-                    warning = True
-                notice = "Ключ видалено з підключення. Інші налаштування збережено."
-                if warning:
-                    notice = "Ключ прибрано з поточного підключення. Сховище ОС недоступне; його вміст не змінено."
-            else:
-                loaded_from_vault = False
-                key = supplied or (old.api_key if same_endpoint else "")
-                if not key and not same_endpoint:
-                    try:
-                        key = load_api_key(candidate.base_url)
-                        loaded_from_vault = bool(key)
-                    except CredentialError:
-                        pass
-                if key and remember:
-                    try:
-                        save_api_key(candidate.base_url, key)
-                    except CredentialError:
-                        mode, key_source = "session", "session"
-                        status = "Ключ діє до закриття програми: сховище ОС недоступне"
-                        notice = "Налаштування збережено. Сховище ОС недоступне, тому ключ діє лише до закриття програми."
-                        warning = True
-                    else:
-                        mode, key_source, stored = "keyring", "keyring", True
-                        status = "Ключ збережено у сховищі облікових даних ОС"
-                elif key:
-                    try:
-                        delete_api_key(candidate.base_url)
-                    except CredentialError:
-                        if (old.key_stored and same_endpoint) or loaded_from_vault:
-                            raise
-                    mode, key_source = "session", "session"
-                    status = "Ключ діє лише до закриття програми"
-                    notice = "Налаштування збережено. Ключ діє лише до закриття програми."
-                elif (
-                    same_endpoint
-                    and remember
-                    and load_preferences().get("credential_mode") == "keyring"
-                ):
-                    # A locked/unavailable vault is not a request to forget its entry.
-                    mode, status = "keyring", old.credential_status
-            prefs["credential_mode"] = mode
-            save_preferences({**load_preferences(), **prefs})
-            self._settings = candidate.with_overrides(
-                api_key=key, key_source=key_source, key_stored=stored, credential_status=status
-            )
-            self._refresh_worker_availability()
-            self._usage.refresh()
-            self._api_status = "Налаштування збережено"
-            self._notice(notice, "warning" if warning else "success")
-            return True
+            request = settings_save_request(self._settings, values)
         except (ValueError, TypeError):
             self._notice("Перевірте числові параметри підключення та паралельної обробки.", "error")
+            return False
         except FormaError as exc:
             self._notice(str(exc), "error")
-        except OSError:
-            self._notice("Не вдалося зберегти налаштування у папці даних застосунку.", "error")
-        return False
+            return False
+        self._settings_saving = True
+        completed = []  # Private worker result; never emit a key-bearing Qt payload.
+
+        def save(emit):
+            try:
+                completed.append(persist_settings(request))
+            except OSError:
+                raise FormaError("Не вдалося зберегти налаштування у папці даних застосунку.") from None
+
+        def receive(kind, payload):
+            if kind == "error":
+                self._notice(payload, "error")
+
+        def finish():
+            self._settings_saving = False
+            if completed:
+                result = completed.pop()
+                self._settings = result.settings
+                self._api_status = "Налаштування збережено"
+                self._notice(result.notice, result.kind)
+                if not self._closing:
+                    self._refresh_worker_availability()
+                    self._usage.refresh()
+                self.settingsSaved.emit()
+            self.changed.emit()
+
+        self._launch(save, handler=receive, done=finish)
+        self.changed.emit()
+        return True
+
+    def _load_saved_credentials(self):
+        if not self._settings_loading or self._closing:
+            return
+        snapshot = self._settings
+        completed = []
+
+        def load(emit):
+            try:
+                key = load_api_key(snapshot.base_url, snapshot.api_mode,
+                                   legacy_urls=legacy_connection_urls(snapshot))
+                status = ("Ключ збережено в системному сховищі" if key
+                          else "У системному сховищі немає ключа для цієї адреси API")
+                completed.append((key, status, False))
+            except CredentialError as exc:
+                completed.append(("", str(exc), True))
+
+        def receive(kind, payload):
+            if kind == "error":
+                completed.append(("", payload, True))
+                self._notice(payload, "error")
+
+        def finish():
+            self._settings_loading = False
+            if completed and self._settings is snapshot:
+                key, status, unavailable = completed.pop()
+                self._settings = snapshot.with_overrides(
+                    api_key=key, key_source="unavailable_keyring" if unavailable else "keyring" if key else "",
+                    key_stored=bool(key),
+                    credential_status=status,
+                )
+                if not self._closing:
+                    self._usage.refresh()
+            self.changed.emit()
+
+        self._launch(load, handler=receive, done=finish)
 
     def reloadEnv(self):
         if self.busy:
             return
         try:
             self._settings = self._read_settings()
+            self._settings_loading = self._settings.key_source == "pending_keyring"
+            if self._settings_loading:
+                self._load_saved_credentials()
             self._refresh_worker_availability(force=True)
             self._usage.refresh()
             self._api_status = "Конфігурацію оновлено"

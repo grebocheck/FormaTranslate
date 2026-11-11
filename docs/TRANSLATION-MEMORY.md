@@ -42,6 +42,8 @@ Identical visible text alone is insufficient. A label in a different table or a 
 
 Generation settings include the provider, model and requested editorial pass. Human-approved wording is independent of the model that originally produced it. Automatic checks or an LLM editorial pass do not make a machine result human-approved.
 
+Equivalent forms of a native API address share the same generation identity. A proven older saved connection can reuse its compatible machine entries after the ordinary source, context, policy and numeric/format checks. Reused entries are copied into the canonical generation with a reference to the original entry; the older records remain intact. Human approval is not added or changed by this migration. Credential and billing accounts remain separate from translation-memory generation settings.
+
 Within one queue, exact entries share completed work, including across documents. Separate application processes can still make duplicate requests. Pause, cancellation and checkpoint recovery remain available.
 
 ## Adapt a similar passage

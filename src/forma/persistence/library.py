@@ -52,6 +52,7 @@ QUEUE_FIELDS = {
     "model",
     "reviewModel",
     "pdfRoute",
+    "pdfMode",
 }
 HISTORY_FIELDS = {
     "id",
@@ -130,6 +131,10 @@ def _clean(record: dict, *, history: bool) -> dict:
     if "pdfRoute" in clean and (
         clean["pdfRoute"] not in {"", "ocr", "direct"}
         or clean["pdfRoute"] and clean["format"] != "PDF"
+    ):
+        raise FormaError("Некоректний запис бібліотеки перекладів.")
+    if "pdfMode" in clean and (
+        clean["pdfMode"] not in {"auto", "ocr", "direct"} or clean["format"] != "PDF"
     ):
         raise FormaError("Некоректний запис бібліотеки перекладів.")
     return clean

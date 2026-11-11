@@ -76,6 +76,30 @@ def test_invalid_translation_blocks_export(docx_file, tmp_path):
     assert not list((tmp_path / "output").glob("*.docx"))
 
 
+@pytest.mark.parametrize("suffix, compatible", [("/v1/chat/completions", True), ("/messages", False)])
+def test_legacy_checkpoint_reuses_only_the_same_http_route(docx_file, tmp_path, suffix, compatible):
+    import hashlib
+
+    from forma.settings.config import data_directory
+    from forma.translation.engine import checkpoint_fingerprint
+
+    settings = local_settings().with_overrides(base_url="http://localhost:1234" + suffix, api_mode="chat")
+    options = Options(review=False, auto_glossary=False)
+    TranslationEngine(settings, provider=FakeProvider()).translate(docx_file, tmp_path / "out", options)
+    source_hash = hashlib.sha256(docx_file.read_bytes()).hexdigest()
+    folder = data_directory() / "checkpoints"
+    canonical = folder / f"{checkpoint_fingerprint(source_hash, options, settings)}.json"
+    legacy = folder / f"{checkpoint_fingerprint(source_hash, options, settings, legacy=True)}.json"
+    assert canonical != legacy
+    canonical.rename(legacy)
+
+    provider = FakeProvider()
+    result = TranslationEngine(settings, provider=provider).translate(docx_file, tmp_path / "out", options)
+    assert result.cached_segments == (len(result.segments) if compatible else 0)
+    assert bool(provider.calls) is not compatible
+    assert canonical.exists() and legacy.exists()
+
+
 def test_resume_reuses_completed_batches(docx_file, tmp_path):
     options = Options(review=False, auto_glossary=False)
     provider = FakeProvider(interrupt_after=1)

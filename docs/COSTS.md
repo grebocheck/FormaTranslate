@@ -4,6 +4,8 @@ Click **Costs** in the top bar. The panel shows estimated spending today and ove
 
 Only requests made by **this Forma installation with the current server and API key** are included. Recording begins with version 0.4.0; old translation reports are not imported. Changing a model keeps the account totals; changing a key or server selects a separate account. Rotated keys cannot be identified as belonging to the same provider project.
 
+Equivalent address spellings use the same effective connection: for example, Anthropic `/v1` and `/v1/messages` retain their statistics and balance baseline. Protocol families and different keys remain separate. For an older saved profile, Forma registers hashed legacy account aliases without rewriting historical requests; each original request is counted once. Historical records from an unconfigured profile are retained rather than assigned by guessing. If several legacy balance baselines exist, the latest timestamp wins; a tie favors the current account deterministically. A newly entered tariff takes priority. Conflicting old tariffs without timestamps remain unset until the user chooses a rate, so future cost estimates are not invented.
+
 ## What is counted
 
 Office documents, quick text/photo translation, editorial passes, PDF requests through Forma's BabelDOC bridge and connection tests all use the same local ledger. Each actual upstream attempt is recorded once, including retries and responses rejected by local validation. Reusing a local translation cache makes no API request and adds no tokens. Interrupted or failed network requests without usage are shown as unpriced: the provider may have charged for them.

@@ -90,7 +90,7 @@ def test_length_limit_and_failed_save_keep_draft_and_saved_rules(instructions_wi
     def fail(_):
         raise OSError("private filesystem path")
 
-    monkeypatch.setattr("forma.presentation.settings_workflow.save_preferences", fail)
+    monkeypatch.setattr("forma.presentation.settings_workflow.update_preferences", fail)
     save.clicked.emit()
     assert window.findChild(QObject, "instructionsDialog").property("visible")
     assert editor.property("text") == "New rules"

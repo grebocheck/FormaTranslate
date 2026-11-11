@@ -18,7 +18,7 @@ from forma.core.models import (
 from forma.localization.catalog import translate_ui_message as tr
 from forma.memory.importing import import_reference, prefer_review_segment
 from forma.memory.store import MemoryConflict
-from forma.settings.config import load_preferences, save_preferences
+from forma.settings.config import update_preferences
 
 
 class MemoryWorkflow:
@@ -75,7 +75,7 @@ class MemoryWorkflow:
             return False
         try:
             project = self._memory.get_project(project_id) if project_id else None
-            save_preferences({**load_preferences(), "memory_project_id": project_id})
+            update_preferences({"memory_project_id": project_id})
             if self._memory_project is None:
                 self._standalone_glossary = dict(self._glossary)
                 self._standalone_glossary_name = self._glossary_name

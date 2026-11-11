@@ -5,6 +5,7 @@ from PySide6.QtCore import QCoreApplication, QEvent, QPointF, QUrl
 from PySide6.QtQml import QQmlApplicationEngine
 from PySide6.QtQuick import QQuickItem
 from PySide6.QtTest import QTest
+from support import pump
 
 from forma.localization.catalog import CatalogTranslator
 from forma.presentation.backend import Backend
@@ -36,6 +37,7 @@ def settings_window(qapp, monkeypatch):
     window.setProperty("page", 2)
     qapp.processEvents()
     yield backend, window, warnings
+    pump(qapp, lambda: not backend._threads)
     window.close()
     engine.deleteLater()
     QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
@@ -119,6 +121,7 @@ def test_anthropic_preset_saves_native_mode_and_reloads_without_exposing_key(
     key.setProperty("text", "anthropic-test-secret")
     window.findChild(QQuickItem, "rememberKey").setProperty("checked", False)
     window.findChild(QQuickItem, "saveSettingsButton").clicked.emit()
+    pump(QCoreApplication.instance(), lambda: not backend.settingsSaving and not backend._threads)
     assert backend._settings.api_mode == "anthropic"
     assert backend._settings.provider_preset == "anthropic"
     assert backend._settings.base_url == "https://api.anthropic.com/v1"
