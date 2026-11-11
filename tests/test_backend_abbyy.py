@@ -98,3 +98,34 @@ def test_handoff_hash_remains_bound_when_pdf_changes_inside_import(qapp, monkeyp
     settle(qapp, backend)
     assert backend.selectedDocument["format"] == "PDF" and backend.messageKind == "error"
     assert not list((tmp_path / "converted").glob("*.docx"))
+
+
+def test_background_detection_exposes_exact_path_without_ui_rescans_or_override(qapp, monkeypatch):
+    import time
+
+    from PySide6.QtTest import QTest
+
+    from forma.settings.config import load_preferences
+
+    detected = r'E:\Program Files\ABBYY FineReader 16\FineReaderOCR.exe'
+    calls = []
+
+    def find(configured):
+        calls.append(configured)
+        return detected
+
+    monkeypatch.setattr('forma.presentation.settings_workflow.find_abbyy', find)
+    backend = Backend()
+    deadline = time.monotonic() + 5
+    while backend._worker_probe_running and time.monotonic() < deadline:
+        qapp.processEvents()
+        QTest.qWait(10)
+    settle(qapp, backend)
+    assert backend.settings['abbyyReady']
+    assert backend.settings['abbyyDetectedPath'] == detected
+    assert backend.settings['scanProviderEffective'] == 'abbyy'
+    assert backend.settings['abbyyPath'] == ''
+    for _ in range(100):
+        assert backend.settings['abbyyDetectedPath'] == detected
+    assert calls == ['']
+    assert load_preferences().get('abbyy_path', '') == ''

@@ -88,7 +88,7 @@ class Backend(
         self._instructions_error = ""
         self._api_status = "Очікує налаштування"
         self._settings = self._read_settings()
-        self._worker_availability = {"pdfReady": False, "scanConverterReady": False, "abbyyReady": False}
+        self._worker_availability = {"pdfReady": False, "scanConverterReady": False, "abbyyReady": False, "abbyyDetectedPath": ""}
         self._worker_probe_key = None
         self._worker_probe_generation = 0
         self._worker_probe_running = False

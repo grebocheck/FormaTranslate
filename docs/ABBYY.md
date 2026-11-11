@@ -35,6 +35,8 @@ FineReaderOCR.exe INPUT.pdf /lang Ukrainian /out TEMP_RESULT.docx /report TEMP_R
 
 The destination is a new private temporary file. Forma checks process completion, the source PDF hash and the exact returned DOCX bytes before creating a uniquely named result. A missing result, nonzero exit, invalid/empty DOCX, cancellation or timeout prevents publication. Provider logs are not shown as document text or copied into release packages. See ABBYY's [saving command](https://help.abbyy.com/en-us/finereader/16/user_guide/commandline_save/) and [FineReader 15 equivalent](https://help.abbyy.com/en-us/finereader/15/user_guide/commandline_save/).
 
+The automatic export runs with its own writable temporary working directory and an XML report path in that directory. It does not use the application installation directory or the source PDF's folder for job files, and Forma does not elevate its whole interface merely because ABBYY is installed. The original PDF is passed by its absolute path and remains unchanged.
+
 Do not use this operation alongside unsaved work in an existing ABBYY session. If ABBYY forwards a command to an existing editor and returns before producing the file, Forma fails rather than guessing that processing is complete. Cancel/timeout terminates only the process Forma launched; it never kills every ABBYY process or an unrelated user's editor. A session that ABBYY independently reused may need to be stopped in ABBYY itself. Use the manual workflow if this installation cannot provide a completed CLI result.
 
 ## Output checks and limits
@@ -45,7 +47,15 @@ ABBYY does not supply Forma's page-by-page OCR manifest. The sidecar therefore r
 
 Automatic conversion/import currently accepts the same four source languages as Forma OCR: English, Ukrainian, Polish and German. Interface-language choices are separate. Inputs are bounded to 200 MB and 200 source pages; output DOCX files are bounded to 200 MB. Validation preserves the original DOCX bytes, including tables and layout, instead of reconstructing them a second time.
 
-Discovery checks fixed Windows App Paths registry keys and the standard FineReader 15/16 installation directories. A custom installation can be selected explicitly. Discovery belongs in a background task; reading a QML property does not rescan the registry or disk. A stale configured ABBYY path does not make discovery pick a different ABBYY installation. Explicit ABBYY modes report the missing program; Automatic mode follows the provider order shown in settings.
+Automatic discovery is independent of whether Windows uses `C:` for Program Files. For example, `E:\Program Files\ABBYY FineReader 16\FineReaderOCR.exe` can be detected without entering its path. Forma checks, in order:
+
+1. The OCR Editor's Windows App Paths registration, plus the editor next to known FineReader/PDF launcher registrations.
+2. ABBYY FineReader installation metadata (`InstallLocation` or a known launcher `DisplayIcon`) in both user/machine and 32/64-bit registry views.
+3. The environment's Program Files directories, then only the known FineReader 15/16 folder names under Program Files/Program Files (x86) on fixed local drives.
+
+Registry enumeration is bounded. No recursive disk search runs, and fallback discovery excludes removable and mapped network drives. Registry command strings are not executed. This uses the documented Windows [App Paths](https://learn.microsoft.com/en-us/windows/win32/shell/app-registration), [installer metadata](https://learn.microsoft.com/en-us/windows/win32/msi/uninstall-registry-key) and [drive-type APIs](https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-getdrivetypew).
+
+A custom installation can also be selected explicitly. Discovery belongs in a background task; reading a QML property does not rescan the registry or disk. A stale configured ABBYY path does not make discovery pick a different ABBYY installation. Explicit ABBYY modes report the missing program; Automatic mode follows the provider order shown in settings. Detecting the executable does not prove Extended CLI licensing.
 
 ## Other ABBYY products
 

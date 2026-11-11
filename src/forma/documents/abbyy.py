@@ -10,7 +10,9 @@ from __future__ import annotations
 import hashlib
 import json
 import math
+import ntpath
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -31,7 +33,15 @@ MAX_DOCUMENT_BYTES = 200 * 1024 * 1024
 MAX_SOURCE_PAGES = 200
 MAX_REPORT_BYTES = 8 * 1024 * 1024
 _EXECUTABLE = "FineReaderOCR.exe"
-_APP_PATH = rf"Software\Microsoft\Windows\CurrentVersion\App Paths\{_EXECUTABLE}"
+_LAUNCHERS = (_EXECUTABLE, "FineReader.exe", "FineReaderPDF.exe")
+_APP_PATHS = r"Software\Microsoft\Windows\CurrentVersion\App Paths"
+_UNINSTALL_PATH = r"Software\Microsoft\Windows\CurrentVersion\Uninstall"
+_MAX_UNINSTALL_ENTRIES = 2048
+_INSTALL_FOLDERS = tuple(
+    f"ABBYY FineReader{product} {version}"
+    for version in (16, 15)
+    for product in ("", " PDF")
+)
 _MISSING = "Не знайдено ABBYY FineReader OCR Editor. Укажіть FineReaderOCR.exe у налаштуваннях."
 _LAUNCH_ERROR = "Не вдалося запустити ABBYY. Перевірте встановлення та шлях до FineReaderOCR.exe."
 _RESULT_ERROR = "Перевірте DOCX з ABBYY: файл має бути збережений, непорожній та придатний для читання."
@@ -47,8 +57,66 @@ def _executable_at(value: str) -> str:
         return ""
 
 
+def _join_path(folder: str, name: str) -> str:
+    # Keep Windows registry paths meaningful in offline tests on other OSes.
+    return ntpath.normpath(ntpath.join(folder, name)) if ntpath.splitdrive(folder)[0] or "\\" in folder else str(Path(folder) / name)
+
+
+def _registry_text(registry, key, name: str) -> str:
+    try:
+        value, kind = registry.QueryValueEx(key, name)
+    except OSError:
+        return ""
+    if not isinstance(value, str) or kind not in (registry.REG_SZ, registry.REG_EXPAND_SZ):
+        return ""
+    if len(value) > 32767 or "\x00" in value:
+        return ""
+    return os.path.expandvars(value) if kind == registry.REG_EXPAND_SZ else value
+
+
+def _registered_editor(value: str) -> str:
+    """Resolve known launchers/icons to their OCR Editor sibling, never execute a command."""
+    value = value.strip()
+    if value.startswith('"'):
+        end = value.find('"', 1)
+        if end < 0 or (value[end + 1:].strip() and not re.fullmatch(r",\s*-?\d+", value[end + 1:].strip())):
+            return ""
+        path = value[1:end]
+    else:
+        path = re.sub(r",\s*-?\d+$", "", value).strip()
+    if not ntpath.isabs(path) and not Path(path).is_absolute():
+        return ""
+    leaf = ntpath.basename(path)
+    if leaf.casefold() not in {name.casefold() for name in _LAUNCHERS}:
+        return ""
+    if leaf.casefold() == _EXECUTABLE.casefold():
+        return path
+    folder = ntpath.dirname(path) if ntpath.splitdrive(path)[0] or "\\" in path else str(Path(path).parent)
+    return _join_path(folder, _EXECUTABLE)
+
+
 def _registered_paths() -> list[str]:
-    """Read the fixed Windows App Paths keys, never walk installed programs."""
+    """Read the fixed App Paths keys for the editor and its known launchers."""
+    if sys.platform != "win32":
+        return []
+    import winreg
+
+    values = []
+    for hive in (winreg.HKEY_CURRENT_USER, winreg.HKEY_LOCAL_MACHINE):
+        for view in (winreg.KEY_WOW64_64KEY, winreg.KEY_WOW64_32KEY):
+            for executable in _LAUNCHERS:
+                try:
+                    with winreg.OpenKey(hive, _APP_PATHS + "\\" + executable, 0, winreg.KEY_READ | view) as key:
+                        candidate = _registered_editor(_registry_text(winreg, key, ""))
+                        if candidate:
+                            values.append(candidate)
+                except OSError:
+                    continue
+    return values
+
+
+def _uninstall_paths() -> list[str]:
+    """Read bounded ABBYY FineReader installer metadata in both registry views."""
     if sys.platform != "win32":
         return []
     import winreg
@@ -57,13 +125,66 @@ def _registered_paths() -> list[str]:
     for hive in (winreg.HKEY_CURRENT_USER, winreg.HKEY_LOCAL_MACHINE):
         for view in (winreg.KEY_WOW64_64KEY, winreg.KEY_WOW64_32KEY):
             try:
-                with winreg.OpenKey(hive, _APP_PATH, 0, winreg.KEY_READ | view) as key:
-                    value, kind = winreg.QueryValueEx(key, "")
-                    if isinstance(value, str) and kind in (winreg.REG_SZ, winreg.REG_EXPAND_SZ):
-                        values.append(os.path.expandvars(value.strip().strip('"')))
+                with winreg.OpenKey(hive, _UNINSTALL_PATH, 0, winreg.KEY_READ | view) as installed:
+                    for index in range(_MAX_UNINSTALL_ENTRIES):
+                        try:
+                            name = winreg.EnumKey(installed, index)
+                        except OSError:
+                            break
+                        try:
+                            with winreg.OpenKey(installed, name, 0, winreg.KEY_READ | view) as key:
+                                product = _registry_text(winreg, key, "DisplayName").casefold()
+                                if "finereader" not in product:
+                                    continue
+                                publisher = _registry_text(winreg, key, "Publisher").casefold()
+                                if "abbyy" not in product + " " + publisher:
+                                    continue
+                                folder = _registry_text(winreg, key, "InstallLocation").strip().strip('"')
+                                if folder and (ntpath.isabs(folder) or Path(folder).is_absolute()):
+                                    values.append(_join_path(folder, _EXECUTABLE))
+                                icon = _registered_editor(_registry_text(winreg, key, "DisplayIcon"))
+                                if icon:
+                                    values.append(icon)
+                        except OSError:
+                            continue
             except OSError:
                 continue
     return values
+
+
+def _fixed_drive_roots() -> list[str]:
+    """Enumerate fixed local volumes without opening network/removable drives."""
+    if sys.platform != "win32":
+        return []
+    try:
+        import ctypes
+        from ctypes import wintypes
+
+        kernel = ctypes.WinDLL("kernel32", use_last_error=True)
+        kernel.GetLogicalDrives.argtypes = []
+        kernel.GetLogicalDrives.restype = wintypes.DWORD
+        kernel.GetDriveTypeW.argtypes = [wintypes.LPCWSTR]
+        kernel.GetDriveTypeW.restype = wintypes.UINT
+        mask = kernel.GetLogicalDrives()
+        return [root for index in range(26) if mask & (1 << index)
+                for root in [chr(ord("A") + index) + ":\\"]
+                if kernel.GetDriveTypeW(root) == 3]  # DRIVE_FIXED
+    except (AttributeError, OSError):
+        return []
+
+
+def _program_paths() -> list[str]:
+    return [_join_path(base, _join_path(folder, _EXECUTABLE))
+            for variable in ("ProgramW6432", "ProgramFiles", "ProgramFiles(x86)")
+            for base in [os.environ.get(variable, "")] if base
+            for folder in _INSTALL_FOLDERS]
+
+
+def _fixed_drive_paths() -> list[str]:
+    return [_join_path(_join_path(root, programs), _join_path(folder, _EXECUTABLE))
+            for root in _fixed_drive_roots()
+            for programs in ("Program Files", "Program Files (x86)")
+            for folder in _INSTALL_FOLDERS]
 
 
 def find_abbyy(configured: str = "") -> str:
@@ -76,16 +197,16 @@ def find_abbyy(configured: str = "") -> str:
         return _executable_at(configured)
     if sys.platform != "win32":
         return ""
-    candidates = _registered_paths()
-    for variable in ("ProgramW6432", "ProgramFiles", "ProgramFiles(x86)"):
-        base = os.environ.get(variable)
-        if base:
-            candidates.extend(str(Path(base) / f"ABBYY FineReader {version}" / _EXECUTABLE)
-                              for version in (16, 15))
-    for candidate in dict.fromkeys(candidates):
-        found = _executable_at(candidate)
-        if found:
-            return found
+    seen = set()
+    for discover in (_registered_paths, _uninstall_paths, _program_paths, _fixed_drive_paths):
+        for candidate in discover():
+            identity = ntpath.normcase(ntpath.normpath(candidate))
+            if identity in seen:
+                continue
+            seen.add(identity)
+            found = _executable_at(candidate)
+            if found:
+                return found
     return ""
 
 
@@ -268,7 +389,7 @@ def convert_with_abbyy(
         raise FormaError(_MISSING)
     with tempfile.TemporaryDirectory(prefix="forma-abbyy-", ignore_cleanup_errors=True) as temporary:
         document = Path(temporary) / "recognized.docx"
-        report = Path(temporary) / "conversion-report.txt"
+        report = Path(temporary) / "conversion-report.xml"
         progress(1, "ABBYY · Розпізнаємо PDF")
         control.check()
         try:
@@ -276,6 +397,7 @@ def convert_with_abbyy(
                 [executable, str(source.resolve()), "/lang", _language(source_language),
                  "/out", str(document), "/report", str(report)],
                 env=_environment(), stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                cwd=str(temporary),
                 start_new_session=os.name != "nt",
             )
         except OSError as exc:

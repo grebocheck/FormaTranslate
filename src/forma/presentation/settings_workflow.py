@@ -172,7 +172,7 @@ class SettingsWorkflow:
         generation = self._worker_probe_generation
         self._worker_probe_running = True
         if changed_paths:
-            self._worker_availability = {"pdfReady": False, "scanConverterReady": False, "abbyyReady": False}
+            self._worker_availability = {"pdfReady": False, "scanConverterReady": False, "abbyyReady": False, "abbyyDetectedPath": ""}
         checks = (
             ("pdfReady", find_babeldoc, paths[0]),
             ("scanConverterReady", find_scan_converter, paths[1]),
@@ -180,10 +180,13 @@ class SettingsWorkflow:
         )
 
         def probe():
-            available = {}
+            available = {"abbyyDetectedPath": ""}
             for name, finder, path in checks:
                 try:
-                    available[name] = bool(finder(path))
+                    found = finder(path)
+                    available[name] = bool(found)
+                    if name == "abbyyReady" and isinstance(found, str):
+                        available["abbyyDetectedPath"] = found
                 except Exception:
                     available[name] = False
             try:

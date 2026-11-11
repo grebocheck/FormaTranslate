@@ -2,6 +2,13 @@
 
 Versions follow semantic versioning. Changes before 1.0 may evolve as document compatibility improves.
 
+## 0.8.1 — 2026-11-11
+
+- Find installed ABBYY on custom locations such as `E:\Program Files\ABBYY FineReader 16`, using registered launchers, matching uninstall metadata and bounded checks on fixed local drives.
+- Show the discovered ABBYY executable path in OCR settings without saving it as a user override or scanning files from UI property reads.
+- Run automatic ABBYY export in its own writable job directory with an XML report, preserving the original source and avoiding a blanket administrator requirement.
+- Keep published releases discoverable through GitHub Latest while distinguishing Windows candidates and their native-validation limits from publication status.
+
 ## 0.8.0 — 2026-11-11
 
 - Add a supported lightweight Windows edition for installed ABBYY or external OCR/PDF engines, alongside the complete embedded edition.
