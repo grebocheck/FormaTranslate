@@ -72,6 +72,13 @@ def inspect_pdf(path: Path) -> dict:
         ) from exc
 
 
+def needs_ocr(info: dict) -> bool:
+    """Use the same scan threshold for queue planning and paid PDF dispatch."""
+    pages = info["pages"]
+    image_pages = sum(bool(page["image_without_text"]) for page in pages)
+    return bool(info["scanned"] or (image_pages >= 2 and image_pages > len(pages) / 2))
+
+
 def _check_pdf_language(before, after, options):
     """Reject a wholly wrong script, while allowing names, references and mixed pages."""
     latin_languages = {
@@ -224,7 +231,7 @@ def translate_pdf(
     image_pages = [
         str(index) for index, page in enumerate(before["pages"], 1) if page["image_without_text"]
     ]
-    if len(image_pages) >= 2 and len(image_pages) > len(before["pages"]) / 2:
+    if needs_ocr(before):
         raise FormaError(
             "Більшість сторінок PDF — зображення без текстового шару. "
             "Спочатку скористайтеся «Скан PDF → DOCX», перевірте розпізнаний текст і перекладіть DOCX."

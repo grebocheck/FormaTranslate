@@ -125,6 +125,7 @@ class TranslationResult:
     effective_glossary: dict[str, str] | None = None
     source_sha256: str = ""
     output_sha256: str = ""
+    preparation: dict = field(default_factory=dict)
 
     def serializable(self) -> dict:
         result = {
@@ -147,6 +148,8 @@ class TranslationResult:
             result["source_sha256"] = self.source_sha256
         if self.output_sha256:
             result["output_sha256"] = self.output_sha256
+        if self.preparation:
+            result["preparation"] = dict(self.preparation)
         if self.memory_project_id:
             result.update(
                 memory_project_id=self.memory_project_id,

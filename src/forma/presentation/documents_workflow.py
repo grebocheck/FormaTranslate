@@ -19,21 +19,46 @@ from forma.core.models import (
     plain_text,
 )
 from forma.documents.ooxml import OfficeDocument
-from forma.documents.pdf import inspect_pdf
+from forma.documents.pdf import inspect_pdf, needs_ocr
 from forma.documents.review import actionable_count
 from forma.localization.catalog import current_language
 from forma.localization.catalog import translate_ui_message as tr
 from forma.providers.client import JobControl
 from forma.settings.config import load_preferences, save_preferences
 from forma.translation.engine import TranslationEngine
+from forma.translation.handoff import AbbyyContinuation
 from forma.translation.jobs import DocumentQueue, run_documents
 
 
 class DocumentWorkflow:
+    def translationPreparing(self):
+        active = [d for d in self._documents if d["status"] == "translating"]
+        return bool(self._translation_active and active and not self._paused) and all(
+            d.get("phase") in {"preparing", "waiting_ocr"} for d in active
+        )
+
+    def _workflow_details(self, document):
+        if document.get("format") != "PDF":
+            return {}
+        if document.get("status") == "loading":
+            return {}
+        if document.get("phase") == "waiting_ocr":
+            text = "Збережіть DOCX в ABBYY та імпортуйте його. Переклад продовжиться автоматично."
+            return {"workflowText": tr(text), "workflowKind": "manual"}
+        route = document.get("pdfRoute")
+        if route not in {"ocr", "direct"}:
+            return {}
+        if route == "ocr":
+            text = "Скан PDF: під час перекладу програма підготує DOCX через OCR."
+        else:
+            text = "Текстовий PDF: прямий переклад зі збереженням верстки. Пам’ять абзаців застосовується до DOCX і XLSX; глосарій зберігається."
+        return {"workflowText": tr(text), "workflowKind": "info"}
+
     def documents(self):
         return [
             {
                 **self._display_document(d),
+                **self._workflow_details(d),
                 "canRemove": self._can_remove(d),
                 "canMove": self._can_remove(d) and d["status"] in ("loading", "ready", "queued"),
             }
@@ -45,7 +70,7 @@ class DocumentWorkflow:
 
     def selectedDocument(self):
         document = self._selected_document()
-        return self._display_document(document) if document else {}
+        return {**self._display_document(document), **self._workflow_details(document)} if document else {}
 
     def segments(self):
         document = self._selected_document()
@@ -167,7 +192,10 @@ class DocumentWorkflow:
                     info = inspect_pdf(path)
                     emit(
                         "inspected",
-                        {"id": did, "segments": [], "count": len(info["pages"]), "pdf": True},
+                        {
+                            "id": did, "segments": [], "count": len(info["pages"]), "pdf": True,
+                            "pdfRoute": "ocr" if needs_ocr(info) else "direct",
+                        },
                     )
                 else:
                     source = OfficeDocument(path)
@@ -292,11 +320,14 @@ class DocumentWorkflow:
         self._persist_queue()
         self._reload_review()
         settings, control, folder = self._settings, self._control, Path(self._folder)
+        self._pdf_continuation = AbbyyContinuation(settings, folder, control)
+        continuation = self._pdf_continuation
         self._message = ""
 
         def run(emit):
             run_documents(
-                queue, folder, options, settings, control, emit, engine_factory=TranslationEngine
+                queue, folder, options, settings, control, emit, engine_factory=TranslationEngine,
+                pdf_handoff=continuation,
             )
 
         self._launch(run, done=self._finished)
@@ -305,6 +336,9 @@ class DocumentWorkflow:
     def _finished(self):
         self._busy, self._paused, self._translation_active = False, False, False
         self._queue = None
+        self._pdf_continuation = None
+        if self._abbyy_handoff.get("continueTranslation"):
+            self._abbyy_handoff = {}
         self.changed.emit()
 
     def _prepare_run(self, document):
@@ -319,6 +353,7 @@ class DocumentWorkflow:
             if options.review
             else "",
             status="queued",
+            phase="",
             statusText="У черзі",
             startedAt=0,
             elapsedSeconds=0,
@@ -335,7 +370,7 @@ class DocumentWorkflow:
         )
 
     def togglePause(self):
-        if self._control and self._busy and self._translation_active:
+        if self._control and self._busy and self._translation_active and not self.translationPreparing:
             self._paused = not self._paused
             if self._paused:
                 self._control.paused.set()
@@ -351,7 +386,7 @@ class DocumentWorkflow:
             self._control.paused.clear()
             self._notice(
                 "Зупиняємо розпізнавання PDF…"
-                if self._scan_active
+                if self._scan_active or self.translationPreparing
                 else "Зупиняємо після поточного API-запиту. Перевірені фрагменти залишаться для продовження."
             )
 
@@ -401,7 +436,17 @@ class DocumentWorkflow:
         return False
 
     def _handle_event(self, kind, payload):
-        if kind == "error":
+        if kind == "ocr_handoff":
+            if not self._pdf_continuation or not self._pdf_continuation.context(payload["promptId"]):
+                return
+            self._abbyy_handoff = payload
+            doc = next((d for d in self._documents if d["id"] == payload["sourceId"]), None)
+            if doc:
+                doc.update(phase="waiting_ocr", status="translating", statusText="Очікуємо DOCX з ABBYY")
+        elif kind == "ocr_handoff_closed":
+            if self._abbyy_handoff.get("promptId") == payload["promptId"]:
+                self._abbyy_handoff = {}
+        elif kind == "error":
             for document in self._documents:
                 if document["status"] in ("queued", "translating"):
                     document.update(status="error", statusText="Потрібна увага", error=payload)
@@ -422,6 +467,7 @@ class DocumentWorkflow:
                     segments=payload["segments"],
                     segmentCount=payload["count"],
                     status="ready",
+                    pdfRoute=payload.get("pdfRoute", ""),
                     error="",
                     statusText=(
                         f"{payload['count']} стор. · готовий"
@@ -444,6 +490,7 @@ class DocumentWorkflow:
             elif kind == "queued":
                 doc.update(
                     status="queued",
+                    phase="",
                     statusText="У черзі",
                     progress=0,
                     error="",
@@ -458,6 +505,11 @@ class DocumentWorkflow:
                     progress=payload["percent"],
                     statusText=payload["text"],
                     status="translating",
+                    phase=(
+                        "waiting_ocr"
+                        if doc.get("phase") == "waiting_ocr" and payload.get("phase") == "preparing"
+                        else payload.get("phase", "translating")
+                    ),
                     error="",
                 )
             elif kind in ("file_error", "cancelled"):
@@ -465,6 +517,7 @@ class DocumentWorkflow:
                     doc["elapsedSeconds"] = max(0, int(time.time() - doc["startedAt"] / 1000))
                 doc.update(
                     status="cancelled" if kind == "cancelled" else "error",
+                    phase="",
                     statusText="Зупинено" if kind == "cancelled" else "Потрібна увага",
                     error=payload["error"],
                     diagnosticReport=payload.get("diagnosticReport", "")
@@ -480,6 +533,7 @@ class DocumentWorkflow:
                     result=result,
                     segments=result.segments,
                     status="done",
+                    phase="",
                     progress=100,
                     statusText="Готово · перегляньте зауваження" if warnings else "Готово",
                     output=str(result.output),

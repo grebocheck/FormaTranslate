@@ -6,7 +6,7 @@ import threading
 import time
 from collections.abc import Callable
 from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
-from dataclasses import asdict
+from dataclasses import asdict, replace
 from pathlib import Path
 
 from forma.core.models import (
@@ -226,6 +226,8 @@ class TranslationEngine:
         self.control = control or JobControl(settings.max_parallel_requests)
         self.provider = provider
         self.memory_run = memory_run
+        self.pdf_handoff = None
+        self.preparation_progress = None
 
     def _stage(
         self, batch, common, options, provider, save, *, drafts=None, memory_references=None, progress=lambda *_: None
@@ -340,11 +342,85 @@ class TranslationEngine:
             from forma.translation.failures import write_failure_report
 
             try:
-                failure.report = write_failure_report(source, folder, options, failure)
+                failure.report = write_failure_report(
+                    getattr(failure, "prepared_source", source), folder, options, failure
+                )
             except OSError:
                 # A diagnostic write failure must not mask the original cause.
                 pass
             raise
+
+    def _translate_pdf(self, source, folder, options, progress):
+        from forma.documents.pdf import inspect_pdf, needs_ocr, translate_pdf
+        from forma.translation.preparation import prepare_pdf_scan
+        from forma.translation.reports import write_translation_report
+
+        started = time.monotonic()
+        preparing = self.preparation_progress or progress
+        preparing(0, "Перевіряємо PDF")
+        source_hash = file_digest(source)
+        info = inspect_pdf(source)
+
+        def check_original():
+            self.control.check()
+            if file_digest(source) != source_hash:
+                raise FormaError("Вихідний PDF змінився під час підготовки DOCX. Повторіть операцію.")
+
+        check_original()
+        # Capture the project before a long OCR/manual handoff, including CLI use
+        # where the multi-document scheduler has not supplied a MemoryRun.
+        if options.memory_project_id and self.memory_run is None:
+            from forma.memory.session import MemoryRun
+
+            self.memory_run = MemoryRun(options, self.settings, protocol=PROTOCOL_VERSION)
+        if not needs_ocr(info):
+            effective = options
+            if options.memory_project_id:
+                effective = replace(
+                    options, memory_project_id="", glossary=dict(self.memory_run.glossary),
+                    auto_glossary=False,
+                )
+            result = translate_pdf(source, folder, effective, self.settings, self.control, progress)
+            if options.memory_project_id:
+                result.issues.append(Issue(
+                    "pdf_memory_skipped",
+                    "PDF перекладено зі збереженням глосарія проєкту. Пам’ять абзаців застосовується до DOCX і XLSX; вибраний проєкт залишився активним.",
+                    severity="info",
+                ))
+                result.effective_glossary = dict(effective.glossary)
+                write_translation_report(result, effective, self.settings.model)
+            return result
+
+        prepared = prepare_pdf_scan(
+            source, folder, options.source_language, self.settings, self.control, preparing,
+            source_sha256=source_hash, page_count=len(info["pages"]), handoff=self.pdf_handoff,
+        )
+
+        def translate_progress(percent, message):
+            # Recheck before reading and before export. A valid OCR snapshot must
+            # not silently become a different source during the paid stage.
+            if percent <= 1 or percent >= 96:
+                check_original()
+                if file_digest(prepared.source) != prepared.provenance["prepared_source_sha256"]:
+                    raise FormaError("DOCX після OCR змінився. Повторіть переклад із поточним файлом.")
+            progress(percent, message)
+
+        try:
+            check_original()
+            result = self._translate(prepared.source, folder, options, translate_progress)
+        except TranslationFailure as failure:
+            failure.prepared_source = prepared.source
+            failure.preparation = prepared.provenance
+            failure.issues.extend(prepared.issues)
+            raise
+        result.preparation = prepared.provenance
+        result.issues = [*prepared.issues, *result.issues]
+        result.elapsed_seconds = time.monotonic() - started
+        report_options = options
+        if options.memory_project_id:
+            report_options = replace(options, glossary=dict(self.memory_run.glossary), auto_glossary=False)
+        write_translation_report(result, report_options, self.settings.model)
+        return result
 
     def _translate(
         self, source: Path, folder: Path, options: Options, progress: Progress = lambda *_: None
@@ -353,11 +429,14 @@ class TranslationEngine:
         self.settings.validate()
         options.validate()
         if source.suffix.lower() == ".pdf":
-            if options.memory_project_id:
-                raise FormaError("Пам’ять проєкту підтримує DOCX і XLSX. Для PDF вимкніть пам’ять або спочатку створіть DOCX через OCR.")
-            from forma.documents.pdf import translate_pdf
+            return self._translate_pdf(source, folder, options, progress)
+        source_hash = file_digest(source)
+        with self.control.document_slot(source_hash):
+            if file_digest(source) != source_hash:
+                raise FormaError("Оригінал змінився під час читання. Повторіть переклад.")
+            return self._translate_office(source, folder, options, progress)
 
-            return translate_pdf(source, folder, options, self.settings, self.control, progress)
+    def _translate_office(self, source, folder, options, progress):
         if options.memory_project_id:
             from forma.memory.engine import translate_with_memory
 

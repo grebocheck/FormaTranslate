@@ -70,6 +70,20 @@ def test_metadata_allowlist_excludes_content_credentials_and_settings(tmp_path):
         assert marker not in persisted
 
 
+def test_pdf_route_survives_restart_and_rejects_arbitrary_values(tmp_path):
+    path = tmp_path / "library.sqlite3"
+    library = TranslationLibrary(path)
+    original = queue_item(
+        path="/documents/scan.pdf", name="scan.pdf", format="PDF", status="done", pdfRoute="ocr",
+    )
+    library.save_queue([original])
+    assert TranslationLibrary(path).load_queue()[0]["pdfRoute"] == "ocr"
+    for invalid in ("recognized", True, {"text": "private"}):
+        with pytest.raises(FormaError):
+            library.save_queue([{**original, "pdfRoute": invalid}])
+        assert library.load_queue() == [original]
+
+
 def test_failed_snapshot_does_not_erase_previous_queue(tmp_path):
     library = TranslationLibrary(tmp_path / "library.sqlite3")
     original = queue_item()

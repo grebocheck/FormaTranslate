@@ -51,6 +51,7 @@ QUEUE_FIELDS = {
     "targetLanguage",
     "model",
     "reviewModel",
+    "pdfRoute",
 }
 HISTORY_FIELDS = {
     "id",
@@ -126,6 +127,11 @@ def _clean(record: dict, *, history: bool) -> dict:
     if clean.get("format", "").upper() not in SUPPORTED_FORMATS:
         raise FormaError("Непідтримуваний формат документа в бібліотеці.")
     clean["format"] = clean["format"].upper()
+    if "pdfRoute" in clean and (
+        clean["pdfRoute"] not in {"", "ocr", "direct"}
+        or clean["pdfRoute"] and clean["format"] != "PDF"
+    ):
+        raise FormaError("Некоректний запис бібліотеки перекладів.")
     return clean
 
 

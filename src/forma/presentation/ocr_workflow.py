@@ -15,7 +15,7 @@ from forma.documents.abbyy import (
     import_abbyy_result,
     launch_abbyy_handoff,
 )
-from forma.documents.ocr import convert_scan_pdf
+from forma.documents.ocr import convert_scan_pdf, find_scan_converter
 from forma.providers.client import JobControl
 
 
@@ -105,7 +105,9 @@ class OcrWorkflow:
         def work(emit, control):
             effective = provider
             if effective == "auto":
-                effective = "abbyy" if find_abbyy(settings.abbyy_path) else "forma"
+                effective = "forma" if settings.scan_converter_path or find_scan_converter("") else (
+                    "abbyy" if find_abbyy(settings.abbyy_path) else "forma"
+                )
             if effective == "abbyy":
                 fingerprint = _digest(source)
                 control.check()
@@ -186,19 +188,26 @@ class OcrWorkflow:
             self.changed.emit()
 
     def importAbbyyResult(self, reviewed):
-        if self.busy or self._closing or self._review_editing or self._review_saving:
+        handoff = dict(self._abbyy_handoff)
+        chained = handoff.get("continueTranslation") is True
+        continuation = self._pdf_continuation if chained else None
+        if (self.busy and not chained) or self._closing or self._review_editing or self._review_saving:
+            return
+        if chained and (handoff.get("importing") or not continuation or not continuation.context(handoff.get("promptId"))):
             return
         if not reviewed:
             self._notice("Перед імпортом звірте DOCX із PDF: усі сторінки, текст, числа та таблиці.", "warning")
             return
-        handoff = dict(self._abbyy_handoff)
         document = next((d for d in self._documents if d["id"] == handoff.get("sourceId")), None)
         if not document:
             self._notice("Вихідний PDF уже видалено з черги. Виберіть PDF і повторіть відкриття ABBYY.", "warning")
             return
 
         def selected(paths):
-            if self.busy or self._closing or self._review_editing or self._review_saving:
+            if (self.busy and not chained) or self._closing or self._review_editing or self._review_saving:
+                return
+            if chained:
+                self._import_translation_ocr(continuation, handoff, paths)
                 return
             if not any(d["id"] == document["id"] for d in self._documents):
                 return
@@ -215,3 +224,35 @@ class OcrWorkflow:
 
         self._pickers.choose("Імпортувати DOCX з ABBYY", selected, directory=self._folder,
                              name_filter="Документи Word (*.docx)")
+
+    def _import_translation_ocr(self, continuation, handoff, paths):
+        """Validate an editor result without restarting or replacing its queue run."""
+        prompt_id = handoff["promptId"]
+        if not paths or self._pdf_continuation is not continuation or not continuation.context(prompt_id):
+            return
+        if self._abbyy_handoff.get("promptId") != prompt_id or self._abbyy_handoff.get("importing"):
+            return
+        self._abbyy_handoff["importing"] = True
+        self.changed.emit()
+
+        def run(emit):
+            source = Path(handoff["path"])
+            output = import_abbyy_result(
+                source, Path(paths[0]), continuation.folder, handoff["language"], continuation.control,
+                expected_source_sha256=handoff["sourceSha256"],
+            )
+            if continuation.complete(prompt_id, output):
+                emit("imported", None)
+
+        def receive(kind, payload):
+            if self._closing or self._pdf_continuation is not continuation:
+                return
+            if kind == "error" and not continuation.control.cancelled.is_set():
+                self._notice(payload, "error")
+
+        def finish():
+            if self._abbyy_handoff.get("promptId") == prompt_id:
+                self._abbyy_handoff["importing"] = False
+                self.changed.emit()
+
+        self._launch(run, handler=receive, done=finish)

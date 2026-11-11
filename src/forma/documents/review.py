@@ -4,8 +4,9 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from dataclasses import replace
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 
 from forma.core.models import (
     INFORMATION_CODES,
@@ -55,6 +56,47 @@ def load_report(path: Path) -> tuple[TranslationResult, Options]:
             "Не вдалося прочитати звіт. Перевірте, чи файл існує та є коректним звітом Forma."
         ) from None
     return parse_report_data(data, path)
+
+
+def _parse_preparation(data: dict, options: Options) -> dict:
+    """Read a bounded provenance record without opening any referenced path."""
+    preparation = data.get("preparation", {})
+    if not isinstance(preparation, dict) or len(preparation) > 32:
+        raise ValueError("preparation")
+    if not preparation:
+        return {}
+    required = {
+        "kind", "provider", "original_source", "original_source_sha256", "prepared_source",
+        "prepared_source_sha256", "source_language", "page_count", "coverage",
+    }
+    if not required <= preparation.keys():
+        raise ValueError("preparation fields")
+    clean = {key: preparation[key] for key in required}
+    if (
+        clean["kind"] != "ocr" or clean["provider"] not in {"forma", "abbyy", "abbyy_extended"}
+        or clean["coverage"] != ("complete" if clean["provider"] == "forma" else "not_verified")
+        or type(clean["page_count"]) is not int or not 1 <= clean["page_count"] <= 200
+        or clean["source_language"] != options.source_language
+    ):
+        raise ValueError("preparation identity")
+    for key in ("original_source_sha256", "prepared_source_sha256"):
+        if not isinstance(clean[key], str) or not re.fullmatch(r"[0-9a-f]{64}", clean[key]):
+            raise ValueError("preparation hash")
+    for key, suffix in (("original_source", ".pdf"), ("prepared_source", ".docx")):
+        value = clean[key]
+        if (
+            not isinstance(value, str) or not 0 < len(value) <= 8192
+            or any(ord(char) < 32 for char in value) or value.startswith(("//", "\\\\"))
+            or Path(value).suffix.lower() != suffix
+            or not (
+                Path(value).is_absolute()
+                or (re.fullmatch(r"[A-Za-z]:", PureWindowsPath(value).drive) and PureWindowsPath(value).root)
+            )
+        ):
+            raise ValueError("preparation path")
+    if data.get("source") != clean["prepared_source"] or data.get("source_sha256") != clean["prepared_source_sha256"]:
+        raise ValueError("preparation source binding")
+    return clean
 
 
 def parse_report_data(data: dict, path: Path) -> tuple[TranslationResult, Options]:
@@ -114,6 +156,12 @@ def parse_report_data(data: dict, path: Path) -> tuple[TranslationResult, Option
         result = TranslationResult(
             path, None, segments, translations, issues, engine=engine, report=path
         )
+        result.preparation = _parse_preparation(data, options)
+        if result.preparation:
+            if engine not in {"forma-ooxml", "forma-corpus"}:
+                raise ValueError("preparation engine")
+            result.source = Path(result.preparation["prepared_source"])
+            result.source_sha256 = result.preparation["prepared_source_sha256"]
         return result, options
     except (OSError, ValueError, TypeError, UnicodeError, RecursionError, FormaError):
         raise FormaError(

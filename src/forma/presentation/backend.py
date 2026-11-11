@@ -80,6 +80,7 @@ class Backend(
         self._scan_progress = 0
         self._scan_message = ""
         self._abbyy_handoff = {}
+        self._pdf_continuation = None
         self._paused = False
         self._control = None
         self._message = ""
@@ -262,7 +263,7 @@ class Backend(
         # Localize only UI metadata. Never translate document text, paths, IDs,
         # persisted review fingerprints, or the canonical worker messages.
         return {
-            k: tr(v) if k in {"statusText", "error", "size"} and isinstance(v, str) else v
+            k: tr(v) if k in {"statusText", "error", "size", "workflowText"} and isinstance(v, str) else v
             for k, v in document.items()
             if k not in {"segments", "result"}
         }
@@ -592,6 +593,10 @@ class Backend(
     @Property(bool, notify=changed)
     def translating(self):
         return self._translation_active
+
+    @Property(bool, notify=changed)
+    def translationPreparing(self):
+        return DocumentWorkflow.translationPreparing(self)
 
     @Property(bool, notify=changed)
     def recognizingScan(self):

@@ -22,13 +22,10 @@ The interface supports **English, Ukrainian, Polish, German, French and Spanish*
 Get the package for your platform from **[GitHub Releases](https://github.com/grebocheck/FormaTranslate/releases)**. Extract it and launch the executable. Python and a `.env` file are not needed for the packaged app. On Linux, make the executable runnable with `chmod +x Forma-linux-x86_64` if necessary. The current Linux binary requires **glibc 2.43 or newer** (built on Ubuntu 26.04); use the source installation on older distributions. See each release's platform validation notes; macOS is not supported yet.
 
 1. Open **Settings** and enter your API address, model and API key. The model list can be loaded from providers that support it, or entered manually.
-2. Add DOCX, XLSX or PDF files and select the source and target languages. For a scan, use **Scan PDF → DOCX** and check the recognized text before translating.
+2. Add DOCX, XLSX or PDF files and select the source and target languages. **Translate** prepares scanned PDFs through OCR and continues automatically; additional PDF actions also allow preparation before translation.
 3. Translate, open the output folder, and use **Review** to inspect the result.
 
-Windows downloads offer two editions:
-
-- **Standard**: a lightweight application for DOCX/XLSX and an installed ABBYY or external OCR/PDF engine. Ordinary ABBYY uses a guided editor → reviewed DOCX → Forma workflow; automatic output needs a separately confirmed Extended CLI license. [ABBYY setup](docs/ABBYY.md).
-- **Complete**: includes the local OCR worker, four OCR language-model sets, Tesseract and BabelDOC assets. Its larger one-file executable extracts these components at startup.
+Windows has one download, with BabelDOC, the local OCR worker, four OCR language-model sets and Tesseract included. Its one-file executable extracts these components at startup. An installed ABBYY can still be selected in OCR settings; [ABBYY setup](docs/ABBYY.md) explains the supported workflows.
 
 Release descriptions provide direct platform download links. A single **Sources** archive contains the developer and dependency source materials.
 
@@ -78,7 +75,7 @@ Open the official OpenAI billing page for your actual credit balance, or enter a
 |---|---|
 | DOCX | Translates supported visible text while retaining the OOXML package, styles, tables, rich text and protected fields. |
 | XLSX | Translates supported text cells and rich text while retaining formulas, native numeric cells and workbook structure. |
-| PDF | Text-based PDFs use BabelDOC. Scans can be reconstructed locally as editable DOCX, checked and then translated through the DOCX workflow. Complete Windows builds include both engines; Linux/source installations use separate workers. |
+| PDF | Translate chooses text-based PDF → BabelDOC or scan → editable OCR DOCX → Office translation. Windows includes both engines; Linux/source installations use separate workers. |
 
 - Context-aware translation, terminology consistency, optional CSV glossary and an editorial pass for Office files.
 - Optional project memory for exact Office matches, reviewed adaptation of similar passages, a shared glossary and explicitly approved wording across related documents.

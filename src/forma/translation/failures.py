@@ -5,6 +5,7 @@ from __future__ import annotations
 import html
 import uuid
 from dataclasses import asdict
+from pathlib import Path
 
 from forma.core.models import plain_text
 from forma.localization.catalog import current_language
@@ -42,17 +43,27 @@ def write_failure_report(source, folder, options, failure):
             f"<tr><td>{html.escape(segment.plain)}</td><td>{html.escape(plain_text(candidate)) if candidate is not None else html.escape(tr('Модель не повернула фрагмент.'))}</td></tr></table>"
             + values
         )
+    preparation = getattr(failure, "preparation", {})
     atomic_json(json_path, {
         "kind": "translation_validation_failure", "schema_version": 1,
         "source": str(source), "stage": failure.stage,
         "source_language": options.source_language, "target_language": options.target_language,
         "exported": False, "segments": entries,
+        **({"preparation": dict(preparation)} if preparation else {}),
     })
     title = tr("Перевірте проблемні фрагменти")
     guidance = tr(
         "Документ не експортовано. Перевірені фрагменти збережені для продовження. "
         "Звірте наведені значення з оригіналом і повторіть переклад; готові фрагменти використовуються повторно."
     )
-    body = f"<h1>{html.escape(title)}</h1><p>{html.escape(source.name)}</p><p>{html.escape(guidance)}</p>" + "".join(rows)
+    original = (
+        f"<p>{html.escape(tr('Оригінальний PDF'))}: "
+        f"{html.escape(Path(preparation['original_source']).name)}</p>"
+        if preparation.get("kind") == "ocr" else ""
+    )
+    body = (
+        f"<h1>{html.escape(title)}</h1><p>{html.escape(source.name)}</p>"
+        f"{original}<p>{html.escape(guidance)}</p>" + "".join(rows)
+    )
     atomic_bytes(html_path, document_html(title, body, language=current_language()))
     return html_path

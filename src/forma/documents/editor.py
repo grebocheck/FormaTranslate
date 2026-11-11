@@ -393,7 +393,7 @@ def _export(source, output, report, edits, folder, expected_report_fingerprint, 
         stage = Path(temporary) / final.name
         current.write(translations, stage)
         result = TranslationResult(
-            source,
+            source.resolve() if previous.preparation else source,
             stage,
             segments,
             translations,
@@ -404,6 +404,10 @@ def _export(source, output, report, edits, folder, expected_report_fingerprint, 
             memory_project_id=options.memory_project_id,
             source_sha256=source_hash,
             output_sha256=_fingerprint(stage),
+            preparation=(
+                {**previous.preparation, "prepared_source": str(source.resolve())}
+                if previous.preparation else {}
+            ),
         )
         # Unknown legacy glossary provenance stays unknown. Manual edits never
         # become preferred memory entries without the separate explicit action.

@@ -50,5 +50,16 @@
   "Перед імпортом звірте DOCX із PDF: усі сторінки, текст, числа та таблиці.": "Przed importem porównaj DOCX z PDF: wszystkie strony, tekst, liczby i tabele.",
   "Запустити ABBYY": "Uruchom ABBYY",
   "PDF із текстом перекладається зі збереженням макета. Для сканів спочатку підготуйте DOCX.": "Pliki PDF z tekstem są tłumaczone z zachowaniem układu. Dla skanów najpierw przygotuj DOCX.",
-  "Як налаштувати PDF та OCR": "Jak skonfigurować PDF i OCR"
+  "Як налаштувати PDF та OCR": "Jak skonfigurować PDF i OCR",
+  "Додаткові дії з PDF": "Dodatkowe działania dla PDF",
+  "Підготовка…": "Przygotowywanie…",
+  "Імпортувати й продовжити": "Importuj i kontynuuj",
+  "Після імпорту переклад продовжиться автоматично.": "Po zaimportowaniu tłumaczenie będzie kontynuowane automatycznie.",
+  "PDF із текстом перекладається зі збереженням макета. Скановані сторінки програма підготує через OCR під час перекладу.": "Pliki PDF z tekstem są tłumaczone z zachowaniem układu. Podczas tłumaczenia program przygotuje zeskanowane strony za pomocą OCR.",
+  "Автоматично: спочатку локальний OCR, інакше встановлений ABBYY. Звичайний FineReader потребує ручного експорту DOCX.": "Automatycznie: najpierw lokalny OCR, a w razie jego braku zainstalowany ABBYY. Zwykły FineReader wymaga ręcznego eksportu DOCX.",
+  "Збережіть DOCX в ABBYY та імпортуйте його. Переклад продовжиться автоматично.": "Zapisz DOCX w ABBYY i zaimportuj go. Tłumaczenie będzie kontynuowane automatycznie.",
+  "Скан PDF: під час перекладу програма підготує DOCX через OCR.": "Zeskanowany PDF: podczas tłumaczenia program przygotuje DOCX za pomocą OCR.",
+  "Текстовий PDF: прямий переклад зі збереженням верстки. Пам’ять абзаців застосовується до DOCX і XLSX; глосарій зберігається.": "PDF z tekstem: tłumaczenie bezpośrednie z zachowaniem układu. Pamięć tłumaczeń akapitów działa dla DOCX i XLSX; glosariusz zostaje zachowany.",
+  "Очікуємо DOCX з ABBYY": "Oczekiwanie na DOCX z ABBYY",
+  "Перевірте текст, числа й таблиці у створеному DOCX. Після імпорту програма перекладе його в межах цього завдання.": "Sprawdź tekst, liczby i tabele w utworzonym pliku DOCX. Po imporcie aplikacja przetłumaczy go w ramach tego zadania."
 }

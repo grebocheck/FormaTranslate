@@ -1,6 +1,6 @@
 # Installed ABBYY OCR on Windows
 
-Forma can use an existing ABBYY FineReader PDF installation to prepare a scanned PDF as DOCX. A lightweight Windows build can omit Forma's local OCR/model bundle when users already have a suitable OCR workflow. ABBYY is installed and licensed separately; detecting its executable does not identify the license's automation features.
+Forma can use an existing ABBYY FineReader PDF installation to prepare a scanned PDF as DOCX. The Windows package includes Forma's local OCR and models; ABBYY is an optional choice in OCR settings. ABBYY is installed and licensed separately; detecting its executable does not identify the license's automation features.
 
 ## Choose the appropriate workflow
 
@@ -16,14 +16,14 @@ ABBYY's current [CLI availability page](https://pdf.abbyy.com/how-to/convert-com
 
 ## Ordinary installation: review and import
 
-1. Select the source PDF and its language in Forma, choose the installed ABBYY workflow and click **Launch ABBYY**.
+1. Select the source PDF and its language in Forma, choose the installed ABBYY workflow and click **Translate**.
 2. In the ABBYY OCR Editor, open the selected PDF and set the appropriate recognition language. Forma only starts the editor; it does not claim that a conversion has completed or change ABBYY's remembered settings.
 3. Check text, tables, reading order and every source page. Save the result as **DOCX**.
-4. Return to Forma, select the saved DOCX and confirm that you checked it against the PDF. Forma validates and copies it into the results folder, then it can be translated through the ordinary DOCX workflow.
+4. Return to Forma, confirm that you checked the DOCX against the PDF and choose **Import and continue**. Forma validates and copies it into the results folder, then automatically continues the waiting translation with its captured settings. The PDF remains in the queue.
 
 This path does not depend on Microsoft Word. The alternative regular CLI `/send MSWord` documented by ABBYY opens an external Word application, so Forma does not make it the default. The manual editor workflow follows ABBYY's documented [OCR Editor controls](https://help.abbyy.com/en-us/finereader/16/user_guide/run_ocr/) and [editable-document export](https://help.abbyy.com/en-us/finereader/16/user_guide/savetoedit/).
 
-Starting ABBYY leaves the PDF in Forma's queue. Importing a DOCX is a separate user decision. Neither action approves translation-memory entries or starts a translation/API request.
+Starting ABBYY leaves the PDF in Forma's queue. Importing a DOCX is a separate user decision and does not approve translation-memory entries. During a waiting translation, import continues the API work already requested by **Translate**. Alternatively, **Additional PDF actions → Scan PDF → DOCX** is preparation only: after its import, the DOCX replaces the queue entry and translation starts only with a separate **Translate** action.
 
 ## Extended CLI: explicit setup
 

@@ -204,7 +204,7 @@ class MemoryWorkflow:
             and not self._review_editing
             and not self._review_saving
             and entry.get("kind") == "segment"
-            and (self._review_document() or {}).get("format") == "DOCX"
+            and Path(self._review_source(self._review_document() or {})).suffix.lower() == ".docx"
             and entry.get("canEdit")
             and entry.get("severity") != "error"
         )
@@ -219,7 +219,7 @@ class MemoryWorkflow:
         memory, project_id = self._memory, self._memory_project.id
         request = {
             "project_id": project_id,
-            "source": Path(document["path"]),
+            "source": Path(self._review_source(document)),
             "output": Path(document["output"]),
             "report": context["report"],
             "segment_id": segment_id,

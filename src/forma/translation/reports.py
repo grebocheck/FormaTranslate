@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import html
 from dataclasses import asdict
+from pathlib import Path
 
 from forma.core.models import Options, TranslationResult, plain_text
 from forma.localization.catalog import current_language
@@ -64,8 +65,16 @@ def write_translation_report(result: TranslationResult, options: Options, model:
         "Перевірки структури й чисел не є оцінкою точності перекладу. "
         "Верстку та зміст слід перевірити на характерних документах."
     )
+    preparation = ""
+    if result.preparation.get("kind") == "ocr":
+        original = Path(result.preparation["original_source"])
+        preparation = (
+            f"<p>{html.escape(tr('Оригінальний PDF'))}: {html.escape(original.name)}<br>"
+            f"{html.escape(tr('DOCX після OCR'))}: {html.escape(result.source.name)}</p>"
+        )
     body = (
         f"<h1>{html.escape(tr('forma. / Звіт перекладу'))}</h1><p>{html.escape(result.source.name)}</p>"
+        f"{preparation}"
         f'<div class="meta">{html.escape(options.source_language)} → {html.escape(options.target_language)} · '
         f"{html.escape(model)} · {html.escape(duration)}<br>{html.escape(tr(token_text))}{memory_text}</div>"
         f"<h2>{html.escape(tr('Перевірка'))}</h2><ul>{checks}</ul>"

@@ -14,6 +14,7 @@ from forma.settings.config import Settings
 def prepare(qapp, monkeypatch, pdf_file, tmp_path):
     monkeypatch.setattr(Backend, '_read_settings', lambda _: Settings())
     monkeypatch.setattr(workflow, 'find_abbyy', lambda _: '/installed/FineReaderOCR.exe')
+    monkeypatch.setattr(workflow, 'find_scan_converter', lambda _: '')
     launches = []
     monkeypatch.setattr(workflow, 'launch_abbyy_handoff', lambda *args: launches.append(args))
     monkeypatch.setattr(workflow, 'convert_scan_pdf', lambda *_: (_ for _ in ()).throw(AssertionError('Must use the installed provider')))
@@ -115,6 +116,7 @@ def test_background_detection_exposes_exact_path_without_ui_rescans_or_override(
         return detected
 
     monkeypatch.setattr('forma.presentation.settings_workflow.find_abbyy', find)
+    monkeypatch.setattr('forma.presentation.settings_workflow.find_scan_converter', lambda _: '')
     backend = Backend()
     deadline = time.monotonic() + 5
     while backend._worker_probe_running and time.monotonic() < deadline:

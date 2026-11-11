@@ -50,5 +50,16 @@
   "Перед імпортом звірте DOCX із PDF: усі сторінки, текст, числа та таблиці.": "Avant l’importation, comparez le DOCX au PDF : toutes les pages, le texte, les nombres et les tableaux.",
   "Запустити ABBYY": "Lancer ABBYY",
   "PDF із текстом перекладається зі збереженням макета. Для сканів спочатку підготуйте DOCX.": "Les PDF contenant du texte sont traduits en conservant leur mise en page. Pour les scans, préparez d’abord un DOCX.",
-  "Як налаштувати PDF та OCR": "Configurer les PDF et l’OCR"
+  "Як налаштувати PDF та OCR": "Configurer les PDF et l’OCR",
+  "Додаткові дії з PDF": "Autres actions PDF",
+  "Підготовка…": "Préparation…",
+  "Імпортувати й продовжити": "Importer et continuer",
+  "Після імпорту переклад продовжиться автоматично.": "La traduction reprendra automatiquement après l’importation.",
+  "PDF із текстом перекладається зі збереженням макета. Скановані сторінки програма підготує через OCR під час перекладу.": "Les PDF contenant du texte sont traduits en conservant leur mise en page. L’application prépare les pages numérisées par OCR pendant la traduction.",
+  "Автоматично: спочатку локальний OCR, інакше встановлений ABBYY. Звичайний FineReader потребує ручного експорту DOCX.": "Automatique : d’abord l’OCR local, sinon ABBYY installé. FineReader standard nécessite un export DOCX manuel.",
+  "Збережіть DOCX в ABBYY та імпортуйте його. Переклад продовжиться автоматично.": "Enregistrez le DOCX dans ABBYY, puis importez-le. La traduction reprendra automatiquement.",
+  "Скан PDF: під час перекладу програма підготує DOCX через OCR.": "PDF numérisé : l’application préparera un DOCX par OCR pendant la traduction.",
+  "Текстовий PDF: прямий переклад зі збереженням верстки. Пам’ять абзаців застосовується до DOCX і XLSX; глосарій зберігається.": "PDF contenant du texte : traduction directe en conservant la mise en page. La mémoire de traduction des paragraphes s’applique aux DOCX et XLSX ; le glossaire est conservé.",
+  "Очікуємо DOCX з ABBYY": "En attente du DOCX d’ABBYY",
+  "Перевірте текст, числа й таблиці у створеному DOCX. Після імпорту програма перекладе його в межах цього завдання.": "Vérifiez le texte, les nombres et les tableaux du DOCX créé. Après l’importation, l’application le traduira dans le cadre de cette tâche."
 }

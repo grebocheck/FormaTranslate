@@ -54,6 +54,28 @@ class JobControl:
         self._waiters = deque()
         self._cooldowns: dict[str, float] = {}
         self._next_requests: dict[str, float] = {}
+        self._documents_in_use: set[str] = set()
+
+    @contextmanager
+    def document_slot(self, source_hash: str):
+        """Share Office checkpoints safely after OCR reveals a source's bytes."""
+        acquired = False
+        try:
+            while not acquired:
+                self.check()
+                with self._condition:
+                    if source_hash not in self._documents_in_use:
+                        self._documents_in_use.add(source_hash)
+                        acquired = True
+                    else:
+                        self._condition.wait(0.1)
+            self.check()
+            yield
+        finally:
+            if acquired:
+                with self._condition:
+                    self._documents_in_use.remove(source_hash)
+                    self._condition.notify_all()
 
     def check(self) -> None:
         while self.paused.is_set():

@@ -35,5 +35,14 @@
   "OCR-конвертер не знайдено": "Nie znaleziono konwertera OCR",
   "Частину таблиць збережено зображеннями та текстом, бо структуру не відновлено. Виправте їх у DOCX перед перекладом.": "Niektóre tabele zapisano jako obrazy i tekst, ponieważ nie udało się odtworzyć ich struktury. Popraw je w DOCX przed tłumaczeniem.",
   "Відновлені поза структурою рядки виділено жовтим у DOCX. Перевірте порядок і дублювання.": "Wiersze odzyskane poza strukturą dokumentu są zaznaczone na żółto w DOCX. Sprawdź ich kolejność i ewentualne duplikaty.",
-  "Є фрагменти з низькою впевненістю OCR. Звірте їх зі сканом, особливо числа та коди.": "Niektóre fragmenty mają niski poziom pewności OCR. Porównaj je ze skanem, zwłaszcza liczby i kody."
+  "Є фрагменти з низькою впевненістю OCR. Звірте їх зі сканом, особливо числа та коди.": "Niektóre fragmenty mają niski poziom pewności OCR. Porównaj je ze skanem, zwłaszcza liczby i kody.",
+  "Документ перекладено після OCR. Звірте розпізнаний текст, числа й таблиці з оригінальним PDF.": "Dokument przetłumaczono po OCR. Porównaj rozpoznany tekst, liczby i tabele z oryginalnym plikiem PDF.",
+  "ABBYY не підтверджує автоматично повноту сторінок. Звірте весь DOCX з оригінальним PDF.": "ABBYY nie potwierdza automatycznie kompletności stron. Porównaj cały DOCX z oryginalnym plikiem PDF.",
+  "Частину таблиць збережено зображеннями та текстом, бо структуру не відновлено. Перевірте їх у DOCX.": "Część tabel zapisano jako obrazy i tekst, ponieważ nie odtworzono ich struktury. Sprawdź je w DOCX.",
+  "Для цього скану потрібне розпізнавання ABBYY. Відкрийте PDF в ABBYY, збережіть DOCX і додайте його для перекладу або виберіть автоматичний OCR у налаштуваннях.": "Ten skan wymaga rozpoznania w ABBYY. Otwórz PDF w ABBYY, zapisz DOCX i dodaj go do tłumaczenia albo wybierz automatyczny OCR w ustawieniach.",
+  "Експорт OCR зупинено: не підтверджено цілісність DOCX або його зв’язок з оригінальним PDF.": "Eksport OCR zatrzymano: nie udało się potwierdzić integralności DOCX lub jego powiązania z oryginalnym plikiem PDF.",
+  "PDF перекладено зі збереженням глосарія проєкту. Пам’ять абзаців застосовується до DOCX і XLSX; вибраний проєкт залишився активним.": "PDF przetłumaczono z użyciem glosariusza projektu. Pamięć tłumaczeń akapitów działa dla DOCX i XLSX; wybrany projekt pozostaje aktywny.",
+  "DOCX після OCR змінився. Повторіть переклад із поточним файлом.": "DOCX zmienił się po OCR. Powtórz tłumaczenie z bieżącym plikiem.",
+  "Оригінальний PDF": "Oryginalny PDF",
+  "DOCX після OCR": "DOCX po OCR"
 }

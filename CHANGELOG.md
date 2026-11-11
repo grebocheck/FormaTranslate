@@ -2,6 +2,16 @@
 
 Versions follow semantic versioning. Changes before 1.0 may evolve as document compatibility improves.
 
+## 0.9.0 — 2026-11-11
+
+- Make Translate choose each PDF's route automatically: prepare scanned PDFs as a validated DOCX, then continue Office translation in the same run; translate text PDFs through BabelDOC while preserving the project glossary and keeping Office memory enabled.
+- Keep frozen languages, provider settings, glossary and project memory through OCR and assisted ABBYY imports. Cancelling a run invalidates pending imports and prevents automatic paid continuation after a restart.
+- Show preparation, waiting and translation stages, move standalone OCR into additional PDF actions and resume the waiting translation after a reviewed ABBYY import.
+- Preserve the original PDF queue identity and record PDF/DOCX provenance in reports; review, correction export and preferred wording use the recognized DOCX.
+- Persist PDF route information and keep completed PDFs from blocking automatic language selection for newly added Office files. Protect shared Office checkpoints after OCR reveals duplicate source content.
+- Provide one full Windows download with BabelDOC, OCR, models and Tesseract. Remove the Standard/light edition and keep source/license materials in one separate archive.
+- Localize the updated workflow in Ukrainian, English, Polish, German, French and Spanish.
+
 ## 0.8.1 — 2026-11-11
 
 - Find installed ABBYY on custom locations such as `E:\Program Files\ABBYY FineReader 16`, using registered launchers, matching uninstall metadata and bounded checks on fixed local drives.

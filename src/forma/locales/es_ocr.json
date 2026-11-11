@@ -35,5 +35,14 @@
   "OCR-конвертер не знайдено": "Convertidor OCR no encontrado",
   "Частину таблиць збережено зображеннями та текстом, бо структуру не відновлено. Виправте їх у DOCX перед перекладом.": "Algunas tablas se guardaron como imágenes y texto porque no se pudo recuperar su estructura. Corríjalas en el DOCX antes de traducir.",
   "Відновлені поза структурою рядки виділено жовтим у DOCX. Перевірте порядок і дублювання.": "Las líneas recuperadas fuera de la estructura están resaltadas en amarillo en el DOCX. Compruebe su orden y los posibles duplicados.",
-  "Є фрагменти з низькою впевненістю OCR. Звірте їх зі сканом, особливо числа та коди.": "Algunos fragmentos tienen baja confianza de OCR. Compárelos con el escaneo, especialmente los números y códigos."
+  "Є фрагменти з низькою впевненістю OCR. Звірте їх зі сканом, особливо числа та коди.": "Algunos fragmentos tienen baja confianza de OCR. Compárelos con el escaneo, especialmente los números y códigos.",
+  "Документ перекладено після OCR. Звірте розпізнаний текст, числа й таблиці з оригінальним PDF.": "El documento se tradujo después del OCR. Compare el texto reconocido, los números y las tablas con el PDF original.",
+  "ABBYY не підтверджує автоматично повноту сторінок. Звірте весь DOCX з оригінальним PDF.": "ABBYY no confirma automáticamente que estén todas las páginas. Compare todo el DOCX con el PDF original.",
+  "Частину таблиць збережено зображеннями та текстом, бо структуру не відновлено. Перевірте їх у DOCX.": "Algunas tablas se guardaron como imágenes y texto porque no se pudo restaurar su estructura. Revise las tablas en el DOCX.",
+  "Для цього скану потрібне розпізнавання ABBYY. Відкрийте PDF в ABBYY, збережіть DOCX і додайте його для перекладу або виберіть автоматичний OCR у налаштуваннях.": "Este documento escaneado requiere reconocimiento con ABBYY. Abra el PDF en ABBYY, guarde un DOCX y añádalo para traducir, o seleccione el OCR automático en Ajustes.",
+  "Експорт OCR зупинено: не підтверджено цілісність DOCX або його зв’язок з оригінальним PDF.": "Exportación OCR detenida: no se pudo verificar la integridad del DOCX o su relación con el PDF original.",
+  "PDF перекладено зі збереженням глосарія проєкту. Пам’ять абзаців застосовується до DOCX і XLSX; вибраний проєкт залишився активним.": "El PDF se tradujo usando el glosario del proyecto. La memoria de traducción de párrafos se aplica a DOCX y XLSX; el proyecto seleccionado sigue activo.",
+  "DOCX після OCR змінився. Повторіть переклад із поточним файлом.": "El DOCX cambió después del OCR. Repita la traducción con el archivo actual.",
+  "Оригінальний PDF": "PDF original",
+  "DOCX після OCR": "DOCX después del OCR"
 }

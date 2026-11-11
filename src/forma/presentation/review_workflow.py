@@ -23,6 +23,13 @@ from forma.translation.engine import blocking_issues
 
 
 class ReviewWorkflow:
+    def _review_source(self, document):
+        context = self._review_context
+        result = context.get("result") if context else document.get("result")
+        if result and getattr(result, "preparation", None):
+            return str(result.source)
+        return document.get("path", "")
+
     def _review_document(self):
         if self._history_review and self._history_review["id"] == self._review_document_id:
             return self._history_review
@@ -46,8 +53,11 @@ class ReviewWorkflow:
         document = self._review_document()
         if not document:
             return {}
+        source = self._review_source(document)
         return {
             **self._display_document(document),
+            "path": source,
+            "format": Path(source).suffix[1:].upper() if source else document.get("format", ""),
             "outputExists": self._file_status.is_file(document.get("output")),
             "reportExists": bool(document.get("report"))
             and self._file_status.is_file(Path(document["report"]).with_suffix(".html")),
@@ -66,15 +76,16 @@ class ReviewWorkflow:
         if not entry:
             return {}
         document = self._review_document() or {}
+        source = self._review_source(document)
         persisted = bool(self._review_context and self._review_context.get("reportFingerprint"))
         reason = ""
         if entry["kind"] != "segment":
             reason = "Це примітка до документа. Її можна позначити як переглянуту."
-        elif document.get("format") not in ("DOCX", "XLSX"):
+        elif Path(source).suffix.lower() not in (".docx", ".xlsx"):
             reason = "Редагування тексту PDF зі збереженням верстки поки недоступне."
         elif not persisted:
             reason = "Для збереження правок потрібен доступний звіт Forma."
-        elif not document.get("path") or not self._file_status.is_file(document["path"]):
+        elif not source or not self._file_status.is_file(source):
             reason = "Оригінальний файл недоступний. Він потрібен для збереження форматування."
         elif not document.get("output") or not self._file_status.is_file(document["output"]):
             reason = "Файл перекладу переміщено або видалено."
@@ -229,6 +240,7 @@ class ReviewWorkflow:
         ):
             return
         document = dict(self._review_document() or {})
+        document["path"] = self._review_source(document)
         context = self._review_context
         if (
             not context.get("reportFingerprint")
@@ -474,7 +486,7 @@ class ReviewWorkflow:
                 stateError=state_error,
                 fileStatus=inspect_files(
                     (
-                        document.get("path"),
+                        str(current_result.source) if current_result.preparation else document.get("path"),
                         document.get("output"),
                         report,
                         str(Path(report).with_suffix(".html")) if report else "",

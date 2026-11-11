@@ -1,14 +1,16 @@
 # PDF and scanned documents
 
-Text-based PDFs can be translated directly through BabelDOC. Scanned or mixed PDFs need a separate **Scan PDF → DOCX** preparation step, followed by the normal DOCX translation workflow. OCR runs locally and does not use your translation API or key.
+Add PDFs to Documents, select the source and target languages and click **Translate**. Forma chooses the route for each file: text-based PDFs use BabelDOC; scans and documents with a majority of image-only pages are prepared as DOCX through the selected OCR workflow, then translated automatically. OCR runs locally and does not use your translation API or key. The following translation uses your configured provider.
 
-Complete Windows builds embed OCR, its models, Tesseract and BabelDOC with offline assets. Windows Standard uses installed ABBYY or external engines; separate installation and first-run downloads below apply to those external engines and Linux/source installations. See [Windows runtime packaging](WINDOWS-RUNTIME.md) for the complete-build contract and native verification requirements.
+The Windows package embeds OCR, its models, Tesseract and BabelDOC with offline assets. An installed ABBYY remains an optional OCR choice. The separate installation and first-run downloads below apply to Linux/source installations or explicitly configured external engines. See [Windows runtime packaging](WINDOWS-RUNTIME.md) for the build contract and native verification requirements.
 
 ## Installed ABBYY
 
-In **Settings → PDF/OCR**, choose **Automatic** or **ABBYY FineReader**. Automatic detection looks for the installed OCR Editor in Windows registration and known installation folders; an explicit executable path is available when detection misses a custom installation.
+In **Settings → PDF/OCR**, **Automatic** prefers the available Forma OCR worker and falls back to an installed ABBYY OCR Editor. An explicitly chosen provider or OCR executable remains authoritative. ABBYY detection checks Windows registration and known installation folders; an explicit executable path is available when detection misses a custom installation.
 
-For an ordinary FineReader license, Forma opens the OCR Editor. Open the selected PDF there, select its recognition language, recognize it and save a DOCX. Return to Forma, confirm that you checked all pages/text/numbers/tables, and choose **Import DOCX…**. Forma copies the reviewed source into its output folder and replaces that PDF queue entry; translation starts separately. Microsoft Word is not required for this editor workflow. Automated export requires a separate Extended CLI-enabled license and its explicit configuration. See [ABBYY setup and supported capabilities](ABBYY.md).
+For an ordinary FineReader license, Forma opens the OCR Editor. Open the selected PDF there, select its recognition language, recognize it and save a DOCX. Return to Forma, confirm that you checked all pages/text/numbers/tables, and choose **Import and continue**. Forma validates and copies the source into its output folder and continues the waiting translation. The original PDF remains selected in the queue. Microsoft Word is not required for this editor workflow. Automated ABBYY export requires a separate Extended CLI-enabled license and its explicit configuration. See [ABBYY setup and supported capabilities](ABBYY.md).
+
+One translation run keeps its captured languages, provider settings, project memory and glossary through preparation. Changing settings during OCR or an ABBYY handoff applies to a later run. **Stop** cancels both preparation and continuation; a previously opened import picker cannot restart a cancelled job. After an application restart, interrupted work requires a new explicit **Translate** action.
 
 ## Scanned PDF → editable DOCX
 
@@ -22,14 +24,21 @@ The helper uses Docling for document structure and TableFormer table reconstruct
 
 For better recognition of uncertain prose, also install [Tesseract](https://tesseract-ocr.github.io/tessdoc/Installation.html) and the source-language data (`eng`, `ukr`, `pol` or `deu`), and put its executable in PATH. When available, the helper retries low-confidence prose crops locally and accepts only a sufficiently confident candidate. Tables retain RapidOCR recognition and TableFormer geometry. This second engine is optional; without it, uncertain text remains highlighted for manual correction. Recognition confidence is a review signal, not an accuracy percentage.
 
-1. Add and select a PDF in Documents.
+1. Add a PDF in Documents.
 2. Select its source language: English, Ukrainian, Polish or German. Automatic language selection is not supported for OCR.
-3. Click **Scan PDF → DOCX**. If the helper is outside PATH, set its executable path under Settings → PDF/OCR.
-4. The app processes every page, including pages that already contain some text. It creates a separate `.ocr.docx` and `.ocr.json` in the output folder and replaces the PDF entry in the queue with that DOCX. The PDF file stays unchanged. Stop cancels the local worker; partial output is not added to the queue.
-5. Open the generated source DOCX and compare it with the scan, especially numbers, names, tables, signatures and stamps. Correct OCR errors in this DOCX before translating.
-6. Click **Translate**. The existing DOCX pipeline provides terminology, editorial review, structural checks and manual correction export. OCR preparation itself makes no translation requests.
+3. Click **Translate**. If the helper is outside PATH, set its executable path under Settings → PDF/OCR.
+4. The app processes every page, including pages that already contain some text. It creates a separate `.ocr.docx` and `.ocr.json`, verifies their binding to the PDF and continues with Office translation. The PDF file and queue identity stay unchanged. Stop cancels the chain; incomplete OCR output is not translated.
+5. Review the recognized source and final translation against the scan, especially numbers, names, tables, signatures and stamps. Reports identify the original PDF and recognized DOCX; Office review and correction export use that DOCX. Structural checks cannot establish OCR accuracy.
 
-The CLI equivalent is:
+To inspect or correct OCR before any translation, expand **Additional PDF actions** and choose **Scan PDF → DOCX**. This standalone preparation makes no API requests, replaces the queue entry with the recognized DOCX and leaves translation for a separate **Translate** action. It is also useful for occasional image pages in an otherwise text-based PDF.
+
+The automatic CLI workflow is:
+
+```sh
+uv run forma translate scan.pdf --source en --target uk --output results
+```
+
+Separate preparation remains available:
 
 ```sh
 uv run forma ocr scan.pdf --source en --output results
@@ -50,7 +59,7 @@ For comparison, [ABBYY FineReader Engine](https://help.abbyy.com/en-us/finereade
 
 ## Direct text-based PDF translation
 
-FormaTranslate uses [BabelDOC](https://github.com/funstory-ai/BabelDOC) as a separately installed command-line tool. The integration is tested with **BabelDOC 0.7.1**. It is not bundled in the desktop executable.
+FormaTranslate uses an isolated [BabelDOC](https://github.com/funstory-ai/BabelDOC) worker. The integration is tested with **BabelDOC 0.7.1**. The Windows package includes it and its offline assets. Linux/source installations use the separate command-line installation below.
 
 ```sh
 uv tool install --python 3.12 BabelDOC==0.7.1
@@ -63,7 +72,9 @@ Choose an explicit source language and the `chat`, `gemini` or `anthropic` API m
 
 Progress includes layout analysis, terminology, paragraph translation, fonts and export. Local layout analysis may take time even when many API requests can run in parallel. Fatal API errors and incomplete responses stop export instead of silently producing unchanged text. Heuristic output checks do not replace a bilingual review.
 
-The direct BabelDOC route requires a text-based PDF. Documents whose majority of pages are images without text are rejected with an instruction to use **Scan PDF → DOCX**; a small text fragment on one page does not make the rest translatable. Individual image pages in otherwise text-based PDFs still produce a warning. The Office editorial pass and manual review-copy export apply to the OCR DOCX route, but do not apply to direct PDF output. Check tables, columns, fonts, math and page breaks in a PDF viewer.
+The direct BabelDOC route requires a text-based PDF. Scans and documents with a majority of image-only pages automatically take the OCR route; a small text fragment on one page does not make a multipage scan directly translatable. Individual image pages in otherwise text-based PDFs still produce a warning and may need standalone OCR preparation. The Office editorial pass and manual review-copy export apply to the OCR DOCX route, but do not apply to direct PDF output. Check tables, columns, fonts, math and page breaks in a PDF viewer.
+
+Project memory can remain enabled for a mixed queue. Direct PDFs use the captured project glossary without paragraph-memory reuse, while OCR DOCX and ordinary Office documents use the captured project memory. The selected project is not switched off.
 
 An optional integration test uses a local fake API and the synthetic fixture:
 

@@ -50,5 +50,16 @@
   "Перед імпортом звірте DOCX із PDF: усі сторінки, текст, числа та таблиці.": "Vergleichen Sie vor dem Import die DOCX-Datei mit der PDF: alle Seiten, Texte, Zahlen und Tabellen.",
   "Запустити ABBYY": "ABBYY starten",
   "PDF із текстом перекладається зі збереженням макета. Для сканів спочатку підготуйте DOCX.": "Textbasierte PDFs werden unter Beibehaltung des Layouts übersetzt. Erstellen Sie bei Scans zuerst eine DOCX-Datei.",
-  "Як налаштувати PDF та OCR": "PDF und OCR einrichten"
+  "Як налаштувати PDF та OCR": "PDF und OCR einrichten",
+  "Додаткові дії з PDF": "Weitere PDF-Aktionen",
+  "Підготовка…": "Vorbereitung…",
+  "Імпортувати й продовжити": "Importieren und fortsetzen",
+  "Після імпорту переклад продовжиться автоматично.": "Nach dem Import wird die Übersetzung automatisch fortgesetzt.",
+  "PDF із текстом перекладається зі збереженням макета. Скановані сторінки програма підготує через OCR під час перекладу.": "Textbasierte PDFs werden unter Beibehaltung des Layouts übersetzt. Gescannte Seiten bereitet die Anwendung während der Übersetzung per OCR vor.",
+  "Автоматично: спочатку локальний OCR, інакше встановлений ABBYY. Звичайний FineReader потребує ручного експорту DOCX.": "Automatisch: zuerst lokales OCR, andernfalls installiertes ABBYY. Bei gewöhnlichem FineReader muss der DOCX-Export manuell erfolgen.",
+  "Збережіть DOCX в ABBYY та імпортуйте його. Переклад продовжиться автоматично.": "Speichern Sie die DOCX-Datei in ABBYY und importieren Sie sie. Die Übersetzung wird automatisch fortgesetzt.",
+  "Скан PDF: під час перекладу програма підготує DOCX через OCR.": "Gescanntes PDF: Die Anwendung erstellt während der Übersetzung per OCR eine DOCX-Datei.",
+  "Текстовий PDF: прямий переклад зі збереженням верстки. Пам’ять абзаців застосовується до DOCX і XLSX; глосарій зберігається.": "Textbasiertes PDF: direkte Übersetzung unter Beibehaltung des Layouts. Der Absatz-Übersetzungsspeicher gilt für DOCX und XLSX; das Glossar bleibt erhalten.",
+  "Очікуємо DOCX з ABBYY": "Warten auf DOCX aus ABBYY",
+  "Перевірте текст, числа й таблиці у створеному DOCX. Після імпорту програма перекладе його в межах цього завдання.": "Prüfen Sie Text, Zahlen und Tabellen in der erstellten DOCX-Datei. Nach dem Import übersetzt die Anwendung sie im Rahmen dieses Auftrags."
 }

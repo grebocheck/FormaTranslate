@@ -44,6 +44,7 @@ ApplicationWindow {
     property bool previewOpen: false
     property bool connectionOptionsOpen: false
     property bool pdfOptionsOpen: false
+    property bool pdfPreparationOptionsOpen: false
     property bool performanceOptionsOpen: false
     property bool removeSavedKey: false
     property bool keyVisible: false
@@ -52,7 +53,14 @@ ApplicationWindow {
     readonly property bool nativeProvider: apiMode.currentText === "gemini" || apiMode.currentText === "anthropic"
     readonly property bool savedEndpointSelected: baseUrl.text.trim().replace(/\/+$/, "") === (backend.settings.baseUrl || "").trim().replace(/\/+$/, "")
     property double clockNow: Date.now()
-    readonly property bool hasPdf: backend.documents.some(function(d) { return d.format === "PDF" })
+    readonly property var translationCandidates: {
+        var files = backend.documents
+        if (backend.translating)
+            return files.filter(function(d) { return d.status === "queued" || d.status === "translating" })
+        var pending = files.filter(function(d) { return ["ready", "error", "cancelled"].indexOf(d.status) >= 0 })
+        return pending.length > 0 ? pending : files.length > 0 && files.every(function(d) { return d.status === "done" }) ? files : []
+    }
+    readonly property bool hasPdf: translationCandidates.some(function(d) { return d.format === "PDF" })
     readonly property bool needsSourceLanguage: hasPdf && sourceLanguage.currentIndex === 0
     readonly property bool sameLanguage: sourceCodes[sourceLanguage.currentIndex] === targetCodes[targetLanguage.currentIndex]
     property var sourceCodes: ["auto", "en", "uk", "de", "pl", "fr", "es", "it", "pt", "zh", "ja"]
@@ -74,9 +82,11 @@ ApplicationWindow {
     property var themeLabels: [qsTr("Як у системі"), qsTr("Світла"), qsTr("Темна")]
     property var scanProviderCodes: ["auto", "forma", "abbyy", "abbyy_extended"]
     property var scanProviderLabels: [qsTr("Автоматично"), qsTr("Вбудований / локальний OCR"), qsTr("ABBYY FineReader — вручну"), qsTr("ABBYY Extended CLI")]
-    readonly property bool showLocalOcrSettings: scanProvider.currentIndex === 1 || (scanProvider.currentIndex === 0 && !backend.settings.abbyyReady)
+    readonly property bool showLocalOcrSettings: scanProvider.currentIndex === 1 || (scanProvider.currentIndex === 0 && (backend.settings.scanConverterReady || !backend.settings.abbyyReady))
     readonly property bool manualAbbyy: backend.settings.scanProviderEffective === "abbyy" || backend.settings.scanProvider === "abbyy"
     readonly property var currentAbbyyHandoff: typeof backend.abbyyHandoff === "object" && backend.abbyyHandoff ? backend.abbyyHandoff : ({})
+    readonly property bool preparingDocuments: backend.recognizingScan || backend.translationPreparing
+    readonly property bool canImportAbbyyResult: !backend.busy || (!!currentAbbyyHandoff.continueTranslation && !currentAbbyyHandoff.importing)
     property string abbyyPromptId: ""
 
     onClosing: function(close) { close.accepted = backend.requestClose() }
@@ -470,28 +480,56 @@ ApplicationWindow {
                             Divider { visible: !!backend.selectedDocument.path }
                             ColumnLayout {
                                 visible: backend.selectedDocument.format === "PDF" || backend.recognizingScan
-                                Layout.fillWidth: true; spacing: 6
+                                Layout.fillWidth: true; spacing: 8
                                 RowLayout {
-                                    Layout.fillWidth: true
-                                    Action {
-                                        objectName: "recognizePdfButton"
-                                        text: root.manualAbbyy ? qsTr("Відкрити в ABBYY…") : qsTr("Скан PDF → DOCX"); iconName: "document"; implicitHeight: 34
-                                        enabled: !backend.busy && backend.selectedDocument.status !== "loading"
-                                        onClicked: backend.recognizeSelectedPdf(root.sourceCodes[sourceLanguage.currentIndex])
-                                    }
-                                    Action {
-                                        objectName: "importAbbyyResultButton"; text: qsTr("Імпортувати DOCX…"); iconName: "import"; subtle: true; implicitHeight: 34
-                                        visible: root.currentAbbyyHandoff.sourceId === backend.selectedDocument.id && !!root.currentAbbyyHandoff.sourceId
-                                        enabled: !backend.busy; onClicked: abbyyHandoffDialog.open()
-                                    }
-                                    Item { Layout.fillWidth: true }
-                                    Action { objectName: "scanSettingsButton"; text: root.width < 1120 ? "" : qsTr("Налаштувати OCR"); hint: qsTr("Налаштувати OCR"); iconName: "settings"; subtle: true; implicitHeight: 32; enabled: !backend.busy; onClicked: root.openScanSettings() }
+                                    objectName: "documentWorkflowInfo"
+                                    visible: !!backend.selectedDocument.workflowText && !backend.recognizingScan
+                                    Layout.fillWidth: true; spacing: 9
+                                    Icon { name: "info"; color: root.muted; Layout.preferredWidth: 16; Layout.preferredHeight: 16; Layout.alignment: Qt.AlignTop; Layout.topMargin: 1 }
+                                    Caption { text: backend.selectedDocument.workflowText || ""; Layout.fillWidth: true; wrapMode: Text.WordWrap; lineHeight: 1.25 }
                                 }
-                                Caption {
-                                    text: backend.recognizingScan ? backend.scanMessage : root.manualAbbyy ? qsTr("Збережіть розпізнаний документ як DOCX у FineReader, перевірте його та поверніть у чергу.") : qsTr("Створює DOCX локально й замінює PDF у черзі. Перевірте текст і таблиці перед перекладом.")
-                                    Layout.fillWidth: true; wrapMode: Text.WordWrap
+                                RowLayout {
+                                    visible: backend.recognizingScan
+                                    Layout.fillWidth: true; spacing: 9
+                                    BusyIndicator { running: backend.recognizingScan; Layout.preferredWidth: 22; Layout.preferredHeight: 22 }
+                                    Caption { objectName: "scanStatusText"; text: backend.scanMessage; Layout.fillWidth: true; wrapMode: Text.WordWrap }
                                 }
                                 ProgressBar { objectName: "scanProgressBar"; visible: backend.recognizingScan; from: 0; to: 100; value: backend.scanProgress; Layout.fillWidth: true }
+                                RowLayout {
+                                    visible: !backend.recognizingScan
+                                    Layout.fillWidth: true
+                                    Action {
+                                        objectName: "pdfPreparationOptionsButton"
+                                        text: qsTr("Додаткові дії з PDF"); iconName: root.pdfPreparationOptionsOpen ? "chevron-down" : "chevron-right"
+                                        subtle: true; implicitHeight: 30; leftPadding: 0; enabled: !backend.busy
+                                        onClicked: root.pdfPreparationOptionsOpen = !root.pdfPreparationOptionsOpen
+                                    }
+                                    Item { Layout.fillWidth: true }
+                                    Action {
+                                        objectName: "importAbbyyResultButton"; text: root.currentAbbyyHandoff.continueTranslation ? qsTr("Імпортувати й продовжити") : qsTr("Імпортувати DOCX…"); iconName: "import"; subtle: true; implicitHeight: 30
+                                        visible: root.currentAbbyyHandoff.sourceId === backend.selectedDocument.id && !!root.currentAbbyyHandoff.sourceId
+                                        enabled: root.canImportAbbyyResult; onClicked: abbyyHandoffDialog.open()
+                                    }
+                                }
+                                ColumnLayout {
+                                    visible: root.pdfPreparationOptionsOpen && !backend.recognizingScan
+                                    Layout.fillWidth: true; spacing: 6
+                                    RowLayout {
+                                        Layout.fillWidth: true
+                                        Action {
+                                            objectName: "recognizePdfButton"
+                                            text: root.manualAbbyy ? qsTr("Відкрити в ABBYY…") : qsTr("Скан PDF → DOCX"); iconName: "document"; implicitHeight: 34
+                                            enabled: !backend.busy && backend.selectedDocument.status !== "loading"
+                                            onClicked: backend.recognizeSelectedPdf(root.sourceCodes[sourceLanguage.currentIndex])
+                                        }
+                                        Item { Layout.fillWidth: true }
+                                        Action { objectName: "scanSettingsButton"; text: root.width < 1120 ? "" : qsTr("Налаштувати OCR"); hint: qsTr("Налаштувати OCR"); iconName: "settings"; subtle: true; implicitHeight: 32; enabled: !backend.busy; onClicked: root.openScanSettings() }
+                                    }
+                                    Caption {
+                                        text: root.manualAbbyy ? qsTr("Збережіть розпізнаний документ як DOCX у FineReader, перевірте його та поверніть у чергу.") : qsTr("Створює DOCX локально й замінює PDF у черзі. Перевірте текст і таблиці перед перекладом.")
+                                        Layout.fillWidth: true; wrapMode: Text.WordWrap
+                                    }
+                                }
                             }
                             RowLayout {
                                 visible: !!backend.selectedDocument.path; Layout.fillWidth: true; spacing: 4
@@ -604,10 +642,10 @@ ApplicationWindow {
                             Layout.fillWidth: true; spacing: 8
                             Action {
                                 objectName: "translateButton"
-                                iconName: backend.translating ? (backend.paused ? "play" : "pause") : "translate"
-                                text: backend.translating ? (backend.paused ? qsTr("Продовжити") : qsTr("Пауза")) : qsTr("Перекласти")
+                                iconName: root.preparingDocuments ? "document" : backend.translating ? (backend.paused ? "play" : "pause") : "translate"
+                                text: root.preparingDocuments ? qsTr("Підготовка…") : backend.translating ? (backend.paused ? qsTr("Продовжити") : qsTr("Пауза")) : qsTr("Перекласти")
                                 primary: true; Layout.fillWidth: true; implicitHeight: 44
-                                enabled: backend.translating || (!backend.busy && backend.documents.length > 0 && !!backend.settings.model && !root.needsSourceLanguage && !root.sameLanguage)
+                                enabled: !root.preparingDocuments && (backend.translating || (!backend.busy && backend.documents.length > 0 && !!backend.settings.model && !root.needsSourceLanguage && !root.sameLanguage))
                                 onClicked: backend.translating ? backend.togglePause() : backend.start(root.sourceCodes[sourceLanguage.currentIndex], root.targetCodes[targetLanguage.currentIndex], domain.currentText, review.checked, autoGlossary.checked)
                             }
                             Action { text: qsTr("Стоп"); iconName: "stop"; objectName: "cancelButton"; visible: backend.translating || backend.recognizingScan; implicitHeight: 44; onClicked: backend.cancel() }
@@ -956,7 +994,7 @@ ApplicationWindow {
                                     Caption { text: backend.settings.pdfReady ? qsTr("Рушій знайдено") : qsTr("Рушій не знайдено"); color: backend.settings.pdfReady ? Theme.success : root.muted }
                                     Action { text: root.pdfOptionsOpen ? qsTr("Згорнути") : qsTr("Налаштувати"); iconName: root.pdfOptionsOpen ? "chevron-down" : "settings"; subtle: true; implicitHeight: 30; onClicked: root.pdfOptionsOpen = !root.pdfOptionsOpen }
                                 }
-                                Caption { text: qsTr("PDF із текстом перекладається зі збереженням макета. Для сканів спочатку підготуйте DOCX."); wrapMode: Text.WordWrap; Layout.fillWidth: true }
+                                Caption { text: qsTr("PDF із текстом перекладається зі збереженням макета. Скановані сторінки програма підготує через OCR під час перекладу."); wrapMode: Text.WordWrap; Layout.fillWidth: true }
                                 ColumnLayout {
                                     visible: root.pdfOptionsOpen; Layout.fillWidth: true; spacing: 8
                                     Caption { text: qsTr("Шлях до BabelDOC") }
@@ -970,7 +1008,7 @@ ApplicationWindow {
                                         Layout.fillWidth: true; enabled: !backend.busy
                                         Accessible.name: qsTr("Розпізнавання сканів")
                                     }
-                                    Caption { text: qsTr("Автоматично: використати встановлений ABBYY, інакше локальний OCR. Звичайний FineReader відкривається для ручного експорту DOCX."); Layout.fillWidth: true; wrapMode: Text.WordWrap }
+                                    Caption { text: qsTr("Автоматично: спочатку локальний OCR, інакше встановлений ABBYY. Звичайний FineReader потребує ручного експорту DOCX."); Layout.fillWidth: true; wrapMode: Text.WordWrap }
                                     Caption { text: qsTr("Шлях до ABBYY FineReader"); visible: scanProvider.currentIndex !== 1 }
                                     Field { id: abbyyPath; objectName: "abbyyPathField"; visible: scanProvider.currentIndex !== 1; Layout.fillWidth: true; placeholderText: qsTr("Порожньо — знайти автоматично"); enabled: !backend.busy }
                                     Caption { objectName: "abbyyDetectionStatus"; text: backend.settings.abbyyReady ? qsTr("ABBYY FineReader знайдено") + (backend.settings.abbyyDetectedPath ? "\n" + backend.settings.abbyyDetectedPath : "") : qsTr("ABBYY FineReader не знайдено"); visible: scanProvider.currentIndex !== 1; color: backend.settings.abbyyReady ? Theme.success : Theme.muted; Layout.fillWidth: true; wrapMode: Text.WordWrap }

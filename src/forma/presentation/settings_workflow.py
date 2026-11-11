@@ -145,7 +145,10 @@ class SettingsWorkflow:
             "scanProvider": s.scan_provider,
             "abbyyPath": s.abbyy_path,
             "abbyyExtendedCliConfirmed": s.abbyy_extended_cli_confirmed,
-            "scanProviderEffective": ("abbyy" if self._worker_availability.get("abbyyReady") else "forma") if s.scan_provider == "auto" else s.scan_provider,
+            "scanProviderEffective": (
+                "forma" if s.scan_converter_path or self._worker_availability.get("scanConverterReady")
+                else "abbyy" if self._worker_availability.get("abbyyReady") else "forma"
+            ) if s.scan_provider == "auto" else s.scan_provider,
             "envPath": str(s.env_path),
             "keyPresent": bool(s.api_key),
             "keyStored": s.key_stored,

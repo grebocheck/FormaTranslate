@@ -50,5 +50,16 @@
   "Перед імпортом звірте DOCX із PDF: усі сторінки, текст, числа та таблиці.": "Antes de importar, compare el DOCX con el PDF: todas las páginas, el texto, los números y las tablas.",
   "Запустити ABBYY": "Iniciar ABBYY",
   "PDF із текстом перекладається зі збереженням макета. Для сканів спочатку підготуйте DOCX.": "Los PDF con texto se traducen conservando su maquetación. Para los escaneos, prepare primero un DOCX.",
-  "Як налаштувати PDF та OCR": "Cómo configurar PDF y OCR"
+  "Як налаштувати PDF та OCR": "Cómo configurar PDF y OCR",
+  "Додаткові дії з PDF": "Más acciones para PDF",
+  "Підготовка…": "Preparando…",
+  "Імпортувати й продовжити": "Importar y continuar",
+  "Після імпорту переклад продовжиться автоматично.": "La traducción continuará automáticamente después de importar el archivo.",
+  "PDF із текстом перекладається зі збереженням макета. Скановані сторінки програма підготує через OCR під час перекладу.": "Los PDF con texto se traducen conservando su diseño. La aplicación prepara las páginas escaneadas mediante OCR durante la traducción.",
+  "Автоматично: спочатку локальний OCR, інакше встановлений ABBYY. Звичайний FineReader потребує ручного експорту DOCX.": "Automático: primero el OCR local; si no está disponible, ABBYY instalado. FineReader estándar requiere exportar el DOCX manualmente.",
+  "Збережіть DOCX в ABBYY та імпортуйте його. Переклад продовжиться автоматично.": "Guarde el DOCX en ABBYY e impórtelo. La traducción continuará automáticamente.",
+  "Скан PDF: під час перекладу програма підготує DOCX через OCR.": "PDF escaneado: la aplicación preparará un DOCX mediante OCR durante la traducción.",
+  "Текстовий PDF: прямий переклад зі збереженням верстки. Пам’ять абзаців застосовується до DOCX і XLSX; глосарій зберігається.": "PDF con texto: traducción directa conservando el diseño. La memoria de traducción de párrafos se aplica a DOCX y XLSX; el glosario se conserva.",
+  "Очікуємо DOCX з ABBYY": "Esperando el DOCX de ABBYY",
+  "Перевірте текст, числа й таблиці у створеному DOCX. Після імпорту програма перекладе його в межах цього завдання.": "Revise el texto, los números y las tablas del DOCX creado. Tras importarlo, la aplicación lo traducirá como parte de esta tarea."
 }

@@ -185,7 +185,7 @@ def prepare_release_materials(
 def build_command(
     root: Path = ROOT, *, system: str | None = None, machine: str | None = None,
     runtime_bundle: Path | None = None, desktop_only: bool = False,
-    runtime_candidate: bool = False, standard: bool = False,
+    runtime_candidate: bool = False,
 ) -> tuple[list[str], Path]:
     system = (system or platform.system()).lower()
     machine = (machine or platform.machine()).lower()
@@ -196,20 +196,12 @@ def build_command(
     }
     if system not in backends:
         raise SystemExit("One-file builds are currently supported on Windows and Linux.")
-    if standard and (system != "windows" or desktop_only):
-        raise ValueError("The standard edition requires a Windows build, separate from desktop-only development builds")
-    if standard and runtime_bundle is not None:
-        raise ValueError("The standard edition uses installed engines and cannot embed a complete runtime bundle")
     if runtime_candidate and (system != "windows" or desktop_only):
         raise ValueError("Runtime candidates require a complete Windows build")
     name = f"Forma-{system}-{machine}"
     if system == "windows":
         if desktop_only:
             name += "-desktop-only"
-        elif standard:
-            name += "-standard"
-            if runtime_candidate:
-                name += "-candidate"
         else:
             if machine != "x86_64":
                 raise ValueError("Complete Windows runtime bundles currently support x86-64 only")
@@ -255,7 +247,7 @@ def build_command(
     for module in EXCLUDED_QT:
         command[-1:-1] = ["--exclude-module", "PySide6." + module]
     if system == "windows":
-        if not desktop_only and not standard:
+        if not desktop_only:
             command[-1:-1] = [
                 "--add-data", f"{runtime_bundle / 'BUNDLE.json'}:runtimes-meta",
             ]
@@ -304,6 +296,8 @@ def package_release(
         raise RuntimeError("Unexpected optional Qt libraries: " + ", ".join(bad))
     version = release_version(root)
     target = artifact.stem.removeprefix("Forma-")
+    if target.startswith("windows-") and "desktop-only" not in target and runtime_bundle is None:
+        raise ValueError("Windows release packages require the complete embedded runtime bundle")
     if separate_runtime_sources and runtime_bundle is None:
         raise ValueError("Separate runtime sources require an embedded runtime bundle")
     metadata = {
@@ -349,8 +343,8 @@ def package_release(
         else:
             metadata["runtime_sources"] = {"delivery": "included", "directory": "runtime-sources"}
     else:
-        metadata["runtime_mode"] = "external-engines-standard" if "-standard" in target else "desktop-only-development" if "desktop-only" in target else "external-tools"
-        if target.startswith("windows-") and target.endswith("-candidate"):
+        metadata["runtime_mode"] = "desktop-only-development" if "desktop-only" in target else "external-tools"
+        if target.startswith("windows-"):
             metadata["publication_ready"] = False
     if target.startswith("linux-"):
         glibc_versions = set()
@@ -399,19 +393,16 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--runtime-bundle", type=Path, help="Prepared complete Windows runtime bundle")
     parser.add_argument("--desktop-only", action="store_true", help="Development Windows build without embedded OCR/PDF tools")
-    parser.add_argument("--standard", action="store_true", help="Lightweight Windows edition using installed ABBYY or separately installed OCR/PDF engines")
     parser.add_argument("--runtime-candidate", action="store_true", help="Windows candidate pending native offline validation; never publication-ready")
     parser.add_argument("--separate-runtime-sources", action="store_true", help="Deliver matching worker source archives in a companion ZIP, which must accompany the release")
     args = parser.parse_args()
-    if args.standard and args.runtime_bundle is not None:
-        parser.error("--standard and --runtime-bundle describe different Windows editions")
     runtime_bundle = None
-    if platform.system().lower() == "windows" and not args.desktop_only and not args.standard:
+    if platform.system().lower() == "windows" and not args.desktop_only:
         runtime_bundle = args.runtime_bundle or ROOT / "build/windows-runtime"
     if args.separate_runtime_sources and runtime_bundle is None:
         parser.error("--separate-runtime-sources requires a complete Windows runtime bundle")
     command, artifact = build_command(runtime_bundle=runtime_bundle, desktop_only=args.desktop_only,
-                                      runtime_candidate=args.runtime_candidate, standard=args.standard)
+                                      runtime_candidate=args.runtime_candidate)
     (ROOT / "build" / "specs").mkdir(parents=True, exist_ok=True)
     payload = prepare_release_materials(ROOT, artifact, runtime_bundle=runtime_bundle,
                                         runtime_candidate=args.runtime_candidate)

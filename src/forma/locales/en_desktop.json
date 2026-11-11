@@ -50,5 +50,16 @@
   "Перед імпортом звірте DOCX із PDF: усі сторінки, текст, числа та таблиці.": "Before importing, compare the DOCX with the PDF: all pages, text, numbers and tables.",
   "Запустити ABBYY": "Launch ABBYY",
   "PDF із текстом перекладається зі збереженням макета. Для сканів спочатку підготуйте DOCX.": "Text-based PDFs are translated with their layout preserved. For scans, prepare a DOCX first.",
-  "Як налаштувати PDF та OCR": "PDF and OCR setup guide"
+  "Як налаштувати PDF та OCR": "PDF and OCR setup guide",
+  "Додаткові дії з PDF": "More PDF actions",
+  "Підготовка…": "Preparing…",
+  "Імпортувати й продовжити": "Import and continue",
+  "Після імпорту переклад продовжиться автоматично.": "Translation will continue automatically after import.",
+  "PDF із текстом перекладається зі збереженням макета. Скановані сторінки програма підготує через OCR під час перекладу.": "Text-based PDFs are translated with their layout preserved. The application prepares scanned pages through OCR during translation.",
+  "Автоматично: спочатку локальний OCR, інакше встановлений ABBYY. Звичайний FineReader потребує ручного експорту DOCX.": "Automatic: try local OCR first, then installed ABBYY. Ordinary FineReader requires manual DOCX export.",
+  "Збережіть DOCX в ABBYY та імпортуйте його. Переклад продовжиться автоматично.": "Save the DOCX in ABBYY and import it. Translation will continue automatically.",
+  "Скан PDF: під час перекладу програма підготує DOCX через OCR.": "Scanned PDF: the application will prepare a DOCX through OCR during translation.",
+  "Текстовий PDF: прямий переклад зі збереженням верстки. Пам’ять абзаців застосовується до DOCX і XLSX; глосарій зберігається.": "Text-based PDF: direct translation preserves the layout. Paragraph translation memory applies to DOCX and XLSX; the glossary is retained.",
+  "Очікуємо DOCX з ABBYY": "Waiting for DOCX from ABBYY",
+  "Перевірте текст, числа й таблиці у створеному DOCX. Після імпорту програма перекладе його в межах цього завдання.": "Check the text, numbers and tables in the created DOCX. After import, the application will translate it as part of this task."
 }

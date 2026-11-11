@@ -63,24 +63,25 @@ class DocumentQueue:
 
 
 def document_resources(source: Path, control=None) -> set[tuple[str, str]]:
-    # Serialize matching output basenames and identical Office files. Copies can
-    # reuse the first file's checkpoint without racing writes or paying twice.
+    # Serialize matching output basenames and identical inputs. PDF scans now
+    # feed Office checkpoints too; parallel copies must not race that paid work.
     resources = {("output", source.name.casefold())}
-    if source.suffix.lower() != ".pdf":
-        digest = hashlib.sha256()
-        with source.open("rb") as stream:
-            while True:
-                if control:
-                    control.check()
-                chunk = stream.read(1024 * 1024)
-                if not chunk:
-                    break
-                digest.update(chunk)
-        resources.add(("content", digest.hexdigest()))
+    digest = hashlib.sha256()
+    with source.open("rb") as stream:
+        while True:
+            if control:
+                control.check()
+            chunk = stream.read(1024 * 1024)
+            if not chunk:
+                break
+            digest.update(chunk)
+    resources.add(("content", digest.hexdigest()))
     return resources
 
 
-def run_documents(documents, folder, options, settings, control, emit, *, engine_factory=None):
+def run_documents(
+    documents, folder, options, settings, control, emit, *, engine_factory=None, pdf_handoff=None,
+):
     dynamic = isinstance(documents, DocumentQueue)
     pending = documents if dynamic else DocumentQueue(documents)
     initial = pending.snapshot()
@@ -109,12 +110,20 @@ def run_documents(documents, folder, options, settings, control, emit, *, engine
             engine = engine_factory(document_settings, control)
             if memory is not None and isinstance(engine, TranslationEngine):
                 engine.memory_run = memory
+            if isinstance(engine, TranslationEngine):
+                engine.preparation_progress = lambda percent, text: emit(
+                    "progress", {"id": did, "percent": percent, "text": text, "phase": "preparing"}
+                )
+                if pdf_handoff is not None:
+                    engine.pdf_handoff = lambda source, language, shared_control, progress: pdf_handoff.request(
+                        did, source, language, shared_control, emit, progress,
+                    )
             result = engine.translate(
                 Path(document["path"]),
                 folder,
                 options,
                 lambda percent, text: emit(
-                    "progress", {"id": did, "percent": percent, "text": text}
+                    "progress", {"id": did, "percent": percent, "text": text, "phase": "translating"}
                 ),
             )
             emit("result", {"id": did, "result": result})
