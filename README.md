@@ -4,7 +4,7 @@
   <p>Translate documents, text and photos with your own AI provider.</p>
   <p>Keep document structure. Review the result. Stay in control of your files.</p>
   <p>
-    <a href="https://github.com/grebocheck/FormaTranslate/releases/latest">Download</a> ·
+    <a href="https://github.com/grebocheck/FormaTranslate/releases">Download</a> ·
     <a href="docs/GUIDE.uk.md">Українською</a> ·
     <a href="docs/BUILDING.md">Build from source</a> ·
     <a href="https://github.com/grebocheck/FormaTranslate/issues">Report an issue</a>
@@ -19,7 +19,7 @@ The interface supports **English, Ukrainian, Polish, German, French and Spanish*
 
 ## Download and start
 
-Get the package for your platform from **[GitHub Releases](https://github.com/grebocheck/FormaTranslate/releases/latest)**. Extract it and launch the executable. Python and a `.env` file are not needed for the packaged app. On Linux, make the executable runnable with `chmod +x Forma-linux-x86_64` if necessary. The current Linux binary requires **glibc 2.43 or newer** (built on Ubuntu 26.04); use the source installation on older distributions. See each release's platform validation notes; macOS is not supported yet.
+Get the package for your platform from **[GitHub Releases](https://github.com/grebocheck/FormaTranslate/releases)**. Extract it and launch the executable. Python and a `.env` file are not needed for the packaged app. On Linux, make the executable runnable with `chmod +x Forma-linux-x86_64` if necessary. The current Linux binary requires **glibc 2.43 or newer** (built on Ubuntu 26.04); use the source installation on older distributions. See each release's platform validation notes; macOS is not supported yet.
 
 1. Open **Settings** and enter your API address, model and API key. The model list can be loaded from providers that support it, or entered manually.
 2. Add DOCX, XLSX or PDF files and select the source and target languages. For a scan, use **Scan PDF → DOCX** and check the recognized text before translating.

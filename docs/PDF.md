@@ -2,11 +2,17 @@
 
 Text-based PDFs can be translated directly through BabelDOC. Scanned or mixed PDFs need a separate **Scan PDF → DOCX** preparation step, followed by the normal DOCX translation workflow. OCR runs locally and does not use your translation API or key.
 
-Complete Windows builds embed OCR, its models, Tesseract and BabelDOC with offline assets. Separate installation and first-run downloads below apply to Linux/source installations and older desktop-only packages. See [Windows runtime packaging](WINDOWS-RUNTIME.md) for the complete-build contract and native verification requirements.
+Complete Windows builds embed OCR, its models, Tesseract and BabelDOC with offline assets. Windows Standard uses installed ABBYY or external engines; separate installation and first-run downloads below apply to those external engines and Linux/source installations. See [Windows runtime packaging](WINDOWS-RUNTIME.md) for the complete-build contract and native verification requirements.
+
+## Installed ABBYY
+
+In **Settings → PDF/OCR**, choose **Automatic** or **ABBYY FineReader**. Automatic detection looks for the installed OCR Editor in Windows registration and known installation folders; an explicit executable path is available when detection misses a custom installation.
+
+For an ordinary FineReader license, Forma opens the OCR Editor. Open the selected PDF there, select its recognition language, recognize it and save a DOCX. Return to Forma, confirm that you checked all pages/text/numbers/tables, and choose **Import DOCX…**. Forma copies the reviewed source into its output folder and replaces that PDF queue entry; translation starts separately. Microsoft Word is not required for this editor workflow. Automated export requires a separate Extended CLI-enabled license and its explicit configuration. See [ABBYY setup and supported capabilities](ABBYY.md).
 
 ## Scanned PDF → editable DOCX
 
-Install the optional OCR helper from a source checkout, separately from the application. Release downloads also include an **OCR helper source ZIP**: extract it and run the same command from the extracted directory containing `tools/ocr`.
+Install the optional OCR helper from a source checkout, separately from the application. The release's **Sources** archive includes the OCR helper source ZIP: extract Sources, then that inner archive, and run the same command from the directory containing `tools/ocr`.
 
 ```sh
 uv tool install --python 3.12 --torch-backend cpu ./tools/ocr
