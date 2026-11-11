@@ -78,6 +78,29 @@ def test_release_refuses_stale_corresponding_source_manifest(tmp_path, monkeypat
         build["prepare_release_materials"](tmp_path, tmp_path / "dist/Forma-linux-x86_64")
 
 
+def test_release_collects_standalone_python_stdlib_license(tmp_path, monkeypatch):
+    build = runpy.run_path(str(Path(__file__).parents[1] / "scripts/build.py"))
+    prepare = build["prepare_release_materials"]
+    for name in ("LICENSE", "THIRD_PARTY_NOTICES.md", "docs/BUILDING.md", "src/forma/__init__.py"):
+        path = tmp_path / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text('__version__ = "7.8.9"' if name.endswith("__init__.py") else "fixture")
+    (tmp_path / "third_party").mkdir()
+    (tmp_path / "third_party/SOURCES.json").write_text(json.dumps({"sources": [
+        {"component": "Qt", "version": "6.12.0"},
+        {"component": "PySide6", "version": "6.12.0"},
+    ]}))
+    stdlib = tmp_path / "standalone/lib/python3.12"
+    stdlib.mkdir(parents=True)
+    (stdlib / "LICENSE.txt").write_text("Exact standalone Python license")
+    monkeypatch.setattr(sys, "base_prefix", str(tmp_path / "standalone"))
+    monkeypatch.setattr("sysconfig.get_path", lambda _: str(stdlib))
+    monkeypatch.setattr("importlib.metadata.version", lambda _: "6.12.0")
+    monkeypatch.setitem(prepare.__globals__, "_dependency_names", lambda _: [])
+    payload = prepare(tmp_path, tmp_path / "dist/Forma-linux-x86_64")
+    assert (payload / "licenses/Python/LICENSE.txt").read_text() == "Exact standalone Python license"
+
+
 def test_qml_hook_keeps_controls_and_excludes_unrelated_products(tmp_path, monkeypatch):
     files = [
         "QtQml/qmldir", "QtQml/Models/modelsplugin.dll", "QtQuick/qtquick2plugin.dll",

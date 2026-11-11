@@ -14,6 +14,7 @@ import shutil
 import ssl
 import subprocess
 import sys
+import sysconfig
 import tomllib
 import zipfile
 from datetime import UTC, datetime
@@ -146,6 +147,8 @@ def prepare_release_materials(
                           or distribution.metadata.get("License") or "See third_party/licenses",
                           "license_files": sorted(set(licenses))})
     python_license = Path(sys.base_prefix) / "LICENSE.txt"
+    if not python_license.is_file():
+        python_license = Path(sysconfig.get_path("stdlib")) / "LICENSE.txt"
     if python_license.is_file():
         destination = payload / "licenses" / "Python"
         destination.mkdir(parents=True, exist_ok=True)
