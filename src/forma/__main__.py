@@ -31,6 +31,11 @@ def main() -> int:
     translate.add_argument("--env", type=Path)
     inspect = sub.add_parser("inspect", help="Inspect document structure locally, without API calls")
     inspect.add_argument("file", type=Path)
+    ocr = sub.add_parser("ocr", help="Prepare a scanned PDF as editable DOCX locally, without API calls")
+    ocr.add_argument("file", type=Path)
+    ocr.add_argument("--output", type=Path, default=Path("results"))
+    ocr.add_argument("--source", required=True, choices=("en", "uk", "pl", "de"))
+    ocr.add_argument("--converter", help="Path to the separately installed forma-ocr executable")
     compare = sub.add_parser("compare", help="Compare document structure across translated files")
     compare.add_argument("source", type=Path)
     compare.add_argument("candidates", nargs="+", type=Path)
@@ -57,6 +62,20 @@ def main() -> int:
                     "notes": [i.message for i in doc.issues],
                 }
             print(json.dumps(data, ensure_ascii=False, indent=2))
+        elif args.command == "ocr":
+            from forma.config import Settings
+            from forma.ocr import convert_scan_pdf
+            from forma.provider import JobControl
+
+            output = convert_scan_pdf(
+                args.file,
+                args.output,
+                args.source,
+                args.converter or Settings.load().scan_converter_path,
+                JobControl(),
+                lambda percent, message: print(f"{percent:3d}% {message}", file=sys.stderr),
+            )
+            print(output)
         elif args.command == "compare":
             from forma.comparison import compare_files, write_comparison
 

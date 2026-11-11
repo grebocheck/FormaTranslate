@@ -363,6 +363,21 @@ ApplicationWindow {
     }
 
     Timer { interval: 5000; repeat: true; running: root.visible; onTriggered: backend.usage.refresh() }
+    Timer {
+        id: scanSettingsScrollTimer
+        interval: 1
+        onTriggered: {
+            scanConverterPath.forceActiveFocus()
+            root.scrollToScanConverter()
+        }
+    }
+    Connections {
+        target: settingsScroll.contentItem
+        function onContentHeightChanged() {
+            if (scanConverterPath.activeFocus)
+                Qt.callLater(root.scrollToScanConverter)
+        }
+    }
     InstructionsDialog { id: instructionsDialog; controller: backend }
     UsagePanel { id: usagePanel; parent: Overlay.overlay; controller: backend.usage }
 
@@ -376,7 +391,7 @@ ApplicationWindow {
             LabelText { text: "Forma"; font.pixelSize: 21; font.weight: Font.DemiBold }
             Item { Layout.fillWidth: true }
             Caption {
-                text: backend.reviewEditing ? qsTr("Редагування перекладу") : backend.paused ? qsTr("На паузі") : backend.translating ? backend.queueSummary : backend.busy ? qsTr("Виконуємо завдання…") : backend.settings.model || qsTr("Підключення не налаштовано")
+                text: backend.reviewEditing ? qsTr("Редагування перекладу") : backend.recognizingScan ? backend.scanMessage : backend.paused ? qsTr("На паузі") : backend.translating ? backend.queueSummary : backend.busy ? qsTr("Виконуємо завдання…") : backend.settings.model || qsTr("Підключення не налаштовано")
                 color: backend.busy ? root.accent : root.muted
                 elide: Text.ElideMiddle; Layout.maximumWidth: 300
             }
@@ -503,6 +518,26 @@ ApplicationWindow {
                                 }
                             }
                             Divider { visible: !!backend.selectedDocument.path }
+                            ColumnLayout {
+                                visible: backend.selectedDocument.format === "PDF" || backend.recognizingScan
+                                Layout.fillWidth: true; spacing: 6
+                                RowLayout {
+                                    Layout.fillWidth: true
+                                    Action {
+                                        objectName: "recognizePdfButton"
+                                        text: qsTr("Скан PDF → DOCX"); iconName: "document"; implicitHeight: 34
+                                        enabled: !backend.busy && backend.selectedDocument.status !== "loading"
+                                        onClicked: backend.recognizeSelectedPdf(root.sourceCodes[sourceLanguage.currentIndex])
+                                    }
+                                    Item { Layout.fillWidth: true }
+                                    Action { objectName: "scanSettingsButton"; text: qsTr("Налаштувати OCR"); iconName: "settings"; subtle: true; implicitHeight: 32; enabled: !backend.busy; onClicked: root.openScanSettings() }
+                                }
+                                Caption {
+                                    text: backend.recognizingScan ? backend.scanMessage : qsTr("Створює DOCX локально й замінює PDF у черзі. Перевірте текст і таблиці перед перекладом.")
+                                    Layout.fillWidth: true; wrapMode: Text.WordWrap
+                                }
+                                ProgressBar { objectName: "scanProgressBar"; visible: backend.recognizingScan; from: 0; to: 100; value: backend.scanProgress; Layout.fillWidth: true }
+                            }
                             RowLayout {
                                 visible: !!backend.selectedDocument.path; Layout.fillWidth: true; spacing: 4
                                 Action { text: qsTr("Оригінал"); iconName: "document"; subtle: true; implicitHeight: 30; onClicked: backend.openPath(backend.selectedDocument.path) }
@@ -607,7 +642,7 @@ ApplicationWindow {
                                 enabled: backend.translating || (!backend.busy && backend.documents.length > 0 && !!backend.settings.model && !root.needsSourceLanguage && !root.sameLanguage)
                                 onClicked: backend.translating ? backend.togglePause() : backend.start(root.sourceCodes[sourceLanguage.currentIndex], root.targetCodes[targetLanguage.currentIndex], domain.currentText, review.checked, autoGlossary.checked)
                             }
-                            Action { text: qsTr("Стоп"); iconName: "stop"; objectName: "cancelButton"; visible: backend.translating; implicitHeight: 44; onClicked: backend.cancel() }
+                            Action { text: qsTr("Стоп"); iconName: "stop"; objectName: "cancelButton"; visible: backend.translating || backend.recognizingScan; implicitHeight: 44; onClicked: backend.cancel() }
                         }
                     }
                 }
@@ -796,6 +831,7 @@ ApplicationWindow {
                 spacing: 14
                 ScrollView {
                     id: settingsScroll
+                    objectName: "settingsScroll"
                     Layout.fillWidth: true; Layout.fillHeight: true; clip: true; contentWidth: availableWidth
                     ColumnLayout {
                         width: Math.min(880, settingsScroll.availableWidth); x: (settingsScroll.availableWidth - width) / 2; spacing: 16
@@ -942,6 +978,10 @@ ApplicationWindow {
                                     Caption { text: qsTr("Шлях до BabelDOC") }
                                     Field { id: babeldocPath; Layout.fillWidth: true; placeholderText: qsTr("Порожньо — знайти автоматично"); enabled: !backend.busy }
                                     Caption { text: qsTr("Встановлення: uv tool install --python 3.12 BabelDOC==0.7.1"); wrapMode: Text.WordWrap; Layout.fillWidth: true }
+                                        Caption { text: qsTr("Шлях до OCR-конвертера") }
+                                        Field { id: scanConverterPath; objectName: "scanConverterPathField"; Layout.fillWidth: true; placeholderText: qsTr("Порожньо — знайти автоматично"); enabled: !backend.busy }
+                                        Caption { objectName: "scanConverterStatus"; text: backend.settings.scanConverterReady ? qsTr("OCR-конвертер знайдено") : qsTr("OCR-конвертер не знайдено"); color: backend.settings.scanConverterReady ? "#177044" : "#9b4c22"; Layout.fillWidth: true; wrapMode: Text.WordWrap }
+                                        Caption { text: qsTr("Потрібен окремий локальний OCR-конвертер. API-модель для розпізнавання не використовується."); wrapMode: Text.WordWrap; Layout.fillWidth: true }
                                 }
                             }
                         }
@@ -1041,7 +1081,7 @@ ApplicationWindow {
     function saveConfig() {
         var saved = backend.saveSettings({baseUrl: baseUrl.text, model: modelField.text, reviewModel: reviewModel.text,
             providerPreset: root.providerPresetId, requestsPerMinute: requestsPerMinute.text,
-            apiMode: apiMode.currentText, responseFormat: responseFormat.currentText, babeldocPath: babeldocPath.text,
+            apiMode: apiMode.currentText, responseFormat: responseFormat.currentText, babeldocPath: babeldocPath.text, scanConverterPath: scanConverterPath.text,
             reasoningEffort: root.nativeProvider ? "" : root.reasoningCodes[reasoning.currentIndex],
             maxOutputTokens: maxTokens.text, timeout: timeoutField.text,
             parallelDocuments: parallelDocuments.text, maxParallelRequests: parallelRequests.text,
@@ -1054,12 +1094,24 @@ ApplicationWindow {
         }
         return saved
     }
+    function openScanSettings() {
+        root.page = 2
+        root.pdfOptionsOpen = true
+        scanSettingsScrollTimer.restart()
+    }
+    function scrollToScanConverter() {
+        if (root.page !== 2 || !scanConverterPath.activeFocus)
+            return
+        var flickable = settingsScroll.contentItem
+        flickable.contentY = Math.max(0, flickable.contentHeight - flickable.height)
+    }
     function loadConfig() {
         root.providerPresetId = backend.settings.providerPreset || "custom"
         baseUrl.text = backend.settings.baseUrl || "https://api.openai.com/v1"
         modelField.text = backend.settings.model || ""
         reviewModel.text = backend.settings.reviewModel || ""
         babeldocPath.text = backend.settings.babeldocPath || ""
+        scanConverterPath.text = backend.settings.scanConverterPath || ""
         apiMode.currentIndex = Math.max(0, apiMode.model.indexOf(backend.settings.apiMode || "chat"))
         responseFormat.currentIndex = Math.max(0, responseFormat.model.indexOf(backend.settings.responseFormat || "auto"))
         reasoning.currentIndex = Math.max(0, root.reasoningCodes.indexOf(backend.settings.reasoningEffort || ""))

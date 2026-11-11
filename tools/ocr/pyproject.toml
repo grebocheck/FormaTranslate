@@ -1,0 +1,41 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "forma-ocr"
+dynamic = ["version"]
+description = "Optional local scanned-PDF to editable DOCX worker for FormaTranslate"
+requires-python = ">=3.11,<3.14"
+license = "MIT"
+license-files = ["LICENSE"]
+dependencies = [
+  "docling==2.150.0",
+  "docling-core==2.106.0",
+  "docling-ibm-models==4.0.4",
+  "rapidocr==3.10.0",
+  "onnxruntime==1.31.1",
+  "torch==2.15.0",
+  "torchvision==0.29.2",
+  "pypdfium2==5.15.2",
+  "python-docx==1.2.0",
+  "lxml>=5.3,<7",
+]
+
+[project.scripts]
+forma-ocr = "forma_ocr.__main__:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/forma_ocr"]
+
+[tool.hatch.version]
+path = "src/forma_ocr/__init__.py"
+
+[tool.uv.sources]
+torch = { index = "pytorch-cpu" }
+torchvision = { index = "pytorch-cpu" }
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true

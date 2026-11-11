@@ -2,6 +2,13 @@
 
 Versions follow semantic versioning. Changes before 1.0 may evolve as document compatibility improves.
 
+## 0.6.0 — 2026-11-11
+
+- Add local scanned/mixed PDF preparation into editable DOCX through a separately installed Docling/RapidOCR helper, with native tables, merged cells, page provenance and original PDF preservation.
+- Add explicit OCR progress/cancellation, source-language selection and all four interface languages; translation starts separately after reviewing the OCR source.
+- Reject incomplete OCR exports and direct translation of PDFs whose majority of pages lack a text layer.
+- Retry uncertain prose locally with an optional Tesseract installation, preserving table OCR and highlighting text that needs review.
+
 ## 0.5.0 — 2026-11-10
 
 - Fix skipped Office headings separated from page numbers by tabs/breaks, including table-of-contents entries; preserve fields, links, layout markers and protected equipment codes.

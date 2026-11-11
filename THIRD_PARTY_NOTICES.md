@@ -59,6 +59,15 @@ licenses; they are not automatically part of the application runtime.
 BabelDOC and its dependencies are installed separately and are not distributed
 inside this executable. They retain their own licenses.
 
+The optional `tools/ocr` helper also runs outside the desktop executable. Its
+Docling, RapidOCR, PyTorch, ONNX Runtime, separately downloaded models and all
+transitive dependencies retain their individual code/model licenses and notices.
+The helper also uses python-docx (MIT), lxml (BSD-3-Clause) and pypdfium2
+(Apache-2.0 or BSD-3-Clause, with PDFium's BSD-style and third-party notices).
+These are installed by the user, not redistributed in the desktop executable.
+If an OCR runtime or model package is distributed separately, include its
+dependency licenses and any corresponding-source obligations in that package.
+
 Upstream references: [Qt LGPL obligations](https://www.qt.io/development/open-source-lgpl-obligations),
 [Qt licensing](https://doc.qt.io/qt-6/licensing.html),
 [PyInstaller license and bootloader exception](https://pyinstaller.org/en/stable/license.html).

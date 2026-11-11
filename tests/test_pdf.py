@@ -205,6 +205,29 @@ def test_textual_page_cannot_become_blank(tmp_path, monkeypatch):
     assert not (tmp_path / "out").exists()
 
 
+def test_dominantly_scanned_mixed_pdf_stops_before_engine_or_api(tmp_path, monkeypatch):
+    from PIL import Image
+
+    source = tmp_path / "mostly-scanned.pdf"
+    canvas = Canvas(str(source), pagesize=(595, 842))
+    for index in range(3):
+        if index == 1:
+            canvas.drawString(40, 750, "Small existing text layer on just one page.")
+        else:
+            canvas.drawInlineImage(Image.new("RGB", (100, 100), "black"), 0, 0, 595, 842)
+        canvas.showPage()
+    canvas.save()
+    monkeypatch.setattr("forma.pdf.find_babeldoc", lambda _: "babeldoc-test")
+
+    def forbidden(*_args, **_kwargs):
+        pytest.fail("A mostly scanned PDF must not reach the engine or provider")
+
+    monkeypatch.setattr("forma.pdf.PDFAPI", forbidden)
+    with pytest.raises(FormaError, match="Скан PDF → DOCX"):
+        _translate(source, tmp_path / "out")
+    assert not (tmp_path / "out").exists()
+
+
 def test_nearly_empty_page_cannot_hide_lost_body_text(tmp_path, monkeypatch):
     source = _pdf_with_pages(
         tmp_path / "source.pdf", ["Documented maintenance requirements. " * 20]

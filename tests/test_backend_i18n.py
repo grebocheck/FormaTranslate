@@ -1,6 +1,7 @@
 from pathlib import Path
+from time import monotonic
 
-from PySide6.QtCore import QCoreApplication, QEvent, QUrl
+from PySide6.QtCore import QCoreApplication, QEvent, QPointF, QUrl
 from PySide6.QtQml import QQmlApplicationEngine
 from PySide6.QtQuick import QQuickItem
 from PySide6.QtTest import QTest
@@ -88,6 +89,8 @@ def test_live_qml_switch_keeps_choices_and_unsaved_settings(qapp, monkeypatch):
         window.setProperty("page", 2)
         model = window.findChild(QQuickItem, "modelField")
         model.setProperty("text", "unsaved-provider/model")
+        scan_converter = window.findChild(QQuickItem, "scanConverterPathField")
+        scan_converter.setProperty("text", "/unsaved OCR/forma-ocr")
         selector = window.findChild(QQuickItem, "interfaceLanguageSelector")
         assert selector is not None
         source = window.findChild(QQuickItem, "sourceLanguage")
@@ -100,6 +103,7 @@ def test_live_qml_switch_keeps_choices_and_unsaved_settings(qapp, monkeypatch):
             backend.setUiLanguage(language)
             QTest.qWait(30)
             assert model.property("text") == "unsaved-provider/model"
+            assert scan_converter.property("text") == "/unsaved OCR/forma-ocr"
             assert source.property("currentIndex") == 3
             assert target.property("currentIndex") == 2
             assert reasoning.property("currentIndex") == 2
@@ -108,6 +112,19 @@ def test_live_qml_switch_keeps_choices_and_unsaved_settings(qapp, monkeypatch):
             assert tab.width() >= tab.implicitWidth() - 1
             assert backend.uiLanguage == language
             assert not window.grabWindow().isNull()
+        window.findChild(QQuickItem, "scanSettingsButton").clicked.emit()
+        deadline = monotonic() + 1
+        while monotonic() < deadline:
+            QTest.qWait(20)
+            position = scan_converter.mapToScene(QPointF(0, 0))
+            if position.y() > 108 and position.y() + scan_converter.height() < window.height() - 80:
+                break
+        assert window.property("page") == 2
+        assert window.property("pdfOptionsOpen")
+        assert scan_converter.property("activeFocus")
+        position = scan_converter.mapToScene(QPointF(0, 0))
+        assert position.y() > 108
+        assert position.y() + scan_converter.height() < window.height() - 80
         assert not warnings, "\n".join(warnings)
     finally:
         window.close()

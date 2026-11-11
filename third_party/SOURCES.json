@@ -1,5 +1,5 @@
 {
-  "release": "0.5.0",
+  "release": "0.6.0",
   "delivery": "Upload these exact source archives alongside every binary release; no written-offer substitute is used.",
   "sources": [
     {

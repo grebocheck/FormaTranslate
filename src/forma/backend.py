@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import csv
+import json
 import os
 import time
 import uuid
@@ -28,11 +29,13 @@ from forma.library import TranslationLibrary
 from forma.model_catalog import list_models
 from forma.models import (
     MAX_TRANSLATION_INSTRUCTIONS,
+    Cancelled,
     FormaError,
     Options,
     plain_text,
     validate_instructions,
 )
+from forma.ocr import convert_scan_pdf, find_scan_converter
 from forma.ooxml import OfficeDocument
 from forma.pdf import find_babeldoc, inspect_pdf
 from forma.provider import JobControl, Provider
@@ -41,6 +44,50 @@ from forma.quick_controller import QuickTranslator
 from forma.review import actionable_count, build_review, load_report
 from forma.review_store import ReviewStore
 from forma.usage_controller import UsageController
+
+
+def _scan_review_warnings(output: Path) -> list[str]:
+    """Expose only known OCR findings; never display arbitrary manifest content."""
+    try:
+        with output.with_suffix(".ocr.json").open("rb") as stream:
+            raw = stream.read(50 * 1024 * 1024 + 1)
+        if len(raw) > 50 * 1024 * 1024:
+            return []
+        data = json.loads(raw)
+        pages = data.get("pages") if isinstance(data, dict) else None
+        if not isinstance(pages, list):
+            return []
+    except (OSError, ValueError, UnicodeError, RecursionError):
+        return []
+    codes = {
+        warning
+        for page in pages
+        if isinstance(page, dict) and isinstance(page.get("warnings"), list)
+        for warning in page["warnings"]
+        if isinstance(warning, str)
+    }
+    recovered = any(
+        isinstance(page, dict)
+        and type(page.get("recovered_lines")) is int
+        and page["recovered_lines"] > 0
+        for page in pages
+    )
+    messages = []
+    if "table_structure_unresolved" in codes:
+        messages.append(
+            "Частину таблиць збережено зображеннями та текстом, бо структуру не відновлено. "
+            "Виправте їх у DOCX перед перекладом."
+        )
+    if recovered or "unassigned_ocr_lines_recovered" in codes:
+        messages.append(
+            "Відновлені поза структурою рядки виділено жовтим у DOCX. "
+            "Перевірте порядок і дублювання."
+        )
+    if "low_ocr_confidence" in codes:
+        messages.append(
+            "Є фрагменти з низькою впевненістю OCR. Звірте їх зі сканом, особливо числа та коди."
+        )
+    return messages
 
 
 class TaskThread(QThread):
@@ -82,9 +129,13 @@ class Backend(QObject):
         self._threads: list[TaskThread] = []
         self._busy = False
         self._translation_active = False
+        self._scan_active = False
+        self._scan_progress = 0
+        self._scan_message = ""
         self._paused = False
         self._control = None
         self._message = ""
+        self._message_details = []
         self._message_kind = "info"
         self._instructions_error = ""
         self._api_status = "Очікує налаштування"
@@ -1099,8 +1150,9 @@ class Backend(QObject):
                 name_filter="Глосарій (*.csv)",
             )
 
-    def _notice(self, message, kind="info"):
+    def _notice(self, message, kind="info", *, details=()):
         self._message, self._message_kind = message, kind
+        self._message_details = list(details)
         self.changed.emit()
 
     def _launch(self, task, handler=None, done=None):
@@ -1194,11 +1246,13 @@ class Backend(QObject):
             "providerPreset": s.provider_preset,
             "requestsPerMinute": s.requests_per_minute,
             "babeldocPath": s.babeldoc_path,
+            "scanConverterPath": s.scan_converter_path,
             "envPath": str(s.env_path),
             "keyPresent": bool(s.api_key),
             "keyStored": s.key_stored,
             "credentialStatus": tr(s.credential_status),
             "pdfReady": bool(find_babeldoc(s.babeldoc_path)),
+            "scanConverterReady": bool(find_scan_converter(s.scan_converter_path)),
         }
 
     @Property(str, notify=changed)
@@ -1248,6 +1302,18 @@ class Backend(QObject):
     def translating(self):
         return self._translation_active
 
+    @Property(bool, notify=changed)
+    def recognizingScan(self):
+        return self._scan_active
+
+    @Property(int, notify=changed)
+    def scanProgress(self):
+        return self._scan_progress
+
+    @Property(str, notify=changed)
+    def scanMessage(self):
+        return tr(self._scan_message)
+
     @Property(str, notify=changed)
     def queueSummary(self):
         active = sum(d["status"] == "translating" for d in self._documents)
@@ -1256,7 +1322,9 @@ class Backend(QObject):
 
     @Property(str, notify=changed)
     def message(self):
-        return tr(self._message)
+        if not self._message:
+            return ""
+        return " ".join(tr(message) for message in (self._message, *self._message_details))
 
     @Property(str, notify=changed)
     def messageKind(self):
@@ -1334,6 +1402,78 @@ class Backend(QObject):
 
             self._inspect_document(self._documents[-1])
         self._persist_queue()
+        self.changed.emit()
+
+    @Slot(str)
+    def recognizeSelectedPdf(self, source_language):
+        if self.busy or self._closing or self._review_editing or self._review_saving:
+            return
+        document = next((d for d in self._documents if d["id"] == self._selected), None)
+        if not document or document.get("format") != "PDF" or document["status"] == "loading":
+            return
+        if source_language == "auto":
+            self._notice("Для розпізнавання PDF виберіть мову оригіналу.", "warning")
+            return
+        self._busy, self._scan_active = True, True
+        self._scan_progress = 0
+        self._scan_message = "Готуємо розпізнавання PDF"
+        self._message = ""
+        self._control = JobControl(1)
+        source = Path(document["path"])
+        folder = Path(self._folder)
+        configured = self._settings.scan_converter_path
+        control = self._control
+        converted = []
+
+        def run(emit):
+            try:
+                output = convert_scan_pdf(
+                    source,
+                    folder,
+                    source_language,
+                    configured,
+                    control,
+                    lambda percent, message: emit("scan_progress", (percent, message)),
+                )
+                emit("scan_result", (output, _scan_review_warnings(output)))
+            except Cancelled:
+                emit("scan_cancelled", None)
+
+        def receive(kind, payload):
+            if self._closing:
+                return
+            if kind == "scan_progress":
+                self._scan_progress, self._scan_message = payload
+                self.changed.emit()
+            elif kind == "scan_result":
+                converted.append(payload)
+            elif kind == "scan_cancelled":
+                self._notice("Розпізнавання PDF зупинено. Оригінал залишився без змін.")
+            else:
+                self._notice(payload, "error")
+
+        def finish():
+            self._busy, self._scan_active = False, False
+            self._scan_progress = 0
+            self._scan_message = ""
+            if converted and not self._closing:
+                output, warnings = converted[0]
+                self.removeDocument(document["id"])
+                self.addFiles([str(output)])
+                prepared = next(
+                    (d for d in self._documents if d["path"] == str(output.resolve())), None
+                )
+                if prepared:
+                    self.selectDocument(prepared["id"])
+                self._notice(
+                    "DOCX після OCR додано до черги. Відкрийте оригінал, перевірте текст і таблиці, "
+                    "потім натисніть «Перекласти».",
+                    "warning",
+                    details=warnings,
+                )
+            self.changed.emit()
+
+        self._launch(run, handler=receive, done=finish)
         self.changed.emit()
 
     def _restore_queue(self):
@@ -1485,6 +1625,7 @@ class Backend(QObject):
                     ("response_format", "responseFormat"),
                     ("review_model", "reviewModel"),
                     ("babeldoc_path", "babeldocPath"),
+                    ("scan_converter_path", "scanConverterPath"),
                     ("reasoning_effort", "reasoningEffort"),
                     ("provider_preset", "providerPreset"),
                 )
@@ -1693,7 +1834,7 @@ class Backend(QObject):
 
     @Slot()
     def togglePause(self):
-        if self._control and self._busy:
+        if self._control and self._busy and self._translation_active:
             self._paused = not self._paused
             if self._paused:
                 self._control.paused.set()
@@ -1709,7 +1850,9 @@ class Backend(QObject):
             self._control.cancelled.set()
             self._control.paused.clear()
             self._notice(
-                "Зупиняємо після поточного API-запиту. Перевірені фрагменти залишаться для продовження."
+                "Зупиняємо розпізнавання PDF…"
+                if self._scan_active
+                else "Зупиняємо після поточного API-запиту. Перевірені фрагменти залишаться для продовження."
             )
 
     @Slot(str)

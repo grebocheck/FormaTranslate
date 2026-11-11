@@ -220,6 +220,11 @@ def translate_pdf(
     image_pages = [
         str(index) for index, page in enumerate(before["pages"], 1) if page["image_without_text"]
     ]
+    if len(image_pages) >= 2 and len(image_pages) > len(before["pages"]) / 2:
+        raise FormaError(
+            "Більшість сторінок PDF — зображення без текстового шару. "
+            "Спочатку скористайтеся «Скан PDF → DOCX», перевірте розпізнаний текст і перекладіть DOCX."
+        )
     if image_pages:
         issues.append(
             Issue(

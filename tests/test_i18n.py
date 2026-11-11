@@ -151,6 +151,22 @@ def test_quick_translator_messages_are_available_in_every_interface_language():
         )
 
 
+def test_ocr_messages_are_available_in_every_interface_language():
+    tree = ast.parse(Path("src/forma/ocr.py").read_text(encoding="utf-8"))
+    keys = {
+        node.value
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Constant)
+        and isinstance(node.value, str)
+        and re.search(r"[А-Яа-яІіЇїЄєҐґ]", node.value)
+    }
+    for language in ("en", "pl", "de"):
+        assert keys <= i18n._catalogs()[language].keys(), (
+            language,
+            sorted(keys - i18n._catalogs()[language].keys()),
+        )
+
+
 def test_provider_presets_and_protocol_messages_have_translations():
     keys = set()
     for filename in ("config.py", "provider_presets.py", "api_protocol.py"):

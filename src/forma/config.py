@@ -21,6 +21,7 @@ STRING_PREFERENCES = {
     "response_format",
     "review_model",
     "babeldoc_path",
+    "scan_converter_path",
     "reasoning_effort",
     "credential_mode",
     "output_folder",
@@ -45,6 +46,7 @@ ENV_FIELDS = {
     "max_output_tokens": "FORMA_MAX_OUTPUT_TOKENS",
     "timeout": "FORMA_REQUEST_TIMEOUT",
     "babeldoc_path": "FORMA_BABELDOC_PATH",
+    "scan_converter_path": "FORMA_SCAN_CONVERTER_PATH",
     "max_parallel_requests": "FORMA_MAX_PARALLEL_REQUESTS",
     "parallel_documents": "FORMA_PARALLEL_DOCUMENTS",
     "provider_preset": "FORMA_PROVIDER_PRESET",
@@ -81,6 +83,7 @@ class Settings:
     provider_preset: str = "custom"
     requests_per_minute: int = 0
     babeldoc_path: str = ""
+    scan_converter_path: str = ""
     env_path: Path = field(default_factory=default_env_path)
     key_source: str = ""
     key_stored: bool = False

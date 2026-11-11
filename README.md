@@ -19,13 +19,13 @@ The interface supports **English, Ukrainian, Polish and German**, follows the sy
 
 ## Download and start
 
-Get the package for your platform from **[GitHub Releases](https://github.com/grebocheck/FormaTranslate/releases/latest)**. Extract it and launch the executable. Python and a `.env` file are not needed for the packaged app. On Linux, make the executable runnable with `chmod +x Forma-linux-x86_64` if necessary. The 0.5.0 Linux binary requires **glibc 2.43 or newer** (built on Ubuntu 26.04); use the source installation on older distributions. See each release's platform validation notes; macOS is not supported yet.
+Get the package for your platform from **[GitHub Releases](https://github.com/grebocheck/FormaTranslate/releases/latest)**. Extract it and launch the executable. Python and a `.env` file are not needed for the packaged app. On Linux, make the executable runnable with `chmod +x Forma-linux-x86_64` if necessary. The 0.6.0 Linux binary requires **glibc 2.43 or newer** (built on Ubuntu 26.04); use the source installation on older distributions. See each release's platform validation notes; macOS is not supported yet.
 
 1. Open **Settings** and enter your API address, model and API key. The model list can be loaded from providers that support it, or entered manually.
-2. Add DOCX, XLSX or text-based PDF files and select the source and target languages.
+2. Add DOCX, XLSX or PDF files and select the source and target languages. For a scan, use **Scan PDF → DOCX** and check the recognized text before translating.
 3. Translate, open the output folder, and use **Review** to inspect the result.
 
-DOCX and XLSX work directly. **PDF requires a separate BabelDOC installation**; see [PDF setup](docs/PDF.md). Some OpenAI-compatible providers omit features used by particular API modes; choose the mode and response format supported by yours.
+DOCX and XLSX work directly. **Direct PDF translation requires BabelDOC; scanned PDF preparation requires the separate local OCR helper**. See [PDF setup](docs/PDF.md). Some OpenAI-compatible providers omit features used by particular API modes; choose the mode and response format supported by yours.
 
 ## Gemini and Claude
 
@@ -65,7 +65,7 @@ Open the official OpenAI billing page for your actual credit balance, or enter a
 |---|---|
 | DOCX | Translates supported visible text while retaining the OOXML package, styles, tables, rich text and protected fields. |
 | XLSX | Translates supported text cells and rich text while retaining formulas, native numeric cells and workbook structure. |
-| PDF | Uses BabelDOC for text extraction, layout analysis and typesetting. Text-based PDFs only; inspect the final layout visually. |
+| PDF | Text-based PDFs use BabelDOC. Scans can be reconstructed locally as editable DOCX, checked and then translated through the DOCX workflow. Both engines are installed separately. |
 
 - Context-aware translation, terminology consistency, optional CSV glossary and an editorial pass for Office files.
 - Shared API concurrency limits and a document queue, with pause/cancel controls and local progress recovery.
@@ -73,7 +73,7 @@ Open the official OpenAI billing page for your actual credit balance, or enter a
 - Review with source and translation side by side, searchable findings, acknowledgements, and manual DOCX/XLSX corrections saved as a **new copy**.
 - Local checks for changed numbers, identifiers, missing text and damaged formatting markers.
 
-These checks help catch mistakes; they are not a score of linguistic accuracy. AI output still needs review for consequential documents. Longer translations can change pagination or overflow narrow cells and text boxes. Images embedded in documents are not translated automatically; translate individual images in Text & photos. Scanned PDFs, encrypted/signed Office files and Strict OOXML are not supported. Word tracked changes are preserved: deleted revision text remains in its original language. See the [detailed guide](docs/GUIDE.uk.md) and [evaluation method](docs/BENCHMARK.md).
+These checks help catch mistakes; they are not a score of linguistic accuracy. AI output still needs review for consequential documents. Longer translations can change pagination or overflow narrow cells and text boxes. Images embedded in documents are not translated automatically; translate individual images in Text & photos. Scan reconstruction can need OCR and table corrections before translation; it does not promise pixel-identical layout. Encrypted/signed Office files and Strict OOXML are not supported. Word tracked changes are preserved: deleted revision text remains in its original language. See the [detailed guide](docs/GUIDE.uk.md) and [evaluation method](docs/BENCHMARK.md).
 
 ## Privacy and storage
 
@@ -115,4 +115,4 @@ Releases use semantic versioning, annotated Git tags and manual builds. There is
 
 ## License
 
-FormaTranslate's original code is licensed under the **[MIT License](LICENSE)**. Qt/PySide6 and other dependencies retain their own licenses; see [third-party notices](THIRD_PARTY_NOTICES.md). BabelDOC is an optional, separately installed AGPL-3.0 tool and is not included in FormaTranslate packages.
+FormaTranslate's original code is licensed under the **[MIT License](LICENSE)**. Qt/PySide6 and other dependencies retain their own licenses; see [third-party notices](THIRD_PARTY_NOTICES.md). BabelDOC and the optional local OCR runtime are installed separately and are not included in FormaTranslate packages.
