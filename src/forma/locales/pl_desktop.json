@@ -69,5 +69,19 @@
   "Правок: %1": "Poprawki: %1",
   "Зберегти правку": "Zapisz poprawkę",
   "Інші дії": "Więcej działań",
-  "Спочатку збережіть правку фрагмента": "Najpierw zapisz poprawkę tego fragmentu"
+  "Спочатку збережіть правку фрагмента": "Najpierw zapisz poprawkę tego fragmentu",
+  "Виправити й продовжити": "Popraw i kontynuuj",
+  "Продовжити переклад": "Kontynuuj tłumaczenie",
+  "Виправте проблемні фрагменти та продовжіть переклад. Готові фрагменти буде використано повторно.": "Popraw problematyczne fragmenty i kontynuuj tłumaczenie. Gotowe fragmenty zostaną wykorzystane ponownie.",
+  "Перевірити правки й продовжити переклад цього документа": "Sprawdź poprawki i kontynuuj tłumaczenie tego dokumentu",
+  "Не вдалося прочитати дані відновлення перекладу. Збережені правки не змінено.": "Nie udało się odczytać danych wznowienia tłumaczenia. Zapisane poprawki nie zostały zmienione.",
+  "Оригінал або звіт змінився. Відкрийте проблемні фрагменти знову.": "Oryginał lub raport uległ zmianie. Otwórz ponownie problematyczne fragmenty.",
+  "Налаштування перекладу змінилися. Відновіть початкове підключення, моделі та правила перед продовженням.": "Ustawienia tłumaczenia uległy zmianie. Przed kontynuowaniem przywróć pierwotne połączenie, modele i reguły.",
+  "Оригінал змінився. Відкрийте документ і повторіть переклад.": "Oryginał uległ zmianie. Otwórz dokument i przetłumacz go ponownie.",
+  "Для однакових фрагментів збережено різні ручні правки. Відкрийте проблемні фрагменти знову.": "Dla identycznych fragmentów zapisano różne ręczne poprawki. Otwórz ponownie problematyczne fragmenty.",
+  "Ручна правка повторного фрагмента не пройшла перевірку.": "Ręczna poprawka powtarzającego się fragmentu nie przeszła weryfikacji.",
+  "Цей звіт не підтримує ручне продовження. Повторіть переклад: готові фрагменти буде використано повторно.": "Ten raport nie obsługuje ręcznego wznawiania. Uruchom tłumaczenie ponownie: gotowe fragmenty zostaną wykorzystane ponownie.",
+  "Переклад потребує виправлення після трьох спроб. Відкрийте проблемні фрагменти, виправте переклад і продовжіть.": "Po trzech próbach tłumaczenie nadal wymaga poprawek. Otwórz problematyczne fragmenty, popraw tłumaczenie i kontynuuj.",
+  "Документ ще не експортовано. У Forma відкрийте «Виправити й продовжити», перевірте проблемні фрагменти та продовжіть переклад. Готові фрагменти й ручні правки буде використано повторно.": "Dokument nie został jeszcze wyeksportowany. W Forma wybierz „Popraw i kontynuuj”, sprawdź problematyczne fragmenty i kontynuuj tłumaczenie. Gotowe fragmenty i ręczne poprawki zostaną wykorzystane ponownie.",
+  "Цей переклад очікує відновлення DOCX після OCR. Відкрийте проблемні фрагменти знову.": "To tłumaczenie wymaga wznowienia dokumentu DOCX przygotowanego przez OCR. Otwórz ponownie problematyczne fragmenty."
 }

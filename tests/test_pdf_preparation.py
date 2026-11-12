@@ -18,6 +18,7 @@ from forma.documents.editor import export_reviewed_copy
 from forma.documents.review import load_report, parse_report_data
 from forma.memory.store import TranslationMemory
 from forma.translation.engine import TranslationEngine
+from forma.translation.recovery import load_failure_report, save_recovery_edits
 
 
 def digest(path):
@@ -461,7 +462,7 @@ def test_unknown_source_language_stops_before_ocr(monkeypatch, scanned_pdf, tmp_
 def test_validation_failure_report_names_prepared_docx_and_original_pdf(
     monkeypatch, scanned_pdf, docx_file, tmp_path,
 ):
-    fake_converter(monkeypatch, docx_file)
+    conversions = fake_converter(monkeypatch, docx_file)
     engine = TranslationEngine(local_settings().with_overrides(scan_provider="forma"), provider=FakeProvider(invalid=True))
     with pytest.raises(TranslationFailure) as caught:
         engine.translate(scanned_pdf, tmp_path / "out", Options(source_language="en", review=False, auto_glossary=False))
@@ -471,6 +472,23 @@ def test_validation_failure_report_names_prepared_docx_and_original_pdf(
     assert payload["source"].endswith("scan.ocr.docx")
     assert payload["preparation"]["original_source"] == str(scanned_pdf)
     assert not payload["exported"]
+    result, _, meta = load_failure_report(failure.report)
+    assert meta["original_source"] == str(scanned_pdf)
+    assert meta["source"] == result.preparation["prepared_source"]
+    assert result.source_sha256 == result.preparation["prepared_source_sha256"]
+    # Manually supplied source-structure values exercise recovery routing only;
+    # this identity fixture makes no claim about translation quality.
+    save_recovery_edits(result.report, {segment.id: segment.source for segment in result.segments}, expected_report_fingerprint=meta["report_fingerprint"])
+    provider = FakeProvider()
+    resumed = TranslationEngine(local_settings().with_overrides(scan_provider="forma"), provider=provider)
+    resumed.expected_recovery_checkpoint = meta["checkpoint_id"]
+    completed = resumed.translate(scanned_pdf, tmp_path / "out", Options(**meta["requested_options"]))
+    # The first failed batch did not send the rest of this larger document.
+    # Only those previously unstarted IDs may generate new translation calls.
+    requested = {item["id"] for _, request in provider.calls for item in request.get("segments", [])}
+    assert requested and requested.isdisjoint({segment.id for segment in result.segments})
+    assert len(conversions) == 1
+    assert completed.output.exists() and completed.preparation["reused"] is True
 
 
 def test_ocr_review_export_keeps_original_provenance_and_prepared_source(

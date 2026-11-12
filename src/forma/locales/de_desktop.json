@@ -69,5 +69,19 @@
   "Правок: %1": "Änderungen: %1",
   "Зберегти правку": "Änderung übernehmen",
   "Інші дії": "Weitere Aktionen",
-  "Спочатку збережіть правку фрагмента": "Übernehmen Sie zuerst die Änderung dieses Abschnitts"
+  "Спочатку збережіть правку фрагмента": "Übernehmen Sie zuerst die Änderung dieses Abschnitts",
+  "Виправити й продовжити": "Korrigieren und fortfahren",
+  "Продовжити переклад": "Übersetzung fortsetzen",
+  "Виправте проблемні фрагменти та продовжіть переклад. Готові фрагменти буде використано повторно.": "Korrigieren Sie die problematischen Abschnitte und setzen Sie die Übersetzung fort. Fertige Abschnitte werden wiederverwendet.",
+  "Перевірити правки й продовжити переклад цього документа": "Änderungen prüfen und die Übersetzung dieses Dokuments fortsetzen",
+  "Не вдалося прочитати дані відновлення перекладу. Збережені правки не змінено.": "Die Daten zur Fortsetzung der Übersetzung konnten nicht gelesen werden. Gespeicherte Änderungen wurden nicht verändert.",
+  "Оригінал або звіт змінився. Відкрийте проблемні фрагменти знову.": "Das Original oder der Bericht wurde geändert. Öffnen Sie die problematischen Abschnitte erneut.",
+  "Налаштування перекладу змінилися. Відновіть початкове підключення, моделі та правила перед продовженням.": "Die Übersetzungseinstellungen wurden geändert. Stellen Sie vor dem Fortfahren die ursprüngliche Verbindung, Modelle und Regeln wieder her.",
+  "Оригінал змінився. Відкрийте документ і повторіть переклад.": "Das Original wurde geändert. Öffnen Sie das Dokument und übersetzen Sie es erneut.",
+  "Для однакових фрагментів збережено різні ручні правки. Відкрийте проблемні фрагменти знову.": "Für identische Abschnitte wurden unterschiedliche manuelle Änderungen gespeichert. Öffnen Sie die problematischen Abschnitte erneut.",
+  "Ручна правка повторного фрагмента не пройшла перевірку.": "Die manuelle Änderung eines wiederholten Abschnitts hat die Prüfung nicht bestanden.",
+  "Цей звіт не підтримує ручне продовження. Повторіть переклад: готові фрагменти буде використано повторно.": "Dieser Bericht unterstützt keine manuelle Fortsetzung. Starten Sie die Übersetzung erneut: fertige Abschnitte werden wiederverwendet.",
+  "Переклад потребує виправлення після трьох спроб. Відкрийте проблемні фрагменти, виправте переклад і продовжіть.": "Die Übersetzung muss nach drei Versuchen noch korrigiert werden. Öffnen Sie die problematischen Abschnitte, korrigieren Sie die Übersetzung und fahren Sie fort.",
+  "Документ ще не експортовано. У Forma відкрийте «Виправити й продовжити», перевірте проблемні фрагменти та продовжіть переклад. Готові фрагменти й ручні правки буде використано повторно.": "Das Dokument wurde noch nicht exportiert. Öffnen Sie in Forma „Korrigieren und fortfahren“, prüfen Sie die problematischen Abschnitte und setzen Sie die Übersetzung fort. Fertige Abschnitte und manuelle Änderungen werden wiederverwendet.",
+  "Цей переклад очікує відновлення DOCX після OCR. Відкрийте проблемні фрагменти знову.": "Diese Übersetzung erfordert die Fortsetzung der durch OCR vorbereiteten DOCX-Datei. Öffnen Sie die problematischen Abschnitte erneut."
 }

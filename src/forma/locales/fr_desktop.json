@@ -69,5 +69,19 @@
   "Правок: %1": "Modifications : %1",
   "Зберегти правку": "Enregistrer la modification",
   "Інші дії": "Autres actions",
-  "Спочатку збережіть правку фрагмента": "Enregistrez d’abord la modification de ce segment"
+  "Спочатку збережіть правку фрагмента": "Enregistrez d’abord la modification de ce segment",
+  "Виправити й продовжити": "Corriger et continuer",
+  "Продовжити переклад": "Poursuivre la traduction",
+  "Виправте проблемні фрагменти та продовжіть переклад. Готові фрагменти буде використано повторно.": "Corrigez les passages problématiques, puis poursuivez la traduction. Les passages déjà terminés seront réutilisés.",
+  "Перевірити правки й продовжити переклад цього документа": "Vérifier les modifications et poursuivre la traduction de ce document",
+  "Не вдалося прочитати дані відновлення перекладу. Збережені правки не змінено.": "Impossible de lire les données de reprise de la traduction. Les modifications enregistrées restent inchangées.",
+  "Оригінал або звіт змінився. Відкрийте проблемні фрагменти знову.": "L’original ou le rapport a changé. Ouvrez à nouveau les passages problématiques.",
+  "Налаштування перекладу змінилися. Відновіть початкове підключення, моделі та правила перед продовженням.": "Les paramètres de traduction ont changé. Rétablissez la connexion, les modèles et les règles d’origine avant de continuer.",
+  "Оригінал змінився. Відкрийте документ і повторіть переклад.": "L’original a changé. Ouvrez le document et relancez la traduction.",
+  "Для однакових фрагментів збережено різні ручні правки. Відкрийте проблемні фрагменти знову.": "Des modifications manuelles différentes ont été enregistrées pour des passages identiques. Ouvrez à nouveau les passages problématiques.",
+  "Ручна правка повторного фрагмента не пройшла перевірку.": "La modification manuelle d’un passage répété n’a pas passé la vérification.",
+  "Цей звіт не підтримує ручне продовження. Повторіть переклад: готові фрагменти буде використано повторно.": "Ce rapport ne permet pas de reprise manuelle. Relancez la traduction : les passages déjà terminés seront réutilisés.",
+  "Переклад потребує виправлення після трьох спроб. Відкрийте проблемні фрагменти, виправте переклад і продовжіть.": "La traduction doit encore être corrigée après trois tentatives. Ouvrez les passages problématiques, corrigez la traduction et continuez.",
+  "Документ ще не експортовано. У Forma відкрийте «Виправити й продовжити», перевірте проблемні фрагменти та продовжіть переклад. Готові фрагменти й ручні правки буде використано повторно.": "Le document n’a pas encore été exporté. Dans Forma, ouvrez « Corriger et continuer », vérifiez les passages problématiques et poursuivez la traduction. Les passages déjà terminés et les modifications manuelles seront réutilisés.",
+  "Цей переклад очікує відновлення DOCX після OCR. Відкрийте проблемні фрагменти знову.": "Cette traduction nécessite de reprendre le DOCX préparé par OCR. Ouvrez à nouveau les passages problématiques."
 }

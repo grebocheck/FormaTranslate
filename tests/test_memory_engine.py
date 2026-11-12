@@ -11,7 +11,7 @@ from dataclasses import asdict
 import pytest
 from docx import Document
 
-from forma.core.models import Cancelled, FormaError, Options
+from forma.core.models import Cancelled, FormaError, Options, TranslationFailure
 from forma.documents.editor import export_reviewed_copy
 from forma.documents.ooxml import OfficeDocument
 from forma.memory.importing import prefer_review_segment
@@ -21,6 +21,11 @@ from forma.providers.client import JobControl
 from forma.settings.config import Settings, data_directory
 from forma.translation.engine import PROTOCOL_VERSION, TranslationEngine, checkpoint_fingerprint
 from forma.translation.jobs import DocumentQueue, run_documents
+from forma.translation.recovery import (
+    load_failure_report,
+    save_recovery_edits,
+    validate_recovery_settings,
+)
 
 
 def document(path, words=("Energy",) * 5):
@@ -576,6 +581,46 @@ def test_manual_copy_retains_policy_but_only_explicit_preference_changes_future_
     preferred = TranslationEngine(settings.with_overrides(model="different-model")).translate(source, tmp_path / "out", options)
     assert preferred.translations[sid] == "<r0>Переважна енергія</r0>"
     assert preferred.memory_segments == 1
+
+
+def test_manual_failure_recovery_is_local_final_and_rejects_changed_project_policy(case, tmp_path):
+    store, settings, options = case
+    source = document(tmp_path / "blocked.docx", ("Pressure 20 bar",))
+
+    class WrongNumber(OfflineProvider):
+        def complete(self, *args, **kwargs):
+            response = super().complete(*args, **kwargs)
+            for item in response["segments"]:
+                item["text"] = item["text"].replace("20", "200")
+            return response
+
+    with pytest.raises(TranslationFailure) as caught:
+        TranslationEngine(settings, provider=WrongNumber()).translate(source, tmp_path / "out", options)
+    result, effective, meta = load_failure_report(caught.value.report)
+    validate_recovery_settings(meta, settings)
+    assert effective.auto_glossary is False and effective.glossary == {"Energy": "Енергія"}
+    assert meta["requested_options"]["auto_glossary"] is True
+    sid = result.segments[0].id
+    save_recovery_edits(result.report, {sid: result.translations[sid].replace("200", "20")}, expected_report_fingerprint=meta["report_fingerprint"])
+    entries = store.list_entries(options.memory_project_id)
+    provider = OfflineProvider()
+    engine = TranslationEngine(settings, provider=provider)
+    engine.expected_recovery_checkpoint = meta["checkpoint_id"]
+    resumed = engine.translate(source, tmp_path / "out", Options(**meta["requested_options"]))
+    assert not provider.calls and resumed.output.exists()
+    assert not resumed.memory_references
+    assert store.list_entries(options.memory_project_id) == entries
+    assert not store.snapshot(options.memory_project_id).approved_revision
+    another = document(tmp_path / "another.docx", ("Pressure 20 bar",))
+    independent = OfflineProvider()
+    TranslationEngine(settings, provider=independent).translate(another, tmp_path / "out", options)
+    assert independent.calls  # A local repair is never a project-wide approval.
+    store.update_glossary(options.memory_project_id, {"Pressure": "Тиск"})
+    stale = TranslationEngine(settings, provider=OfflineProvider())
+    stale.expected_recovery_checkpoint = meta["checkpoint_id"]
+    with pytest.raises(FormaError, match="Налаштування"):
+        stale.translate(source, tmp_path / "out", options)
+    assert not stale.provider.calls
 
 
 def test_legacy_checkpoint_identity_stays_compatible_without_memory():

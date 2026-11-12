@@ -36,10 +36,11 @@ class DocumentJob:
     id: str
     source: Path = field(repr=False)
     pdf_mode: str = "auto"
+    recovery_checkpoint: str = ""
 
     @classmethod
     def capture(cls, document):
-        return cls(document["id"], Path(document["path"]), document.get("pdfMode", "auto"))
+        return cls(document["id"], Path(document["path"]), document.get("pdfMode", "auto"), document.get("recoveryCheckpoint", ""))
 
 
 class DocumentQueue:
@@ -145,6 +146,7 @@ def run_documents(
             if memory is not None and isinstance(engine, TranslationEngine):
                 engine.memory_run = memory
             if isinstance(engine, TranslationEngine):
+                engine.expected_recovery_checkpoint = job.recovery_checkpoint
                 engine.preparation_progress = lambda percent, text: emit(
                     "progress", {"id": did, "percent": percent, "text": text, "phase": "preparing"}
                 )

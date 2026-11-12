@@ -28,6 +28,7 @@ def write_failure_report(source, folder, options, failure):
         entries.append({
             "id": segment.id, "location": segment.location, "source": segment.source,
             "candidate": candidate, "issues": [asdict(issue) for issue in issues], "numbers": numbers,
+            "context": segment.context,
         })
         values = "".join(
             f"<p><b>{html.escape(tr(label))}:</b> {html.escape(', '.join(numbers[key])) or '—'}</p>"
@@ -44,15 +45,23 @@ def write_failure_report(source, folder, options, failure):
             + values
         )
     preparation = getattr(failure, "preparation", {})
+    recovery = getattr(failure, "recovery", None)
     atomic_json(json_path, {
-        "kind": "translation_validation_failure", "schema_version": 1,
-        "source": str(source), "stage": failure.stage,
+        "kind": "translation_validation_failure", "schema_version": 2 if recovery else 1,
+        "source": str(source.resolve()), "stage": failure.stage,
         "source_language": options.source_language, "target_language": options.target_language,
         "exported": False, "segments": entries,
+        **({
+            "recovery": recovery, "source_sha256": recovery["source_sha256"],
+            "requested_options": getattr(failure, "requested_options", asdict(options)),
+        } if recovery else {}),
         **({"preparation": dict(preparation)} if preparation else {}),
     })
     title = tr("Перевірте проблемні фрагменти")
     guidance = tr(
+        "Документ ще не експортовано. У Forma відкрийте «Виправити й продовжити», "
+        "перевірте проблемні фрагменти та продовжіть переклад. Готові фрагменти й ручні правки буде використано повторно."
+        if recovery else
         "Документ не експортовано. Перевірені фрагменти збережені для продовження. "
         "Звірте наведені значення з оригіналом і повторіть переклад; готові фрагменти використовуються повторно."
     )

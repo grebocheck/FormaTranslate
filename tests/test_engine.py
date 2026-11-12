@@ -7,7 +7,7 @@ import time
 import pytest
 from support import FakeProvider, local_settings
 
-from forma.core.models import Cancelled, FormaError, Options
+from forma.core.models import Cancelled, FormaError, Options, TranslationFailure
 from forma.documents.ooxml import OfficeDocument
 from forma.translation.engine import TranslationEngine, read_response
 
@@ -156,7 +156,7 @@ def test_damaged_checkpoint_recovers_and_keeps_valid_paid_fragments(docx_file, t
 
 def test_invalid_translation_blocks_export(docx_file, tmp_path):
     provider = FakeProvider(invalid=True)
-    with pytest.raises(FormaError, match="Експорт зупинено"):
+    with pytest.raises(TranslationFailure):
         TranslationEngine(local_settings(), provider=provider).translate(
             docx_file, tmp_path / "output", Options(review=False, auto_glossary=False)
         )
@@ -822,7 +822,7 @@ def test_omitted_review_segment_never_allows_incomplete_export(tmp_path):
             return {"segments": values}
 
     provider = OmittingProvider()
-    with pytest.raises(FormaError, match="Експорт зупинено"):
+    with pytest.raises(TranslationFailure):
         TranslationEngine(local_settings(), provider=provider).translate(
             source, tmp_path / "out", Options(auto_glossary=False)
         )

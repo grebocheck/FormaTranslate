@@ -152,6 +152,12 @@ RowLayout {
                     PageControls.Action { text: backend.selectedDocument.warningCount ? qsTr("Зауваження: %1").arg(backend.selectedDocument.warningCount) : qsTr("Звіт"); iconName: "review"; subtle: true; implicitHeight: 30; visible: !!backend.selectedDocument.report; onClicked: shell.page = 1 }
                     PageControls.Action { text: qsTr("Переглянути помилки"); objectName: "openFailureReportButton"; iconName: "review"; subtle: true; implicitHeight: 30; visible: !!backend.selectedDocument.diagnosticReport; onClicked: backend.openFailureReport() }
                 }
+                PageControls.Action {
+                    text: qsTr("Виправити й продовжити"); objectName: "recoverTranslationButton"; iconName: "edit"; primary: true
+                    visible: !!backend.selectedDocument.diagnosticReport
+                    enabled: !backend.busy && !shell.reviewLocked
+                    onClicked: { backend.selectReviewDocument(backend.selectedDocument.id); shell.page = 1 }
+                }
                   PageControls.Caption { text: qsTr("З пам’яті: %1 · повтори: %2 · адаптовано: %3").arg(backend.selectedDocument.memorySegments || 0).arg(backend.selectedDocument.repeatedSegments || 0).arg(backend.selectedDocument.adaptedSegments || 0); visible: (backend.selectedDocument.memorySegments || 0) > 0 || (backend.selectedDocument.repeatedSegments || 0) > 0 || (backend.selectedDocument.adaptedSegments || 0) > 0; Layout.fillWidth: true; wrapMode: Text.WordWrap }
                 PageControls.Divider { }
                 RowLayout {

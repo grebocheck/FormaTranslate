@@ -23,6 +23,7 @@ from forma.presentation.history_workflow import HistoryWorkflow
 from forma.presentation.memory_workflow import MemoryWorkflow
 from forma.presentation.ocr_workflow import OcrWorkflow
 from forma.presentation.quick_controller import QuickTranslator
+from forma.presentation.recovery_workflow import RecoveryWorkflow
 from forma.presentation.review_workflow import ReviewWorkflow
 from forma.presentation.settings_workflow import SettingsWorkflow
 from forma.presentation.usage_controller import UsageController
@@ -50,12 +51,13 @@ class TaskThread(QThread):
 
 
 class Backend(
-    QObject, ReviewWorkflow, HistoryWorkflow, SettingsWorkflow, MemoryWorkflow, OcrWorkflow, DocumentWorkflow
+    QObject, ReviewWorkflow, RecoveryWorkflow, HistoryWorkflow, SettingsWorkflow, MemoryWorkflow, OcrWorkflow, DocumentWorkflow
 ):
     changed = Signal()
     languageChanged = Signal()
     uiThemeChanged = Signal()
     reviewEditChanged = Signal()
+    recoveryStarted = Signal()
     closedReady = Signal()
     workerAvailabilityReady = Signal(int, object)
     settingsSaved = Signal()

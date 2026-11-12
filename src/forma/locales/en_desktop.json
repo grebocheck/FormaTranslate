@@ -69,5 +69,19 @@
   "Правок: %1": "Edits: %1",
   "Зберегти правку": "Save edit",
   "Інші дії": "More actions",
-  "Спочатку збережіть правку фрагмента": "Save this segment’s edit first"
+  "Спочатку збережіть правку фрагмента": "Save this segment’s edit first",
+  "Виправити й продовжити": "Fix and continue",
+  "Продовжити переклад": "Continue translation",
+  "Виправте проблемні фрагменти та продовжіть переклад. Готові фрагменти буде використано повторно.": "Correct the problem segments, then continue translation. Completed segments will be reused.",
+  "Перевірити правки й продовжити переклад цього документа": "Check edits and continue translating this document",
+  "Не вдалося прочитати дані відновлення перекладу. Збережені правки не змінено.": "Could not read translation recovery data. Saved edits have not been changed.",
+  "Оригінал або звіт змінився. Відкрийте проблемні фрагменти знову.": "The original or report has changed. Open the problem segments again.",
+  "Налаштування перекладу змінилися. Відновіть початкове підключення, моделі та правила перед продовженням.": "Translation settings have changed. Restore the original connection, models and rules before continuing.",
+  "Оригінал змінився. Відкрийте документ і повторіть переклад.": "The original has changed. Open the document and translate it again.",
+  "Для однакових фрагментів збережено різні ручні правки. Відкрийте проблемні фрагменти знову.": "Different manual edits were saved for identical segments. Open the problem segments again.",
+  "Ручна правка повторного фрагмента не пройшла перевірку.": "The manual edit for a repeated segment failed validation.",
+  "Цей звіт не підтримує ручне продовження. Повторіть переклад: готові фрагменти буде використано повторно.": "This report does not support manual continuation. Run the translation again: completed segments will be reused.",
+  "Переклад потребує виправлення після трьох спроб. Відкрийте проблемні фрагменти, виправте переклад і продовжіть.": "The translation still needs correction after three attempts. Open the problem segments, correct the translation and continue.",
+  "Документ ще не експортовано. У Forma відкрийте «Виправити й продовжити», перевірте проблемні фрагменти та продовжіть переклад. Готові фрагменти й ручні правки буде використано повторно.": "The document has not been exported yet. In Forma, open “Fix and continue”, check the problem segments and continue translation. Completed segments and manual edits will be reused.",
+  "Цей переклад очікує відновлення DOCX після OCR. Відкрийте проблемні фрагменти знову.": "This translation requires resuming the DOCX prepared by OCR. Open the problem segments again."
 }

@@ -6,6 +6,10 @@ ColumnLayout {
     id: page
     required property var shell
     spacing: 10
+    Connections {
+        target: backend
+        function onRecoveryStarted() { shell.page = 0 }
+    }
     Shortcut {
         sequences: ["Ctrl+Return", "Ctrl+Enter"]
         enabled: page.visible && backend.reviewEditing && translationPane.editorHasFocus && !backend.reviewSaving && !backend.memoryWorking
@@ -28,7 +32,17 @@ ColumnLayout {
         PageControls.Action { text: ""; hint: qsTr("Переклад"); iconName: "external"; objectName: "reviewOutputButton"; implicitWidth: 36; subtle: true; enabled: !!backend.reviewDocument.outputExists; onClicked: backend.openPath(backend.reviewDocument.output) }
         PageControls.Action { text: ""; hint: qsTr("Звіт"); iconName: "review"; objectName: "reviewReportButton"; implicitWidth: 36; subtle: true; enabled: !!backend.reviewDocument.reportExists; onClicked: backend.openReviewReport() }
         PageControls.Caption { text: qsTr("Правок: %1").arg(backend.reviewSummary.edited || 0); color: backend.reviewHasEdits ? shell.accent : shell.muted }
-        PageControls.Action { text: backend.reviewSaving ? qsTr("Зберігаємо…") : qsTr("Зберегти копію"); iconName: "save"; objectName: "reviewExportButton"; primary: true; enabled: backend.reviewHasEdits && !shell.reviewLocked; onClicked: backend.exportReviewEdits(); hint: backend.reviewHasEdits ? qsTr("Створити виправлену копію. Попередній переклад залишиться без змін") : qsTr("Спочатку збережіть правку фрагмента") }
+        PageControls.Action {
+            text: backend.reviewSaving ? qsTr("Зберігаємо…") : backend.reviewDocument.recovery ? qsTr("Продовжити переклад") : qsTr("Зберегти копію")
+            iconName: backend.reviewDocument.recovery ? "play" : "save"; objectName: "reviewExportButton"; primary: true
+            enabled: (backend.reviewDocument.recovery ? backend.reviewDocument.canResume : backend.reviewHasEdits) && !shell.reviewLocked
+            onClicked: backend.exportReviewEdits()
+            hint: backend.reviewDocument.recovery ? qsTr("Перевірити правки й продовжити переклад цього документа") : backend.reviewHasEdits ? qsTr("Створити виправлену копію. Попередній переклад залишиться без змін") : qsTr("Спочатку збережіть правку фрагмента")
+        }
+    }
+    PageControls.Caption {
+        text: backend.reviewDocument.recoveryReason || qsTr("Виправте проблемні фрагменти та продовжіть переклад. Готові фрагменти буде використано повторно.")
+        visible: !!backend.reviewDocument.recovery; Layout.fillWidth: true; wrapMode: Text.WordWrap
     }
     PageControls.Caption { text: backend.reviewActionError; objectName: "reviewActionError"; visible: text.length > 0; color: Theme.danger; Layout.fillWidth: true; wrapMode: Text.WordWrap }
     RowLayout {
@@ -177,12 +191,12 @@ ColumnLayout {
                         PageControls.Action {
                             objectName: "reviewMoreActionsButton"
                             text: translationPane.width >= 380 ? qsTr("Інші дії") : ""; hint: qsTr("Інші дії"); iconName: "chevron-down"; subtle: true; implicitHeight: 32
-                            visible: !backend.reviewEditing && (!!backend.memoryProject.id || !!backend.selectedReviewEntry.edited)
+                            visible: !backend.reviewEditing && ((!backend.reviewDocument.recovery && !!backend.memoryProject.id) || !!backend.selectedReviewEntry.edited)
                             enabled: !shell.reviewLocked
                             onClicked: secondaryActions.open()
                             Menu {
                                 id: secondaryActions
-                                MenuItem { text: qsTr("Запам’ятати формулювання"); objectName: "rememberReviewWordingButton"; visible: !!backend.memoryProject.id; enabled: backend.canRememberReviewWording; onClicked: shell.showRememberWordingDialog() }
+                                MenuItem { text: qsTr("Запам’ятати формулювання"); objectName: "rememberReviewWordingButton"; visible: !backend.reviewDocument.recovery && !!backend.memoryProject.id; enabled: backend.canRememberReviewWording; onClicked: shell.showRememberWordingDialog() }
                                 MenuItem { text: qsTr("Скасувати збережену правку цього фрагмента"); objectName: "reviewDiscardEditButton"; visible: !!backend.selectedReviewEntry.edited; enabled: !shell.reviewLocked; onClicked: backend.discardReviewEdit() }
                             }
                         }

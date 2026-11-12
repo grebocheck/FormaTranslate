@@ -248,6 +248,7 @@ def test_requeue_clears_old_review_and_ignores_in_flight_results(
 
     backend = review_backend
     document, report = completed_queue_document(backend, tmp_path, docx_file)
+    document["diagnosticReport"] = str(tmp_path / "old.validation.html")
     output = Path(document["output"])
     original = module.load_report
     entered, release = threading.Event(), threading.Event()
@@ -275,6 +276,7 @@ def test_requeue_clears_old_review_and_ignores_in_flight_results(
         backend.requeueHistory("sample")
         assert backend._review_generation > generation
         assert document["report"] == "" and document["output"] == ""
+        assert document["diagnosticReport"] == ""
         assert document["warningCount"] == 0
         assert document["progress"] == 0 and document["tokens"] == ""
         assert document["startedAt"] == 0 and document["elapsedSeconds"] == 0
@@ -292,6 +294,7 @@ def test_requeue_clears_old_review_and_ignores_in_flight_results(
         assert not backend._threads
         assert calls == [report]
         assert backend._library.load_queue()[0]["report"] == ""
+        assert backend._library.load_queue()[0]["diagnosticReport"] == ""
         assert backend._library.list_history()[0]["report"] == str(report)
         assert report.is_file() and output.is_file()
     finally:

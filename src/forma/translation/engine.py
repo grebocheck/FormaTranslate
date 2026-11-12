@@ -35,6 +35,11 @@ from forma.translation.fragments import FragmentCache, FragmentError
 from forma.translation.instructions import translation_prompt
 from forma.translation.locks import english_decimals, lock_draft, lock_markup, unlock_markup
 from forma.translation.quality import check_language, check_segment, number_differences
+from forma.translation.recovery import (
+    attach_recovery,
+    load_recovery,
+    validate_recovery_checkpoint,
+)
 
 PROTOCOL_VERSION = 5
 TRANSLATE_PROMPT = """You are a meticulous professional document translator.
@@ -278,6 +283,7 @@ class TranslationEngine:
         self.memory_run = memory_run
         self.pdf_handoff = None
         self.preparation_progress = None
+        self.expected_recovery_checkpoint = ""
 
     def _stage(
         self, batch, common, options, provider, save, *, drafts=None, memory_references=None,
@@ -547,8 +553,8 @@ class TranslationEngine:
             progress(f"Виправляємо {len(pending)} фрагм. · спроба {attempt + 1}/3")
         self.control.check()
         raise TranslationFailure(
-            "Експорт зупинено: переклад не пройшов перевірку після трьох спроб. "
-            "Перегляньте звіт про проблемні фрагменти та повторіть переклад.",
+            "Переклад потребує виправлення після трьох спроб. "
+            "Відкрийте проблемні фрагменти, виправте переклад і продовжіть.",
             pending, failed_candidates, failed_issues,
             stage="review" if drafts is not None else "translation",
         )
@@ -641,8 +647,8 @@ class TranslationEngine:
                 cache.reject(plan, final_stage, issues)
                 self.control.check()
             raise TranslationFailure(
-                "Експорт зупинено: переклад не пройшов перевірку після трьох спроб. "
-                "Перегляньте звіт про проблемні фрагменти та повторіть переклад.",
+                "Переклад потребує виправлення після трьох спроб. "
+                "Відкрийте проблемні фрагменти, виправте переклад і продовжіть.",
                 [plan.parent], {plan.parent.id: candidate}, issues,
                 stage="review" if review else "translation",
             )
@@ -672,6 +678,7 @@ class TranslationEngine:
         except TranslationFailure as failure:
             from forma.translation.failures import write_failure_report
 
+            failure.requested_options = asdict(options)
             try:
                 failure.report = write_failure_report(
                     getattr(failure, "prepared_source", source), folder, options, failure
@@ -705,6 +712,8 @@ class TranslationEngine:
 
             self.memory_run = MemoryRun(options, self.settings, protocol=PROTOCOL_VERSION)
         if options.pdf_mode == "direct" or (options.pdf_mode == "auto" and not needs_ocr(info)):
+            if self.expected_recovery_checkpoint:
+                raise FormaError("Цей переклад очікує відновлення DOCX після OCR. Відкрийте проблемні фрагменти знову.")
             effective = options
             if options.memory_project_id:
                 effective = replace(
@@ -784,6 +793,8 @@ class TranslationEngine:
             )
         fragment_plans = validate_segment_sizes(document.segments)
         checkpoint, state = load_checkpoint(source_hash, options, self.settings, document_profile=document.extraction_profile)
+        validate_recovery_checkpoint(self.expected_recovery_checkpoint, checkpoint)
+        manual = load_recovery(checkpoint, source_hash, options, document.extraction_profile, document.segments)
         saved_glossary = state.get("glossary")
         if not isinstance(saved_glossary, dict) or not all(
             isinstance(term, str) and isinstance(value, str)
@@ -795,6 +806,9 @@ class TranslationEngine:
         fragment_cache = FragmentCache(state, checkpoint, state_lock, plans=fragment_plans)
         editorial = EditorialCache(fragment_cache, options, self.settings)
         for segment in document.segments:
+            if segment.id in manual:
+                translations[segment.id] = manual[segment.id]
+                continue
             for key, destination in (("translations", translations), ("drafts", drafts)):
                 values = state.get(key)
                 candidate = values.get(segment.id) if isinstance(values, dict) else None
@@ -1009,6 +1023,9 @@ class TranslationEngine:
             write_translation_report(result, options, self.settings.model)
             progress(100, "Переклад готовий")
             return result
+        except TranslationFailure as failure:
+            attach_recovery(failure, source, options, self.settings, checkpoint, source_hash, document.extraction_profile)
+            raise
         finally:
             if self.provider is None:
                 provider.close()

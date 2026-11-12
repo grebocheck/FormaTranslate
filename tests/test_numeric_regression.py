@@ -88,3 +88,41 @@ def test_recognized_cubic_unit_spelling_preserves_coefficients_and_identifier_di
     assert not numbers_match("Model AM3/H", "Model AM³/H")
     assert not numbers_match("Model m3-500", "Model m³-500")
     assert not numbers_match("File m3/h.docx", "File m³/h.docx")
+
+
+def test_space_before_decimal_separator_keeps_the_value_and_review_evidence():
+    # Synthetic address, including a decimal split across Word formatting runs.
+    source = "<r0>вул. Прикладна 1-А (на відстані 1 </r0><r1>,5 км)</r1>"
+    target = "<r0>1-A Example Street </r0><r1>(1.5 km away)</r1>"
+    assert not [issue for issue in check_segment(source, target) if issue.severity == "error"]
+    evidence = number_differences("Будинок 1-А; відстань 1 ,5 км", "Building 1-A; distance 1.5 km")
+    assert evidence == {
+        "source": ["1", "1.5"],
+        "translation": ["1", "1.5"],
+        "missing": [],
+        "unexpected": [],
+    }
+    for space in (" ", "\u00a0", "\u202f", "\u2009"):
+        assert numbers_match(f"Знижка −1{space}234{space},50 %", "Discount -1234.50%")
+        assert numbers_match(f"Відстань 1{space}.5 км", "Distance 1,5 km")
+
+
+def test_decimal_spacing_does_not_merge_lists_or_erase_changed_values():
+    for source in ("1, 5", "1 , 5", "1\t,5", "1\n,5"):
+        assert numeric_values(source) == numeric_values("1; 5")
+        assert not numbers_match(source, "1.5")
+    for target in ("1.50", "15", "-1.5", "+1.5", "1.5%"):
+        assert not numbers_match("Відстань 1 ,5 км", f"Distance {target} km")
+    assert not numbers_match("Відстані 1 ,5 км і 1 ,5 км", "Distance 1.5 km")
+
+
+def test_spaced_decimals_retain_unit_pairing_and_protected_codes():
+    source = "<r0>Power 1 ,5kW; code AM-1,5</r0>"
+    target = "<r0>Потужність 1.5кВт; код AM-1,5</r0>"
+    assert not [issue for issue in check_segment(source, target) if issue.severity == "error"]
+    assert [issue.code for issue in check_segment(source, target.replace("кВт", "МВт"))] == [
+        "quantity_units",
+    ]
+    assert [issue.code for issue in check_segment(source, target.replace("AM-1,5", "AM-1.5"))] == [
+        "protected_values",
+    ]

@@ -7,7 +7,7 @@ import time
 from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 from dataclasses import replace
 
-from forma.core.models import FormaError, Segment, TranslationResult
+from forma.core.models import FormaError, Segment, TranslationFailure, TranslationResult
 from forma.documents.ooxml import OfficeDocument
 from forma.memory.context import (
     adaptation_context,
@@ -34,6 +34,7 @@ from forma.translation.engine import (
     use_english_decimals,
 )
 from forma.translation.fragments import FragmentCache
+from forma.translation.recovery import attach_recovery, load_recovery, validate_recovery_checkpoint
 
 
 def _changed_spans(previous, current):
@@ -81,6 +82,8 @@ def translate_with_memory(engine, source, folder, options, progress):
         source_hash, options, settings, memory_policy=run.policy, memory_generation=run.generation,
         legacy_generations=run.legacy_generations, document_profile=document.extraction_profile,
     )
+    validate_recovery_checkpoint(engine.expected_recovery_checkpoint, checkpoint)
+    manual = load_recovery(checkpoint, source_hash, options, document.extraction_profile, document.segments)
     translations, drafts, kinds, references = {}, {}, {}, {}
     draft_hits = set()
     for segment in document.segments:
@@ -243,6 +246,20 @@ def translate_with_memory(engine, source, folder, options, progress):
         for key, members in groups.items():
             control.check()
             representative = members[0]
+            corrected = {manual[member.id] for member in members if member.id in manual}
+            if corrected:
+                if len(corrected) != 1:
+                    raise FormaError("Для однакових фрагментів збережено різні ручні правки. Відкрийте проблемні фрагменти знову.")
+                candidate = next(iter(corrected))
+                for member in members:
+                    if blocking_issues(member, candidate, options):
+                        raise FormaError("Ручна правка повторного фрагмента не пройшла перевірку.")
+                    translations[member.id] = candidate
+                    kinds[member.id] = "manual_recovery"
+                    references.pop(member.id, None)
+                # Local repair is not an explicit project-wide preferred wording.
+                # Do not publish it through memory or a shared in-flight promise.
+                continue
             # Explicit preferred revisions always precede older machine checkpoints.
             hit = available.get(key)
             if hit is not None:
@@ -452,6 +469,12 @@ def translate_with_memory(engine, source, folder, options, progress):
         write_translation_report(result, options, settings.model)
         progress(100, "Переклад готовий")
         return result
+    except TranslationFailure as failure:
+        attach_recovery(
+            failure, source, options, settings, checkpoint, source_hash, document.extraction_profile,
+            memory_policy=run.policy, memory_generation=run.generation,
+        )
+        raise
     finally:
         error = FormaError("Спільний переклад фрагмента не завершено. Повторіть переклад документа.")
         for key in claimed:

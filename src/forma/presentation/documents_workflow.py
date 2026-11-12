@@ -384,8 +384,6 @@ class DocumentWorkflow:
         if not pending:
             self._notice("Додайте документи або дочекайтеся завершення їх читання.")
             return
-        self._busy, self._paused, self._translation_active = True, False, True
-        self._control = JobControl(max_parallel_requests=self._settings.max_parallel_requests)
         options = Options(
             source_language,
             target_language,
@@ -396,11 +394,21 @@ class DocumentWorkflow:
             instructions=self._settings.translation_instructions,
             memory_project_id=self._settings.memory_project_id,
         )
+        self._start_documents(pending, options)
+
+    def _start_documents(self, pending, options, *, settings=None, recovery_checkpoint=""):
+        settings = settings or self._settings
+        self._busy, self._paused, self._translation_active = True, False, True
+        self._control = JobControl(max_parallel_requests=settings.max_parallel_requests)
         self._run_options = options
-        self._run_context = RunContext.capture(options, self._settings, self._folder)
+        self._run_context = RunContext.capture(options, settings, self._folder)
         self._run_options = self._run_context.options
         for document in pending:
+            diagnostic = document.get("diagnosticReport", "") if recovery_checkpoint else ""
             self._prepare_run(document)
+            if recovery_checkpoint:
+                document["recoveryCheckpoint"] = recovery_checkpoint
+                document["diagnosticReport"] = diagnostic
         self._queue = DocumentQueue(pending)
         queue = self._queue
         self._persist_queue()
@@ -434,6 +442,7 @@ class DocumentWorkflow:
         options = self._run_options
         settings = self._run_context.settings if self._run_context else self._settings
         document.pop("result", None)
+        document.pop("recoveryCheckpoint", None)
         document.update(
             runId=uuid.uuid4().hex,
             sourceLanguage=options.source_language,
@@ -611,7 +620,9 @@ class DocumentWorkflow:
                     phase="",
                     statusText="Зупинено" if kind == "cancelled" else "Потрібна увага",
                     error=payload["error"],
-                    diagnosticReport=payload.get("diagnosticReport", "")
+                    diagnosticReport=payload.get("diagnosticReport") or (
+                        doc.get("diagnosticReport", "") if doc.get("recoveryCheckpoint") else ""
+                    )
                     if kind == "file_error"
                     else "",
                 )
@@ -619,6 +630,7 @@ class DocumentWorkflow:
                 self._record_history(doc)
             elif kind == "result":
                 result = payload["result"]
+                doc.pop("recoveryCheckpoint", None)
                 warnings = actionable_count(result.issues)
                 doc.update(
                     result=result,
@@ -629,6 +641,7 @@ class DocumentWorkflow:
                     statusText="Готово · перегляньте зауваження" if warnings else "Готово",
                     output=str(result.output),
                     report=str(result.report),
+                    diagnosticReport="",
                     tokens=f"{result.input_tokens + result.output_tokens:,}"
                     if result.engine != "babeldoc"
                     else "—",

@@ -2,6 +2,13 @@
 
 Versions follow semantic versioning. Changes before 1.0 may evolve as document compatibility improves.
 
+## 0.12.1 — 2026-11-12
+
+- Recognize a separated decimal mark such as `1 ,5` as the same value as `1.5`, including nonbreaking spaces and Word run boundaries. Keep actual lists, signs, precision, percentages, units and protected identifiers checked.
+- Open blocked Office fragments in Review, validate manual corrections and continue the selected document using its original translation options. Reuse completed work and explicitly approved corrections without sending them through the model again.
+- Bind recovery to the source, extraction profile, checkpoint, connection and model policy. Preserve drafts after restart, retain OCR provenance and keep document-specific corrections out of project-wide preferred translations.
+- Keep old unbound diagnostic reports readable with clear retry guidance, remove stale failure links when requeuing history and localize recovery actions in all six interface languages.
+
 ## 0.12.0 — 2026-11-12
 
 - Give Review more reading/editing space, move edit actions beside the translation and keep Save copy and the draft count visible. Preserve cursor/selection through live theme/language changes; Ctrl+Enter saves only from the focused editor and never through a modal dialog.

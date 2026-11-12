@@ -15,12 +15,14 @@ from forma.translation.quantities import (
 
 # Units and adjacent formatting runs need not be separated by whitespace (25kW,
 # 10мм, or 999</r0><r1>pump). Word boundaries silently hid changed values there.
-# A group separator may be a space, NBSP, narrow NBSP or thin space. Tabs,
-# line breaks and malformed groups must remain separate numeric values.
+# A group separator may be a space, NBSP, narrow NBSP or thin space. The
+# same horizontal spaces can precede a decimal separator after OCR/Word edits
+# ("1 ,5"), but a space after it remains a list boundary ("1, 5", "1 , 5").
+# Tabs, line breaks and malformed groups must remain separate numeric values.
 _GROUP_SPACE = r"[ \u00a0\u202f\u2009]"
 NUMBERS = re.compile(
     rf"(?<!\d)[+-]?(?:\d{{1,3}}(?:{_GROUP_SPACE}\d{{3}})+|\d+)"
-    r"(?:[.,]\d+)*(?:\s?%)?(?!\d)"
+    rf"(?:{_GROUP_SPACE}*[.,]\d+)*(?:\s?%)?(?!\d)"
 )
 PROTECTED = re.compile(
     r"https?://[^\s<>]+|[\w.+-]+@[\w.-]+\.\w+|\{\{[^{}]+\}\}|\{[\w.:-]+\}|"

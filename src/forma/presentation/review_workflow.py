@@ -25,13 +25,14 @@ from forma.localization.catalog import translate_ui_message as tr
 from forma.persistence.review_store import ReviewStore
 from forma.presentation.file_availability import inspect_files
 from forma.translation.engine import blocking_issues
+from forma.translation.recovery import load_failure_report
 
 
 class ReviewWorkflow:
     def _review_source(self, document):
         context = self._review_context
         result = context.get("result") if context else document.get("result")
-        if result and getattr(result, "preparation", None):
+        if result and (getattr(result, "preparation", None) or (context or {}).get("recovery")):
             return str(result.source)
         return document.get("path", "")
 
@@ -59,13 +60,21 @@ class ReviewWorkflow:
         if not document:
             return {}
         source = self._review_source(document)
+        recovery = bool(self._review_context and self._review_context.get("recovery"))
+        legacy_recovery = recovery and not self._review_context["recovery"].get("can_resume")
         return {
             **self._display_document(document),
             "path": source,
             "format": Path(source).suffix[1:].upper() if source else document.get("format", ""),
             "outputExists": self._file_status.is_file(document.get("output")),
             "reportExists": bool(document.get("report"))
-            and self._file_status.is_file(Path(document["report"]).with_suffix(".html")),
+            and self._file_status.is_file(Path(document["report"]).with_suffix(".html"))
+            or recovery and self._file_status.is_file(document.get("diagnosticReport")),
+            "recovery": recovery,
+            "canResume": recovery and self._can_resume_recovery(),
+            "recoveryReason": tr(
+                "Цей звіт не підтримує ручне продовження. Повторіть переклад: готові фрагменти буде використано повторно."
+            ) if legacy_recovery else "",
         }
 
     def reviewEntries(self):
@@ -83,6 +92,7 @@ class ReviewWorkflow:
         document = self._review_document() or {}
         source = self._review_source(document)
         persisted = bool(self._review_context and self._review_context.get("reportFingerprint"))
+        recovery = bool(self._review_context and self._review_context.get("recovery"))
         reason = ""
         if entry["kind"] != "segment":
             reason = "Це примітка до документа. Її можна позначити як переглянуту."
@@ -90,13 +100,15 @@ class ReviewWorkflow:
             reason = "Редагування тексту PDF зі збереженням верстки поки недоступне."
         elif not persisted:
             reason = "Для збереження правок потрібен доступний звіт Forma."
+        elif recovery and not self._review_context["recovery"].get("can_resume"):
+            reason = "Цей звіт не підтримує ручне продовження. Повторіть переклад: готові фрагменти буде використано повторно."
         elif not source or not self._file_status.is_file(source):
             reason = "Оригінальний файл недоступний. Він потрібен для збереження форматування."
-        elif not document.get("output") or not self._file_status.is_file(document["output"]):
+        elif not recovery and (not document.get("output") or not self._file_status.is_file(document["output"])):
             reason = "Файл перекладу переміщено або видалено."
         return {
             **self._display_entry(entry),
-            "canAccept": persisted and entry["severity"] != "error" and not self._review_saving,
+            "canAccept": persisted and not recovery and entry["severity"] != "error" and not self._review_saving,
             "canEdit": not reason and not self._review_saving,
             "editReason": tr(reason),
         }
@@ -147,6 +159,8 @@ class ReviewWorkflow:
         document, context = self._review_document(), self._review_context
         if not document or not context:
             return
+        if context.get("recovery"):
+            return
         # History describes the saved file. Unexported text drafts do not remove
         # its findings; acknowledgements apply only to exactly matching content.
         summary = self._review_summary
@@ -178,7 +192,10 @@ class ReviewWorkflow:
             context, entry_id = self._review_context, self._review_selected
             result, options = context["result"], context["options"]
             segment = next(s for s in result.segments if s.id == entry_id)
-            current = self._review_edits.get(entry_id, result.translations.get(entry_id, ""))
+            current = (
+                segment.source if context.get("recovery")
+                else self._review_edits.get(entry_id, result.translations.get(entry_id, ""))
+            )
             revised = edit_translation_markup(current, self._review_draft_text)
             errors = blocking_issues(segment, revised, options)
             if errors:
@@ -239,6 +256,9 @@ class ReviewWorkflow:
         self._change_review_state(accepted, dict(self._review_edits))
 
     def exportReviewEdits(self):
+        if self._review_context and self._review_context.get("recovery"):
+            self._resume_recovery()
+            return
         if (
             self._review_editing
             or self._review_saving
@@ -451,6 +471,9 @@ class ReviewWorkflow:
             self.changed.emit()
             return
         result, report = document.get("result"), document.get("report", "")
+        recovery = not result and not report and bool(document.get("diagnosticReport"))
+        if recovery:
+            report = str(Path(document["diagnosticReport"]).with_suffix(".json"))
         if not result and not report:
             self.changed.emit()
             return
@@ -468,12 +491,16 @@ class ReviewWorkflow:
         def read(emit):
             state = {"reportFingerprint": "", "accepted": {}, "edits": {}}
             state_error = ""
+            recovery_metadata = None
             if report:
                 try:
                     state = ReviewStore().load(Path(report))
                 except FormaError as exc:
                     state_error = str(exc)
-                current_result, current_options = load_report(Path(report))
+                if recovery:
+                    current_result, current_options, recovery_metadata = load_failure_report(Path(report))
+                else:
+                    current_result, current_options = load_report(Path(report))
                 if state["reportFingerprint"]:
                     verified = ReviewStore().load(Path(report))
                     if state["reportFingerprint"] != verified["reportFingerprint"]:
@@ -495,6 +522,7 @@ class ReviewWorkflow:
                     "options": current_options,
                     "report": Path(report) if report else None,
                     "reportFingerprint": state["reportFingerprint"],
+                    "recovery": recovery_metadata,
                 },
                 state=state,
                 stateError=state_error,
@@ -555,3 +583,5 @@ class ReviewWorkflow:
         document = self._review_document()
         if document and document.get("report"):
             self.openPath(str(Path(document["report"]).with_suffix(".html")))
+        elif document and document.get("diagnosticReport"):
+            self.openPath(document["diagnosticReport"])

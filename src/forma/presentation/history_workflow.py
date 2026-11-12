@@ -126,6 +126,7 @@ class HistoryWorkflow:
                     error="",
                     output="",
                     report="",
+                    diagnosticReport="",
                     warningCount=0,
                     progress=0,
                     tokens="",
