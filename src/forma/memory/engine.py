@@ -162,7 +162,9 @@ def translate_with_memory(engine, source, folder, options, progress):
         return hit
 
     def persist():
-        state["translations"], state["drafts"] = translations, drafts
+        # Keep old completed seeds resumable as editor-only work, including
+        # those not yet started when another batch saves or cancellation lands.
+        state["translations"], state["drafts"] = {**final_seeds, **translations}, drafts
         state["memory_references"] = references
         atomic_json(checkpoint, state)
 

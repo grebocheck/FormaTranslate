@@ -818,7 +818,10 @@ class TranslationEngine:
             with state_lock:
                 destination = translations if reviewed else drafts
                 destination.update(values)
-                state["translations"], state["drafts"] = translations, drafts
+                # Pending optional revisions must retain the completed seed's
+                # role if another batch saves before this one starts. These
+                # are old validated finals, never new provisional responses.
+                state["translations"], state["drafts"] = {**final_seeds, **translations}, drafts
                 atomic_json(checkpoint, state)
 
         def report_stage(message):

@@ -359,6 +359,52 @@ def test_interrupted_review_resumes_saved_draft_without_translation(docx_file, t
     assert selected == saved == {segment.id: segment.source}
     assert len(continued.calls) == 1 and "editorial_feedback" in continued.calls[0][1]
 
+    from docx import Document
+
+    from forma.translation.engine import file_digest, load_checkpoint
+
+    # Another batch must not demote an unstarted historical final to a draft.
+    # Cancellation before that seed's first revision should still resume with
+    # exactly one targeted editor request, preserving the earlier final's role.
+    source = tmp_path / "unstarted-old-final.docx"
+    document = Document()
+    for index in range(9):
+        document.add_paragraph(f"Перевірте тиск {index}.")
+    document.save(source)
+    last = OfficeDocument(source).segments[-1]
+    old_final = "<r0>Check pressure pressure 8.</r0>"
+    settings, control = local_settings(), JobControl(1)
+    checkpoint, _ = load_checkpoint(file_digest(source), options, settings)
+    checkpoint.parent.mkdir(parents=True, exist_ok=True)
+    checkpoint.write_text(json.dumps({"translations": {last.id: old_final}}))
+
+    class FinishFirstBatch(FakeProvider):
+        def complete(self, instruction, payload, schema, **kwargs):
+            self.calls.append((instruction, payload))
+            if len(self.calls) == 2:
+                control.cancelled.set()
+            return {"segments": [
+                {"id": item["id"], "text": payload.get("drafts", {}).get(
+                    item["id"], item["text"].replace("Перевірте тиск", "Check pressure"),
+                )} for item in payload["segments"]
+            ]}
+
+    with pytest.raises(Cancelled):
+        TranslationEngine(settings, control, provider=FinishFirstBatch()).translate(source, tmp_path / "seed-out", options)
+    state = json.loads(checkpoint.read_text())
+    assert len(state["translations"]) == 9 and state["translations"][last.id] == old_final
+
+    class NoOpEditor(FakeProvider):
+        def complete(self, instruction, payload, schema, **kwargs):
+            self.calls.append((instruction, payload))
+            assert "editorial_feedback" in payload and set(payload["drafts"]) == {last.id}
+            return {"segments": [{"id": last.id, "text": payload["drafts"][last.id]}]}
+
+    provider = NoOpEditor()
+    resumed = TranslationEngine(settings, provider=provider).translate(source, tmp_path / "seed-out", options)
+    assert len(provider.calls) == 1 and resumed.cached_segments == 8
+    assert resumed.translations[last.id] == old_final
+
 
 def test_capacity_split_preserves_paid_review_and_drafts_when_cancelled(tmp_path):
     import httpx
