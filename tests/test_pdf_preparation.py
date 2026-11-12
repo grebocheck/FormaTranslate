@@ -275,22 +275,29 @@ def test_external_worker_identity_tracks_frozen_and_default_model_resources(
     assert identity() != identity()  # Incomplete closure never authorizes reuse.
 
 
-def test_bundled_worker_identity_survives_onefile_extraction_directory_changes(monkeypatch, tmp_path):
+def test_bundled_worker_identity_survives_portable_moves_but_tracks_bundle_changes(monkeypatch, tmp_path):
+    import sys
+
     import forma.persistence.prepared as stages
     from forma.providers.client import JobControl
 
     identities = []
-    for name in ("_MEIfirst", "_MEIsecond"):
-        root = tmp_path / name / "runtimes"
+    for name in ("first portable", "moved/portable"):
+        portable = tmp_path / name
+        root = portable / "_internal/runtimes"
         worker = root / "ocr/forma-ocr.exe"
         worker.parent.mkdir(parents=True)
         worker.write_bytes(b"same worker")
         inventory = root.parent / "runtimes-meta/BUNDLE.json"
         inventory.parent.mkdir()
         inventory.write_text('{"snapshot":"same verified worker and models"}')
-        monkeypatch.setattr(stages, "runtime_root", lambda root=root: root)
+        monkeypatch.setattr(sys, "frozen", True, raising=False)
+        monkeypatch.setattr(sys, "executable", str(portable / "Forma.exe"))
+        monkeypatch.setattr(sys, "_MEIPASS", str(root.parent), raising=False)
         identities.append(stages.worker_identity(str(worker), "forma", local_settings(), JobControl()))
     assert identities[0] == identities[1]
+    inventory.write_text('{"snapshot":"updated worker or models"}')
+    assert stages.worker_identity(str(worker), "forma", local_settings(), JobControl()) != identities[1]
 
 
 def test_stop_after_completed_ocr_keeps_stage_without_starting_translation(

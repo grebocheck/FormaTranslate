@@ -159,6 +159,7 @@ def test_shared_string_uses_keep_independent_context_outputs_and_untouched_refer
             archive.writestr(name, value)
 
     office = OfficeDocument(source)
+    assert next(issue for issue in office.issues if issue.code == "sheet_names_preserved").severity == "info"
     legacy = OfficeDocument(source, extraction_profile=1)
     assert office.extraction_profile == 2 and legacy.extraction_profile == 1
     assert not {item.id for item in office.segments} & {item.id for item in legacy.segments}

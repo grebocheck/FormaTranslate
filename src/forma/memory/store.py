@@ -36,7 +36,7 @@ _STATUSES = frozenset({"draft", "machine_final", "human_approved", "reference"})
 _PROVENANCE_KEYS = frozenset({
     "kind", "origin", "model", "segment_id", "document_id", "import_id", "source_entry_id",
     "source_sha256", "output_sha256", "report_sha256", "report_fingerprint", "revision",
-    "adaptation_context_sha256",
+    "adaptation_context_sha256", "editorial_completion",
 })
 
 
@@ -233,7 +233,7 @@ def _provenance(value) -> str:
     safe = {}
     for key in _PROVENANCE_KEYS.intersection(value):
         item = value[key]
-        if key == "adaptation_context_sha256" and (not isinstance(item, str) or not _DIGEST.fullmatch(item)):
+        if key in {"adaptation_context_sha256", "editorial_completion"} and (not isinstance(item, str) or not _DIGEST.fullmatch(item)):
             continue
         if type(item) is int and 0 <= item <= 2**63 - 1:
             safe[key] = item
@@ -561,7 +561,13 @@ class TranslationMemory:
             self._project_row(db, project_id)
             latest = db.execute("SELECT * FROM entries WHERE project_id=? AND entry_key=? AND generation_profile=? AND status=? ORDER BY id DESC LIMIT 1", (project_id, key, generation_profile, status)).fetchone()
             if latest is not None and latest["target"] == target:
-                return self._hit(latest)
+                hit = self._hit(latest)
+                marker = json.loads(entry["provenance"]).get("editorial_completion")
+                # A no-op editor still completed paid work. Preserve that fact
+                # as a new immutable version instead of returning the old row
+                # without its marker and charging again on the next file.
+                if not marker or hit.provenance.get("editorial_completion") == marker:
+                    return hit
             return self._insert(db, project_id, entry, status, generation_profile)
 
     def approve(self, project_id, key, source_markup, target, context, role, policy, *, replace=False, expected_revision=None, expected_glossary_revision=None, provenance=None) -> MemoryHit:

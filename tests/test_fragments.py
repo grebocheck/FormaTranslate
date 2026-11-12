@@ -8,7 +8,15 @@ import pytest
 from docx import Document
 from support import FakeProvider, local_settings
 
-from forma.core.models import Cancelled, CapacityError, Issue, Options, Segment, TranslationFailure
+from forma.core.models import (
+    Cancelled,
+    CapacityError,
+    Issue,
+    Options,
+    Segment,
+    TranslationFailure,
+    plain_text,
+)
 from forma.documents.ooxml import OfficeDocument
 from forma.translation.budget import validate_segment_sizes
 from forma.translation.engine import TranslationEngine
@@ -67,7 +75,8 @@ def test_fragmented_ocr_paragraph_resumes_drafts_and_review_without_leaking_ids(
     original = OfficeDocument(source).segments[0]
     count = len(fragment_plan(original).parts)
     assert len(original.source) > 26000
-    settings, options = local_settings(), Options(auto_glossary=False)
+    # Identity output isolates formatting/restart behavior from language repair.
+    settings, options = local_settings(), Options(source_language="en", target_language="en", auto_glossary=False)
     with pytest.raises(Cancelled):
         TranslationEngine(settings, provider=FakeProvider(interrupt_after=2)).translate(source, tmp_path / "out", options)
     checkpoint = next((tmp_path / "appdata/checkpoints").glob("*.json"))
@@ -110,7 +119,7 @@ def test_legacy_whole_draft_is_retained_while_private_piece_drafts_are_regenerat
     doc.save(source)
     segment = OfficeDocument(source).segments[0]
     count = len(fragment_plan(segment).parts)
-    settings, options = local_settings(), Options(auto_glossary=False)
+    settings, options = local_settings(), Options(source_language="en", target_language="en", auto_glossary=False)
     with pytest.raises(Cancelled):
         TranslationEngine(settings, provider=FakeProvider(interrupt_after=count)).translate(source, tmp_path / "out", options)
     checkpoint = next((tmp_path / "appdata/checkpoints").glob("*.json"))
@@ -195,3 +204,49 @@ def test_whole_parent_omission_is_repaired_before_accepting_individually_valid_p
         cache.save(plan, "finals", {plan.parts[0].segment.id: plan.parts[0].segment.source})
         cache.reject(plan, "finals", [Issue("missing_text", "Rejected fixture", segment.id, "error")])
     assert len(entry["rejected"]) == MAX_REJECTED_SNAPSHOTS and entry["rejection_count"] == 11
+
+    # Each sparse piece loses fewer than 30 letters and remains hard-valid,
+    # while the assembled paragraph loses all prose. Earlier completed soft
+    # revisions must not bypass the new whole-paragraph corrective feedback.
+    sparse = Segment("sparse", "paragraph", "<r0>" + ("abcdefghijklmnopqrst" + " " * 90 + "1 ") * 3 + "</r0>")
+    sparse_plan = fragment_plan(sparse, limit=128)
+    class DropsTwice(DropsProse):
+        def __init__(self):
+            super().__init__()
+            self.feedback_calls = {}
+
+        def complete(self, instruction, payload, schema, **kwargs):
+            self.calls.append((instruction, payload))
+            if payload.get("paragraph_validation_errors") and not payload.get("editorial_feedback"):
+                assert any(entry.get("completed") is True and plain_text(entry.get("candidate", "")).strip() == "1"
+                           for entry in sparse_cache.state["editorial_revisions"].values())
+            values = []
+            for item in payload["segments"]:
+                if payload.get("paragraph_validation_errors"):
+                    self.feedback_calls[item["id"]] = self.feedback_calls.get(item["id"], 0) + 1
+                text = item["text"].replace("abcdefghijklmnopqrst", "перекладенийфрагмент") if self.feedback_calls.get(item["id"], 0) >= 3 else re.sub(
+                    r">[^<]*<", lambda match: re.sub(r"[a-z ]", "", match.group()), item["text"],
+                )
+                values.append({"id": item["id"], "text": text})
+            return {"segments": values}
+
+    sparse_cache, sparse_saved, sparse_provider = FragmentCache(), [], DropsTwice()
+    sparse_cache.save(sparse_plan, "finals", {})
+    repaired = TranslationEngine(local_settings())._stage(
+        [sparse], {}, Options(source_language="en", target_language="uk"), sparse_provider,
+        lambda values: sparse_saved.append(dict(values)), drafts={sparse.id: sparse.source},
+        fragment_cache=sparse_cache,
+    )
+    assert repaired == {sparse.id: sparse.source.replace("abcdefghijklmnopqrst", "перекладенийфрагмент")}
+    assert sparse_saved == [repaired]
+    assert any(payload.get("editorial_feedback") for _, payload in sparse_provider.calls)
+    assert {payload["paragraph_repair_revisions"][-1] for _, payload in sparse_provider.calls
+            if payload.get("paragraph_validation_errors")} == {1, 2}
+    assert set(sparse_provider.feedback_calls.values()) == {3}
+    assert len(sparse_cache.state["editorial_revisions"]) <= len(sparse_plan.parts) + 1
+    after_private_completion = FakeProvider(invalid=True)
+    assert TranslationEngine(local_settings())._stage(
+        [sparse], {}, Options(source_language="en", target_language="uk"), after_private_completion,
+        lambda _: None, drafts={sparse.id: sparse.source}, fragment_cache=sparse_cache,
+    ) == repaired
+    assert not after_private_completion.calls

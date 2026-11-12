@@ -197,11 +197,15 @@ def test_staging_constructs_manifest_but_never_claims_native_operability(runtime
 
 
 def test_embedded_workers_take_precedence_and_use_only_their_local_assets(tmp_path, monkeypatch):
-    root = tmp_path / "runtimes"
+    portable = tmp_path / "Forma portable"
+    internal = portable / "_internal"
+    root = internal / "runtimes"
     windows_executable(root / "ocr/forma-ocr.exe")
     windows_executable(root / "babeldoc/babeldoc.exe")
+    windows_executable(portable / "runtimes/ocr/forma-ocr.exe")
     monkeypatch.setattr(sys, "frozen", True, raising=False)
-    monkeypatch.setattr(sys, "_MEIPASS", str(tmp_path), raising=False)
+    monkeypatch.setattr(sys, "executable", str(portable / "Forma.exe"))
+    monkeypatch.setattr(sys, "_MEIPASS", str(internal), raising=False)
     assert find_scan_converter() == str(root / "ocr/forma-ocr.exe")
     assert find_babeldoc() == str(root / "babeldoc/babeldoc.exe")
     original = {"PATH": "existing-path", "DOCLING_ARTIFACTS_PATH": "old-models"}
@@ -209,6 +213,8 @@ def test_embedded_workers_take_precedence_and_use_only_their_local_assets(tmp_pa
     assert environment["DOCLING_ARTIFACTS_PATH"] == str(root / "docling-models")
     assert environment["TESSDATA_PREFIX"] == str(root / "tesseract/tessdata")
     assert environment["HF_HUB_OFFLINE"] == "1"
+    assert environment["PYINSTALLER_RESET_ENVIRONMENT"] == "1"
+    assert environment["PATH"].split(bundled_runtime.os.pathsep)[0] == str(root / "tesseract")
     assert original["DOCLING_ARTIFACTS_PATH"] == "old-models"
     external = tmp_path / "external.exe"
     external.touch()

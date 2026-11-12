@@ -329,6 +329,12 @@ class FragmentCache:
             values = raw.get(stage, []) if isinstance(raw, dict) else []
             return [value for value in values[:30] if isinstance(value, str) and len(value) <= 1000] if isinstance(values, list) else []
 
+    def rejection_revision(self, plan):
+        """Bind corrective editor work to the persisted whole-parent rejection."""
+        with self.lock:
+            count = self._entry(plan).get("rejection_count", 0)
+            return count if type(count) is int and count >= 0 else 0
+
     def reject(self, plan, stage, issues):
         """Keep rejected paid work as history, never as an active reusable final."""
         with self.lock:

@@ -44,7 +44,10 @@ class FakeProvider:
                 "id": s["id"],
                 "text": s["text"]
                 .replace("Heat meter", "Лічильник тепла")
-                .replace("sensor", "датчик"),
+                .replace("sensor", "датчик")
+                .replace("Item", "Елемент")
+                .replace("Value", "Значення")
+                .replace("Current clause", "Поточне положення"),
             }
             for s in payload["segments"]
         ]

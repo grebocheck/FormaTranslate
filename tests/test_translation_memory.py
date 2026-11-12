@@ -156,6 +156,20 @@ def test_machine_versions_retain_history_without_overwriting(memory, project, re
     assert second.revision > first.revision
     assert memory.history(project.id, record["key"]) == [second, first]
     assert memory.lookup(memory.snapshot(project.id), record["key"], profile) == second
+    completed = memory.save_machine(
+        project.id, **{**record, "target": second.target}, generation_profile=profile,
+        provenance={"editorial_completion": "e" * 64},
+    )
+    assert completed.entry_id != second.entry_id
+    assert completed.provenance["editorial_completion"] == "e" * 64
+    # Equivalent file/checkpoint writes must not erase the completed paid
+    # no-op revision or manufacture a new historical row for every document.
+    assert memory.save_machine(project.id, **{**record, "target": second.target}, generation_profile=profile) == completed
+    assert memory.save_machine(
+        project.id, **{**record, "target": second.target}, generation_profile=profile,
+        provenance={"editorial_completion": "e" * 64},
+    ) == completed
+    assert memory.history(project.id, record["key"]) == [completed, second, first]
 
 
 def test_human_preference_survives_model_changes_and_is_frozen_by_snapshot(memory, project, record, profile):
@@ -245,12 +259,13 @@ def test_provenance_is_allowlisted_and_never_serializes_arbitrary_settings(memor
     secret = "credential-must-not-reach-sqlite-9281"
     hit = memory.save_machine(project.id, **record, generation_profile=profile, provenance={
         "model": "test-model", "segment_id": "word/document.xml#4", "report_fingerprint": "d" * 64,
-        "adaptation_context_sha256": "a" * 64,
+        "adaptation_context_sha256": "a" * 64, "editorial_completion": "e" * 64,
         "api_key": secret, "settings": {"api_key": secret}, "report": {"secret": secret}, "unknown": secret,
     })
-    assert set(hit.provenance) == {"model", "segment_id", "report_fingerprint", "adaptation_context_sha256"}
-    invalid = memory.approve(project.id, **record, provenance={"adaptation_context_sha256": 123})
+    assert set(hit.provenance) == {"model", "segment_id", "report_fingerprint", "adaptation_context_sha256", "editorial_completion"}
+    invalid = memory.approve(project.id, **record, provenance={"adaptation_context_sha256": 123, "editorial_completion": "invalid"})
     assert "adaptation_context_sha256" not in invalid.provenance
+    assert "editorial_completion" not in invalid.provenance
     with sqlite3.connect(memory.path) as db:
         stored = db.execute("SELECT provenance FROM entries").fetchone()[0]
     assert secret not in stored and "api_key" not in stored

@@ -92,6 +92,62 @@ def test_each_exact_group_is_translated_and_edited_once_then_reused_across_files
     assert "fake-offline-key" not in second.report.read_text()
 
 
+def test_old_warning_final_is_revised_privately_once_and_preserves_paid_noop_on_restart(case, tmp_path):
+    from forma.memory.context import scoped_segment_context, segment_role
+    from forma.memory.store import exact_fingerprint
+
+    store, settings, options = case
+    source = document(tmp_path / "warning.docx", ("Energy",))
+    office = OfficeDocument(source)
+    segment = office.segments[0]
+    memory = run(case)
+    context, role = scoped_segment_context(office, segment), segment_role(office, segment)
+    key = exact_fingerprint(memory.policy, segment.source, context, role)
+    original = store.save_machine(
+        memory.snapshot.project_id, key, segment.source, segment.source, context, role,
+        memory.policy, memory.generation,
+    )
+    control = JobControl(1)
+    provider = OfflineProvider(control)
+
+    def completed_editor(_instruction, payload, _schema, **_kwargs):
+        provider.calls.append(payload)
+        assert "drafts" in payload  # Reuse the paid final; no translation pass.
+        assert store.lookup(memory.snapshot, key, memory.generation) == original
+        assert not memory._work[key].done()  # No provisional publication to waiters.
+        checkpoints = list((data_directory() / "checkpoints").glob("*.json"))
+        assert len(checkpoints) == 1
+        state = json.loads(checkpoints[0].read_text())
+        assert any(entry["candidate"] == original.target for entry in state["editorial_revisions"].values())
+        control.cancelled.set()
+        return {"segments": [{"id": item["id"], "text": payload["drafts"][item["id"]]}
+                             for item in payload["segments"]]}
+
+    provider.complete = completed_editor
+    with pytest.raises(Cancelled):
+        TranslationEngine(settings, control, provider=provider, memory_run=memory).translate(source, tmp_path / "out", options)
+    assert len(provider.calls) == 1
+    assert not list((tmp_path / "out").glob("*.docx"))
+    resumed_provider = OfflineProvider(failure=True)
+    resumed = TranslationEngine(settings, provider=resumed_provider).translate(source, tmp_path / "out", options)
+    assert not resumed_provider.calls
+    assert resumed.translations[segment.id] == original.target
+    assert any(issue.code == "unchanged" for issue in resumed.issues)
+    completed = store.lookup(store.snapshot(memory.snapshot.project_id), key, memory.generation)
+    assert len(completed.provenance["editorial_completion"]) == 64
+    assert original in store.history(memory.snapshot.project_id, key)
+    copy = document(tmp_path / "warning-copy.docx", ("Energy",))
+    reused = TranslationEngine(settings, provider=OfflineProvider(failure=True)).translate(copy, tmp_path / "out", options)
+    assert reused.memory_segments == 1
+    assert any(issue.code == "unchanged" for issue in reused.issues)
+    # An explicit human choice keeps its zero-call path even with a warning.
+    store.approve(memory.snapshot.project_id, key, segment.source, original.target, context, role, memory.policy)
+    preferred = TranslationEngine(settings, provider=OfflineProvider(failure=True)).translate(
+        document(tmp_path / "approved-warning.docx", ("Energy",)), tmp_path / "out", options,
+    )
+    assert preferred.memory_segments == 1
+
+
 def test_proven_native_url_alias_preserves_paid_machine_memory(case, tmp_path):
     store, settings, options = case
     original_url = settings.base_url + "/messages"

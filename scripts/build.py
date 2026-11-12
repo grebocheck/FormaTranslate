@@ -1,4 +1,4 @@
-"""Build one executable on the target OS: uv run --group build python scripts/build.py."""
+"""Build a portable application folder and ZIP on the target OS."""
 
 from __future__ import annotations
 
@@ -8,10 +8,12 @@ import hashlib
 import importlib.metadata
 import importlib.util
 import json
+import os
 import platform
 import re
 import shutil
 import ssl
+import stat
 import subprocess
 import sys
 import sysconfig
@@ -195,7 +197,7 @@ def build_command(
         "linux": "keyring.backends.SecretService",
     }
     if system not in backends:
-        raise SystemExit("One-file builds are currently supported on Windows and Linux.")
+        raise SystemExit("Portable builds are currently supported on Windows and Linux.")
     if runtime_candidate and (system != "windows" or desktop_only):
         raise ValueError("Runtime candidates require a complete Windows build")
     name = f"Forma-{system}-{machine}"
@@ -209,7 +211,7 @@ def build_command(
             validate_bundle(runtime_bundle, require_validation=not runtime_candidate)
             if runtime_candidate:
                 name += "-candidate"
-    artifact = root / "dist" / (name + (".exe" if system == "windows" else ""))
+    artifact = root / "dist" / name / (name + (".exe" if system == "windows" else ""))
     command = [
         sys.executable,
         "-m",
@@ -217,14 +219,16 @@ def build_command(
         "--noconfirm",
         "--clean",
         "--windowed",
-        "--onefile",
+        "--onedir",
+        "--contents-directory",
+        "_internal",
         "--noupx",
         "--name",
         name,
         "--distpath",
         str(root / "dist"),
         "--workpath",
-        str(root / "build" / "onefile" / name),
+        str(root / "build" / "onedir" / name),
         "--specpath",
         str(root / "build" / "specs"),
         "--paths",
@@ -280,26 +284,98 @@ def runtime_build_command(command: list[str], runtime_bundle: Path) -> list[str]
             "--workpath", options["workpath"], str(spec)]
 
 
+def distribution_files(artifact: Path) -> dict[str, dict]:
+    """Inventory the collected folder, retaining only portable in-bundle links."""
+    directory = artifact.parent.resolve()
+    windows = artifact.suffix.lower() == ".exe"
+    if not artifact.is_file() or not (directory / "_internal").is_dir():
+        raise ValueError("A complete portable application folder with _internal is required")
+    files = {}
+    for path in sorted(directory.rglob("*")):
+        name = path.relative_to(directory).as_posix()
+        if path.is_symlink():
+            target = os.readlink(path)
+            try:
+                portable = not Path(target).is_absolute() and path.resolve(strict=True).is_relative_to(directory)
+            except (OSError, RuntimeError):
+                portable = False
+            if not portable:
+                raise ValueError(f"Non-portable or broken application symlink: {name}")
+            files[name] = {"symlink": target}
+        elif path.is_file():
+            files[name] = {"bytes": path.stat().st_size, "sha256": digest(path)}
+        elif path.is_dir():
+            # Wine/Windows and POSIX audit hosts expose different synthetic
+            # directory permissions for the same Windows application tree.
+            mode = 0o755 if windows else stat.S_IMODE(path.stat().st_mode)
+            files[name] = {"directory": True, "mode": mode}
+        else:
+            raise ValueError(f"Unsupported application file: {name}")
+    return files
+
+
+def distribution_digest(files: dict[str, dict]) -> str:
+    return hashlib.sha256(json.dumps(files, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+
+
+def _write_application(bundle: zipfile.ZipFile, artifact: Path, files: dict[str, dict]) -> None:
+    for name, entry in files.items():
+        if entry.get("directory"):
+            info = zipfile.ZipInfo(name + "/")
+            info.create_system = 3
+            info.external_attr = (stat.S_IFDIR | entry["mode"]) << 16 | 0x10
+            bundle.writestr(info, b"")
+        elif "symlink" in entry:
+            info = zipfile.ZipInfo(name)
+            info.create_system = 3
+            info.external_attr = (stat.S_IFLNK | 0o777) << 16
+            bundle.writestr(info, os.fsencode(entry["symlink"]))
+        else:
+            # ZipFile retains the source file's Unix executable permissions.
+            bundle.write(artifact.parent / name, name)
+
+
+def _validate_release_paths(files: dict[str, dict], extra_files: list[str]) -> None:
+    """Reject overlapping files or file/link ancestors across delivered archives."""
+    entries = {name: bool(entry.get("directory")) for name, entry in files.items()}
+    for name in extra_files:
+        if name in entries:
+            raise ValueError(f"Application files collide with release materials: {name}")
+        entries[name] = False
+    for name in entries:
+        for parent in Path(name).parents:
+            parent_name = parent.as_posix()
+            if parent_name in entries and not entries[parent_name]:
+                raise ValueError(f"Application files collide with release materials: {parent_name}")
+
+
 def package_release(
     root: Path, artifact: Path, payload: Path, *, validation: dict | None = None,
     runtime_bundle: Path | None = None, runtime_candidate: bool = False,
     separate_runtime_sources: bool = False,
 ) -> Path:
-    from PyInstaller.archive.readers import CArchiveReader
-
-    archive = CArchiveReader(str(artifact))
-    members = sorted(name.replace("\\", "/") for name in archive.toc)
-    forbidden = ("qt6charts", "qt6graphs", "qt6datavisualization", "qt6quick3d",
-                 "qt6virtualkeyboard", "qt6quicktimeline", "qt6location", "qt6webengine")
-    bad = [name for name in members if any(value in name.lower() for value in forbidden)]
-    if bad:
-        raise RuntimeError("Unexpected optional Qt libraries: " + ", ".join(bad))
     version = release_version(root)
     target = artifact.stem.removeprefix("Forma-")
     if target.startswith("windows-") and "desktop-only" not in target and runtime_bundle is None:
         raise ValueError("Windows release packages require the complete embedded runtime bundle")
     if separate_runtime_sources and runtime_bundle is None:
         raise ValueError("Separate runtime sources require an embedded runtime bundle")
+    files = distribution_files(artifact)
+    payload_files = {path.relative_to(payload).as_posix(): path for path in sorted(payload.rglob("*")) if path.is_file()}
+    sources_directory = payload.parent / "runtime-sources"
+    runtime_sources = {
+        "runtime-sources/" + path.relative_to(sources_directory).as_posix(): path
+        for path in sorted(sources_directory.rglob("*")) if path.is_file()
+    } if runtime_bundle is not None else {}
+    # Sources may be delivered in a companion ZIP, but users extract both into
+    # the same directory. Validate their shared namespace before writing either.
+    _validate_release_paths(files, ["RELEASE.json", "SOURCE.json", *payload_files, *runtime_sources])
+    members = sorted(files)
+    forbidden = ("qt6charts", "qt6graphs", "qt6datavisualization", "qt6quick3d",
+                 "qt6virtualkeyboard", "qt6quicktimeline", "qt6location", "qt6webengine")
+    bad = [name for name in members if any(value in name.lower() for value in forbidden)]
+    if bad:
+        raise RuntimeError("Unexpected optional Qt libraries: " + ", ".join(bad))
     metadata = {
         "name": "FormaTranslate", "version": version, "platform": target,
         "python": platform.python_version(), "system": platform.platform(),
@@ -309,6 +385,10 @@ def package_release(
         "pyinstaller": importlib.metadata.version("pyinstaller"),
         "executable": artifact.name, "bytes": artifact.stat().st_size,
         "sha256": digest(artifact),
+        "layout": "onedir", "contents_directory": "_internal",
+        "distribution_files": files,
+        "distribution_sha256": distribution_digest(files),
+        "distribution_bytes": sum(entry.get("bytes", 0) for entry in files.values()),
         "runtime_members": members,
         "native_windows_validation": "Required separately; a build does not certify GUI behavior",
         "validation": validation or {"runtime": "Not tested by the packaging script"},
@@ -316,11 +396,16 @@ def package_release(
     if runtime_bundle is not None:
         runtime = validate_bundle(runtime_bundle, require_validation=not runtime_candidate)
         expected = {
-            "runtimes/" + path.removeprefix("runtime/")
-            for path in runtime["files"] if path.startswith("runtime/")
+            "_internal/runtimes/" + path.removeprefix("runtime/"): entry
+            for path, entry in runtime["files"].items() if path.startswith("runtime/")
         }
-        if not expected <= set(members):
-            raise RuntimeError("The executable is missing prepared runtime payload files")
+        collected_runtime = {name: entry for name, entry in files.items()
+                             if name.startswith("_internal/runtimes/") and not entry.get("directory")}
+        if collected_runtime != expected:
+            raise RuntimeError("The application folder has missing or changed prepared runtime payload files, or unexpected additions")
+        manifest = artifact.parent / "_internal/runtimes-meta/BUNDLE.json"
+        if not manifest.is_file() or manifest.read_bytes() != (runtime_bundle / "BUNDLE.json").read_bytes():
+            raise RuntimeError("The application folder is missing the matching runtime manifest")
         metadata["runtime_mode"] = "complete-embedded-candidate" if runtime_candidate else "complete-embedded"
         metadata["publication_ready"] = not runtime_candidate
         metadata["runtime_sha256"] = runtime["runtime_sha256"]
@@ -332,9 +417,8 @@ def package_release(
             # avoids a second expensive compression pass and keeps each
             # downloadable artifact below hosting size limits.
             with zipfile.ZipFile(sources_archive, "w", compression=zipfile.ZIP_STORED) as bundle:
-                for path in sorted((payload.parent / "runtime-sources").rglob("*")):
-                    if path.is_file():
-                        bundle.write(path, "runtime-sources/" + path.relative_to(payload.parent / "runtime-sources").as_posix())
+                for name, path in runtime_sources.items():
+                    bundle.write(path, name)
             metadata["runtime_sources"] = {
                 "delivery": "separate-archive", "archive": sources_archive.name,
                 "bytes": sources_archive.stat().st_size, "sha256": digest(sources_archive),
@@ -348,10 +432,16 @@ def package_release(
             metadata["publication_ready"] = False
     if target.startswith("linux-"):
         glibc_versions = set()
-        for name in archive.toc:
-            if ".so" in name:
-                glibc_versions.update(tuple(map(int, match)) for match in
-                                      re.findall(rb"GLIBC_(\d+)\.(\d+)", archive.extract(name)))
+        for name, entry in files.items():
+            if "symlink" in entry or entry.get("directory"):
+                continue
+            path = artifact.parent / name
+            with path.open("rb") as stream:
+                if stream.read(4) != b"\x7fELF":
+                    continue
+                data = stream.read()
+            glibc_versions.update(tuple(map(int, match)) for match in
+                                  re.findall(rb"GLIBC_(\d+)\.(\d+)", data))
         metadata["minimum_glibc"] = ".".join(map(str, max(glibc_versions))) if glibc_versions else "unknown"
     metadata_path = payload.parent / "RELEASE.json"
     metadata_path.write_text(json.dumps(metadata, indent=2) + "\n", encoding="utf-8")
@@ -376,16 +466,14 @@ def package_release(
     source_path.write_text(json.dumps(source_manifest, indent=2) + "\n", encoding="utf-8")
     destination = root / "dist" / f"FormaTranslate-{version}-{target}.zip"
     with zipfile.ZipFile(destination, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=6) as bundle:
-        bundle.write(artifact, artifact.name)
+        _write_application(bundle, artifact, files)
         bundle.write(metadata_path, "RELEASE.json")
         bundle.write(source_path, "SOURCE.json")
-        for path in sorted(payload.rglob("*")):
-            if path.is_file():
-                bundle.write(path, path.relative_to(payload).as_posix())
+        for name, path in payload_files.items():
+            bundle.write(path, name)
         if runtime_bundle is not None and not separate_runtime_sources:
-            for path in sorted((payload.parent / "runtime-sources").rglob("*")):
-                if path.is_file():
-                    bundle.write(path, "runtime-sources/" + path.relative_to(payload.parent / "runtime-sources").as_posix())
+            for name, path in runtime_sources.items():
+                bundle.write(path, name)
     return destination
 
 
@@ -411,7 +499,7 @@ def main() -> None:
     subprocess.run(command, cwd=ROOT, check=True)
     if not artifact.is_file():
         raise SystemExit(f"Build did not produce the expected executable: {artifact}")
-    print(f"Built standalone executable: {artifact}")
+    print(f"Built portable application: {artifact.parent}")
     package = package_release(ROOT, artifact, payload, runtime_bundle=runtime_bundle,
                               runtime_candidate=args.runtime_candidate,
                               separate_runtime_sources=args.separate_runtime_sources)

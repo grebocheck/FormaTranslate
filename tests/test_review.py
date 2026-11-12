@@ -16,6 +16,7 @@ from forma.documents.review import (
     entry_fingerprint,
     load_report,
     parse_report_data,
+    refresh_segment_checks,
 )
 
 
@@ -198,9 +199,15 @@ def test_old_segment_warnings_are_recomputed_but_structural_and_error_findings_r
     ]
     path = write_report(tmp_path, data)
     before = path.read_bytes()
+    raw_result, raw_options = parse_report_data(data, path)
+    raw_issues = copy.deepcopy(raw_result.issues)
+    refreshed = refresh_segment_checks(raw_result, raw_options)
+    assert refreshed is not raw_result and raw_result.issues == raw_issues
     result, options = load_report(path)
+    assert result.issues == refreshed.issues
+    assert not any(issue.message.startswith("Old ") for issue in result.issues)
     original_issues = copy.deepcopy(result.issues)
-    view = build_review(result, options)
+    view = build_review(result, options, checks_current=True)
     messages = [message for entry in view["entries"] for message in entry["messages"]]
     entries = {entry["id"]: entry for entry in view["entries"]}
 
@@ -307,7 +314,7 @@ def test_identical_issue_deduplication_never_discards_higher_severity(segment_id
 
 
 @pytest.mark.parametrize(
-    "code", ["fields_preserved", "external_engine", "pdf_visual_review", "shared_memory"]
+    "code", ["fields_preserved", "sheet_names_preserved", "external_engine", "pdf_visual_review", "shared_memory"]
 )
 def test_explicit_error_is_not_demoted_by_normally_informational_code(code):
     error = Issue(code, "This operation explicitly failed.", severity="error")
@@ -328,7 +335,7 @@ def test_explicit_error_is_not_demoted_by_normally_informational_code(code):
 def test_workflow_information_is_kept_without_inflating_warning_counts():
     informational = [
         Issue(code, f"Note for {code}.")
-        for code in ("fields_preserved", "external_engine", "pdf_visual_review", "shared_memory")
+        for code in ("fields_preserved", "sheet_names_preserved", "external_engine", "pdf_visual_review", "shared_memory")
     ]
     issues = [
         *informational,
@@ -338,11 +345,11 @@ def test_workflow_information_is_kept_without_inflating_warning_counts():
     ]
     assert actionable_count(issues) == 2
     view = build_review(make_result(issues=issues, engine="babeldoc"), Options())
-    assert len(view["entries"]) == 7
+    assert len(view["entries"]) == 8
     assert view["summary"]["segments"] == 0
     assert view["summary"]["warningCount"] == 2
     assert view["summary"]["attention"] == 2
-    assert view["summary"]["notes"] == 5
+    assert view["summary"]["notes"] == 6
     assert all(entry["kind"] == "document" for entry in view["entries"])
 
 
@@ -425,7 +432,7 @@ def test_edited_translation_displays_plain_text_and_is_revalidated_without_mutat
     original = copy.deepcopy(result)
     edits = {"one": draft}
     view = build_review(
-        result, Options(source_language="en", target_language="uk"), edits=edits
+        result, Options(source_language="en", target_language="uk"), edits=edits, checks_current=True,
     )
     entry = view["entries"][0]
     assert entry["translation"] == plain

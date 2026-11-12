@@ -57,7 +57,8 @@ def load_report(path: Path) -> tuple[TranslationResult, Options]:
         raise FormaError(
             "Не вдалося прочитати звіт. Перевірте, чи файл існує та є коректним звітом Forma."
         ) from None
-    return parse_report_data(data, path)
+    result, options = parse_report_data(data, path)
+    return refresh_segment_checks(result, options), options
 
 
 def _parse_preparation(data: dict, options: Options) -> dict:
@@ -195,10 +196,12 @@ def entry_fingerprint(entry: dict) -> str:
     ).hexdigest()
 
 
-def build_review(result: TranslationResult, options: Options, *, edits=None, accepted=None) -> dict:
-    edits, accepted = edits or {}, accepted or {}
-    if edits:
-        result = replace(result, translations={**result.translations, **edits})
+def refresh_segment_checks(result: TranslationResult, options: Options) -> TranslationResult:
+    """Return current local findings without mutating the report or its result.
+
+    Only deterministic findings for present Office segments are replaced. Keep
+    unknown findings/IDs and document guidance, including explicit failures.
+    """
     issues = list(result.issues)
     if result.engine != "babeldoc":
         # Re-evaluate old heuristic findings with today's rules. Structural and
@@ -222,6 +225,22 @@ def build_review(result: TranslationResult, options: Options, *, edits=None, acc
                 )
             else:
                 issues.extend(translation_issues(segment, translated, options))
+    return replace(result, issues=[
+        replace(issue, severity="info")
+        if issue.code in INFORMATION_CODES and issue.severity != "error" else issue
+        for issue in issues
+    ])
+
+
+def build_review(result: TranslationResult, options: Options, *, edits=None, accepted=None, checks_current=False) -> dict:
+    edits, accepted = edits or {}, accepted or {}
+    if edits:
+        result = replace(result, translations={**result.translations, **edits})
+    # Background report loading already refreshed the saved translations. Edits
+    # always need fresh checks; callers cannot use the flag to bypass them.
+    if edits or not checks_current:
+        result = refresh_segment_checks(result, options)
+    issues = result.issues
     entries = {
         segment.id: {
             "id": segment.id,

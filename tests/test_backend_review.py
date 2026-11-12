@@ -101,22 +101,41 @@ def completed_queue_document(backend, folder, docx_file):
 def test_history_review_filter_search_and_navigation_without_queue_changes(
     qapp, tmp_path, monkeypatch
 ):
+    import forma.documents.review as review_module
+
     monkeypatch.setattr(Backend, "_read_settings", lambda _: Settings())
     backend = Backend()
     report = add_history(backend, tmp_path)
+    data = json.loads(report.read_text())
+    data["issues"].extend([
+        {"code": "unchanged", "message": "Stale warning", "segment_id": "two", "severity": "warning"},
+        {"code": "sheet_names_preserved", "message": "Sheet names preserved", "severity": "warning"},
+    ])
+    report.write_text(json.dumps(data))
+    old = backend._history_entry("sample")
+    backend._library.add_history({**old, "warningCount": 99})
+    backend._history = backend._library.list_history()
+    checks, original_check = [], review_module.translation_issues
+
+    def check(segment, *args):
+        assert threading.current_thread() is not threading.main_thread()
+        checks.append(segment.id)
+        return original_check(segment, *args)
+
+    monkeypatch.setattr(review_module, "translation_issues", check)
     before = report.read_bytes()
     backend.reviewHistory("sample")
     pump(qapp, lambda: not backend._threads)
     assert not backend.documents
     assert not backend.busy
     assert backend.reviewSummary["attention"] == 1
-    assert backend.reviewSummary["notes"] == 1
+    assert backend.reviewSummary["notes"] == 2
     assert backend.reviewSummary["segments"] == 2
     assert backend.reviewDocumentId == "history:sample"
     assert backend.selectedReviewEntry["id"] == "one"
     assert backend.selectedReviewEntry["severity"] == "error"
     backend.setReviewFilter("all")
-    assert len(backend.reviewEntries) == 3
+    assert len(backend.reviewEntries) == 4
     backend.selectReviewEntry("one")
     backend.stepReviewEntry(1)
     assert backend.selectedReviewId == "two"
@@ -129,6 +148,10 @@ def test_history_review_filter_search_and_navigation_without_queue_changes(
     backend.setReviewSearch("")
     backend.setReviewFilter("issues")
     assert backend.selectedReviewId == "one"
+    assert checks == ["one", "two"]  # Refresh once in the worker, never on binding/navigation reads.
+    assert not any(issue.message == "Stale warning" for issue in backend._review_context["result"].issues)
+    assert backend._history_entry("sample")["warningCount"] == 1
+    assert backend._library.list_history()[0]["warningCount"] == 1
     assert report.read_bytes() == before  # Re-checking never rewrites archival reports.
     assert backend._library.load_queue() == []
 

@@ -10,9 +10,10 @@ You may modify Qt/PySide6, replace them with compatible versions and rebuild and
 run FormaTranslate. Reverse engineering to debug those modifications is not
 prohibited. No signing key is needed. See `BUILDING.md` in the release package
 (or `docs/BUILDING.md` in the source tree) for rebuilding and replacing libraries.
-Qt libraries are dynamically loaded after the single-file executable extracts
-its runtime into a temporary directory. Rebuilding with replacement libraries
-is the supported replacement route for this one-file distribution.
+Qt libraries are dynamically loaded from the portable application's `_internal`
+directory. Keep that dependency tree alongside the root executable. Compatible
+replacement libraries can be supplied in that tree, or included by rebuilding
+with the procedure above; test the resulting application on the target system.
 
 ## Corresponding source
 
@@ -52,7 +53,7 @@ The build records the exact installed dependency versions and includes their
 available distribution license files. The Qt attribution material includes
 third-party components in the retained Qt modules; their individual terms still
 apply. The dependency inventory can include packages installed as PySide wheel
-dependencies whose optional binaries are excluded from the executable.
+dependencies whose optional binaries are excluded from the application folder.
 
 FormaTranslate's QML packaging deliberately excludes unused Qt Charts, Graphs,
 Data Visualization, Quick 3D, Virtual Keyboard, Quick Timeline, Location and
@@ -60,13 +61,13 @@ WebEngine modules. Build-time Qt tools and source-only material may have other
 licenses; they are not automatically part of the application runtime.
 
 BabelDOC and its dependencies retain their own licenses. Complete Windows
-builds embed a separate worker and its offline assets; Linux/source workflows
+builds include a separate worker and its offline assets; Linux/source workflows
 use a separately installed worker. Windows runtime notices and inventories
-are embedded under `legal/runtimes` and shipped under `runtimes/` in the release ZIP, with matching code source archives in the
+are included under `_internal/legal/runtimes` and shipped under `runtimes/` in the release ZIP, with matching code source archives in the
 release ZIP's `runtime-sources` directory, or in the matching companion `*-runtime-sources.zip` named and hashed in `RELEASE.json`. Both application and companion archives must be delivered together when using that mode. See [Windows runtime packaging](docs/WINDOWS-RUNTIME.md).
 
 The `tools/ocr` helper runs as a separate process. Complete Windows builds
-embed its executable, models and Tesseract; Linux/source installations use a
+include its executable, models and Tesseract in the portable folder; Linux/source installations use a
 separately installed helper. Its Docling, RapidOCR, PyTorch, ONNX Runtime, models and all
 transitive dependencies retain their individual code/model licenses and notices.
 The helper also uses python-docx (MIT), lxml (BSD-3-Clause) and pypdfium2

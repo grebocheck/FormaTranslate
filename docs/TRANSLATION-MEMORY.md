@@ -36,11 +36,13 @@ Identical visible text alone is insufficient. A label in a different table or a 
 | Saved result | How it is used |
 |---|---|
 | Machine draft | Can resume the editorial pass when the generation settings match. It is not treated as a finished translation. |
-| Completed machine translation | Can be reused after all requested stages have completed, under matching policy and generation settings. |
+| Completed machine translation | Can be reused under matching policy and generation settings. With review enabled, a new actionable finding may require one targeted editor-only revision. |
 | Explicitly approved wording | Takes priority over machine results and older checkpoints for that exact entry. It remains subject to the selected policy and validation. |
 | Imported reference | Stored for reference; it is not inserted automatically. |
 
 Generation settings include the provider, model and requested editorial pass. Human-approved wording is independent of the model that originally produced it. Automatic checks or an LLM editorial pass do not make a machine result human-approved.
+
+The editor can revise a warning-bearing machine result without translating it from scratch. It receives current verified source/context and the existing wording; only a hard-valid candidate with fewer actionable findings replaces it. Completed no-op attempts retain their source/context/model-bound marker, so the same exact result does not trigger repeated paid revisions on later files. Pending work stays private until the selected final is published to the run and memory. Cancellation retains paid provisional work. Remaining findings stay visible, and compatible human-approved entries keep their ordinary zero-request reuse. Disabling editorial review disables this extra revision. Length expansion, document-preservation guidance and unavailable image/OCR coverage do not authorize an automatic rewrite.
 
 Equivalent forms of a native API address share the same generation identity. A proven older saved connection can reuse its compatible machine entries after the ordinary source, context, policy and numeric/format checks. Reused entries are copied into the canonical generation with a reference to the original entry; the older records remain intact. Human approval is not added or changed by this migration. Credential and billing accounts remain separate from translation-memory generation settings.
 

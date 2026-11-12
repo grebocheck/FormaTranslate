@@ -371,6 +371,7 @@ class OfficeDocument:
             Issue(
                 "sheet_names_preserved",
                 "Назви аркушів, формули, числові комірки та кеші діаграм залишено без змін.",
+                severity="info",
             )
         )
 

@@ -3,6 +3,7 @@ from __future__ import annotations
 import importlib.metadata
 import json
 import runpy
+import stat
 import subprocess
 import sys
 import zipfile
@@ -19,15 +20,16 @@ import pytest
         ("Linux", "x86_64", "Forma-linux-x86_64", "keyring.backends.SecretService"),
     ],
 )
-def test_onefile_build_bundles_native_credentials_without_user_data(
+def test_portable_build_bundles_native_credentials_without_user_data(
     tmp_path, system, machine, filename, backend
 ):
     build = runpy.run_path(str(Path(__file__).parents[1] / "scripts/build.py"))
     command, artifact = build["build_command"](
         tmp_path, system=system, machine=machine, desktop_only=system == "Windows"
     )
-    assert artifact == tmp_path / "dist" / filename
-    assert "--onefile" in command and "--onedir" not in command
+    assert artifact == tmp_path / "dist" / Path(filename).stem / filename
+    assert "--onedir" in command and "--onefile" not in command
+    assert command[command.index("--contents-directory") + 1] == "_internal"
     assert command[command.index("--hidden-import") + 1] == backend
     # Explicit payloads contain UI/locales and generated legal notices only.
     payloads = [command[i + 1] for i, value in enumerate(command) if value == "--add-data"]
@@ -84,7 +86,7 @@ def test_worker_dlls_enter_spec_after_analysis_without_changing_desktop_dependen
         path = runtime / "runtime" / name
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_bytes(b"prepared runtime file")
-    command = [sys.executable, "-m", "PyInstaller", "--onefile", "--windowed",
+    command = [sys.executable, "-m", "PyInstaller", "--onedir", "--contents-directory", "_internal", "--windowed",
                "--noconfirm", "--clean", "--name", "isolated-workers",
                "--specpath", str(tmp_path / "specs"), "--distpath", str(tmp_path / "dist"),
                "--workpath", str(tmp_path / "work"), str(Path(__file__).parents[1] / "scripts/desktop.py")]
@@ -107,7 +109,9 @@ def test_worker_dlls_enter_spec_after_analysis_without_changing_desktop_dependen
                 for item in sorted(Path(path).rglob("*")) if item.is_file()]
 
     monkeypatch.setattr("PyInstaller.building.datastruct.Tree", tree)
-    namespace = {"Analysis": analysis, "PYZ": lambda _: "python-code", "EXE": lambda *a, **kw: a}
+    namespace = {"Analysis": analysis, "PYZ": lambda _: "python-code",
+                 "EXE": lambda *a, **kw: SimpleNamespace(args=a, options=kw),
+                 "COLLECT": lambda *a, **kw: a}
     exec(compile(spec.read_text(), str(spec), "exec"), namespace)
     frozen = namespace["a"]
     assert frozen.binaries == [desktop_binary]
@@ -117,6 +121,9 @@ def test_worker_dlls_enter_spec_after_analysis_without_changing_desktop_dependen
         "runtimes/docling-models/layout.onnx",
     }
     assert all(kind == "DATA" for _, _, kind in frozen.datas)
+    assert namespace["exe"].options["exclude_binaries"] is True
+    assert namespace["exe"].options["contents_directory"] == "_internal"
+    assert namespace["coll"][1:] == (frozen.binaries, frozen.datas)
 
 
 def test_release_refuses_stale_corresponding_source_manifest(tmp_path, monkeypatch):
@@ -216,9 +223,9 @@ def test_gui_hook_preserves_native_dialogs_without_virtual_keyboard_or_pdf(tmp_p
 def test_release_delivers_matching_runtime_sources(tmp_path, monkeypatch, separate_sources):
     build = runpy.run_path(str(Path(__file__).parents[1] / "scripts/build.py"))
     package_release = build["package_release"]
-    monkeypatch.setattr("PyInstaller.archive.readers.CArchiveReader", lambda _: SimpleNamespace(toc={}))
+    runtime_files = {}
     monkeypatch.setitem(package_release.__globals__, "validate_bundle", lambda *a, **kw: {
-        "files": {}, "runtime_sha256": "test-runtime-digest",
+        "files": runtime_files, "runtime_sha256": "test-runtime-digest",
     })
     for name in (
         "src/forma/__init__.py", "scripts/build.py", "pyproject.toml", "uv.lock",
@@ -227,9 +234,14 @@ def test_release_delivers_matching_runtime_sources(tmp_path, monkeypatch, separa
         path = tmp_path / name
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text('__version__ = "7.8.9"' if name.endswith("__init__.py") else "fixture")
-    artifact = tmp_path / "dist/Forma-windows-x86_64-candidate.exe"
-    artifact.parent.mkdir()
+    artifact = tmp_path / "dist/Forma-windows-x86_64-candidate/Forma-windows-x86_64-candidate.exe"
+    artifact.parent.mkdir(parents=True)
     artifact.write_bytes(b"fixture executable")
+    support = artifact.parent / "_internal"
+    worker = support / "runtimes/ocr/worker.exe"
+    worker.parent.mkdir(parents=True)
+    worker.write_bytes(b"exact prepared worker")
+    (support / "Qt6Core.dll").write_bytes(b"desktop dependency")
     payload = tmp_path / "build/release/candidate/legal"
     payload.mkdir(parents=True)
     (payload / "LICENSE.txt").write_text("fixture license")
@@ -238,16 +250,28 @@ def test_release_delivers_matching_runtime_sources(tmp_path, monkeypatch, separa
     (source_folder / "worker-1.0.tar.gz").write_bytes(b"exact upstream source")
     runtime = tmp_path / "runtime"
     runtime.mkdir()
+    (runtime / "BUNDLE.json").write_bytes(b"matching runtime manifest")
+    manifest = support / "runtimes-meta/BUNDLE.json"
+    manifest.parent.mkdir()
+    manifest.write_bytes((runtime / "BUNDLE.json").read_bytes())
+    runtime_files["runtime/ocr/worker.exe"] = {"bytes": worker.stat().st_size, "sha256": build["digest"](worker)}
     package = package_release(tmp_path, artifact, payload, runtime_bundle=runtime,
                               runtime_candidate=True, separate_runtime_sources=separate_sources)
     member = "runtime-sources/worker-1.0.tar.gz"
     with zipfile.ZipFile(package) as archive:
         metadata = json.loads(archive.read("RELEASE.json"))
+        assert metadata["layout"] == "onedir" and metadata["contents_directory"] == "_internal"
+        assert metadata["distribution_files"] == build["distribution_files"](artifact)
+        assert metadata["distribution_sha256"] == build["distribution_digest"](metadata["distribution_files"])
+        assert metadata["distribution_files"]["_internal"] == {"directory": True, "mode": 0o755}
+        assert archive.read(artifact.name) == artifact.read_bytes()
+        assert archive.read("_internal/runtimes/ocr/worker.exe") == b"exact prepared worker"
+        assert archive.read("_internal/Qt6Core.dll") == b"desktop dependency"
         assert "LICENSE.txt" in archive.namelist()
         if separate_sources:
             assert member not in archive.namelist()
             delivery = metadata["runtime_sources"]
-            companion = artifact.parent / delivery["archive"]
+            companion = tmp_path / "dist" / delivery["archive"]
             assert build["digest"](companion) == delivery["sha256"]
             assert companion.stat().st_size == delivery["bytes"]
             with zipfile.ZipFile(companion) as sources:
@@ -255,3 +279,99 @@ def test_release_delivers_matching_runtime_sources(tmp_path, monkeypatch, separa
         else:
             assert archive.read(member) == b"exact upstream source"
             assert metadata["runtime_sources"]["delivery"] == "included"
+    accepted_package = build["digest"](package)
+    if sys.platform != "win32":
+        # Windows inventory is identical when audited from a POSIX host with
+        # different directory permissions.
+        before = build["distribution_files"](artifact)
+        support.chmod(0o700)
+        assert build["distribution_files"](artifact) == before
+    # Both delivery modes share one extracted namespace. A source parent must
+    # not overwrite an application file, including in the companion ZIP case.
+    source_parent = artifact.parent / "runtime-sources"
+    source_parent.write_bytes(b"application file")
+    with pytest.raises(ValueError, match="collide"):
+        package_release(tmp_path, artifact, payload, runtime_bundle=runtime,
+                        runtime_candidate=True, separate_runtime_sources=separate_sources)
+    source_parent.unlink()
+    assert build["digest"](package) == accepted_package
+    if separate_sources:
+        unexpected = worker.with_name("unlisted.dll")
+        unexpected.write_bytes(b"not in the prepared inventory")
+        with pytest.raises(RuntimeError, match="unexpected additions"):
+            package_release(tmp_path, artifact, payload, runtime_bundle=runtime, runtime_candidate=True)
+        unexpected.unlink()
+        worker.write_bytes(b"changed worker")
+        with pytest.raises(RuntimeError, match="missing or changed"):
+            package_release(tmp_path, artifact, payload, runtime_bundle=runtime, runtime_candidate=True)
+        worker.unlink()
+        with pytest.raises(RuntimeError, match="missing or changed"):
+            package_release(tmp_path, artifact, payload, runtime_bundle=runtime, runtime_candidate=True)
+        assert build["digest"](package) == accepted_package
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="POSIX portable ZIP links and executable modes")
+def test_portable_linux_zip_preserves_links_permissions_and_rejects_external_targets(tmp_path):
+    build = runpy.run_path(str(Path(__file__).parents[1] / "scripts/build.py"))
+    for name in ("src/forma/__init__.py", "scripts/build.py", "pyproject.toml", "uv.lock"):
+        path = tmp_path / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text('__version__ = "7.8.9"' if name.endswith("__init__.py") else "fixture")
+    artifact = tmp_path / "dist/Forma-linux-x86_64/Forma-linux-x86_64"
+    library = artifact.parent / "_internal/lib/sample.so.1"
+    library.parent.mkdir(parents=True)
+    library.write_bytes(b"\x7fELF\x00GLIBC_2.31")
+    artifact.write_bytes(b"fixture executable")
+    artifact.chmod(0o755)
+    link = artifact.parent / "_internal/sample.so"
+    link.symlink_to("lib/sample.so.1")
+    directory_link = artifact.parent / "_internal/alias"
+    directory_link.symlink_to("lib", target_is_directory=True)
+    empty = artifact.parent / "_internal/empty"
+    empty.mkdir(mode=0o750)
+    empty.chmod(0o750)
+    empty_link = artifact.parent / "_internal/empty-alias"
+    empty_link.symlink_to("empty", target_is_directory=True)
+    payload = tmp_path / "legal"
+    payload.mkdir()
+    package = build["package_release"](tmp_path, artifact, payload)
+    with zipfile.ZipFile(package) as archive:
+        metadata = json.loads(archive.read("RELEASE.json"))
+        assert metadata["minimum_glibc"] == "2.31"
+        assert archive.getinfo(artifact.name).external_attr >> 16 & 0o111 == 0o111
+        for name, target in (("_internal/sample.so", b"lib/sample.so.1"), ("_internal/alias", b"lib"),
+                             ("_internal/empty-alias", b"empty")):
+            assert stat.S_ISLNK(archive.getinfo(name).external_attr >> 16)
+            assert archive.read(name) == target
+        assert metadata["distribution_files"]["_internal/empty"] == {"directory": True, "mode": 0o750}
+        empty_info = archive.getinfo("_internal/empty/")
+        assert empty_info.is_dir() and stat.S_ISDIR(empty_info.external_attr >> 16)
+        assert stat.S_IMODE(empty_info.external_attr >> 16) == 0o750
+        assert archive.read("_internal/lib/sample.so.1") == library.read_bytes()
+    # A regular application file or directory cannot shadow release documents.
+    docs = payload / "docs"
+    docs.mkdir()
+    (docs / "BUILDING.md").write_text("rebuild instructions")
+    blocker = artifact.parent / "docs"
+    blocker.write_bytes(b"not a directory")
+    with pytest.raises(ValueError, match="collide"):
+        build["package_release"](tmp_path, artifact, payload)
+    blocker.unlink()
+    blocker = artifact.parent / "LICENSE.txt"
+    blocker.mkdir()
+    (blocker / "application-data").write_bytes(b"directory conflicts with release file")
+    (payload / "LICENSE.txt").write_text("license")
+    with pytest.raises(ValueError, match="collide"):
+        build["package_release"](tmp_path, artifact, payload)
+    (blocker / "application-data").unlink()
+    blocker.rmdir()
+    link.unlink()
+    external = tmp_path / "private-library"
+    external.write_bytes(b"must never be packaged")
+    link.symlink_to(external)
+    with pytest.raises(ValueError, match="Non-portable or broken"):
+        build["package_release"](tmp_path, artifact, payload)
+    link.unlink()
+    link.symlink_to("missing.so")
+    with pytest.raises(ValueError, match="Non-portable or broken"):
+        build["package_release"](tmp_path, artifact, payload)

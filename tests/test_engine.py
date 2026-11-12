@@ -325,6 +325,40 @@ def test_interrupted_review_resumes_saved_draft_without_translation(docx_file, t
     assert "drafts" in provider.calls[0][1]
     assert len(provider.calls[0][1]["drafts"]) == 8
 
+    from forma.core.models import Segment
+    from forma.providers.client import JobControl
+    from forma.translation.fragments import FragmentCache
+
+    # Cancellation between the first usable final and its optional revision
+    # retains that final privately and resumes directly in editorial mode.
+    segment = Segment("heading", "paragraph", "<r0>Перелік скорочень</r0>", "Technical glossary")
+    options, control, saved = Options("uk", "en", auto_glossary=False), JobControl(), {}
+    path = tmp_path / "editorial-checkpoint.json"
+    cache = FragmentCache({}, path)
+
+    class PausedEditor(FakeProvider):
+        def complete(self, instruction, payload, schema, **kwargs):
+            self.calls.append((instruction, payload))
+            control.cancelled.set()
+            return {"segments": [{"id": segment.id, "text": segment.source}]}
+
+    paused = PausedEditor()
+    with pytest.raises(Cancelled):
+        TranslationEngine(local_settings(), control)._stage(
+            [segment], {}, options, paused, saved.update,
+            drafts={segment.id: segment.source}, fragment_cache=cache,
+        )
+    assert len(paused.calls) == 1 and not saved
+    private, = json.loads(path.read_text())["editorial_revisions"].values()
+    assert private["candidate"] == segment.source and private["completed"] is False
+    continued = FakeProvider()
+    selected = TranslationEngine(local_settings())._stage(
+        [segment], {}, options, continued, saved.update,
+        drafts={segment.id: segment.source}, fragment_cache=FragmentCache(json.loads(path.read_text()), path),
+    )
+    assert selected == saved == {segment.id: segment.source}
+    assert len(continued.calls) == 1 and "editorial_feedback" in continued.calls[0][1]
+
 
 def test_capacity_split_preserves_paid_review_and_drafts_when_cancelled(tmp_path):
     import httpx
@@ -415,6 +449,19 @@ def test_stage_envelope_budgets_drafts_references_and_utf8_before_requests():
         assert payload["memory_references"] == {sid: references[sid]}
         assert payload["document_context"] == common["document_context"]
     assert stage_input_size("", {"text": "Д" * 20}, {}) > stage_input_size("", {"text": "a" * 20}, {})
+    from forma.translation.fragments import FragmentCache
+
+    # A soft revision cannot turn a usable final into costly source-piece work.
+    cache, skipped, provider = FragmentCache(), {}, FakeProvider()
+    large = Segment("cached", "paragraph", "<r0>" + "A complete clause about the current technical review. " * 800 + "</r0>")
+    seed = {large.id: large.source}
+    assert TranslationEngine(local_settings())._stage(
+        [large], common, Options(), provider, skipped.update,
+        drafts=seed, final_seeds=seed, fragment_cache=cache,
+    ) == seed == skipped
+    assert not provider.calls
+    entry, = cache.state["editorial_revisions"].values()
+    assert entry["completed"] is True and entry["outcome"] == "capacity_skipped"
 
 
 def test_unbroken_oversized_atom_preflight_reports_real_sizes_without_api(tmp_path):
@@ -638,7 +685,7 @@ def test_failed_parallel_batch_drains_checkpoint_without_cancelling_other_docume
                 time.sleep(0.03)
             else:
                 self.completed_review = True
-            return {"segments": [{"id": s["id"], "text": s["text"]} for s in payload["segments"]]}
+            return {"segments": [{"id": s["id"], "text": s["text"].replace("Item", "Елемент")} for s in payload["segments"]]}
 
     provider = FailingProvider()
     with pytest.raises(FormaError, match="Deliberate"):
@@ -723,7 +770,7 @@ def test_omitted_review_segment_never_allows_incomplete_export(tmp_path):
     class OmittingProvider(FakeProvider):
         def complete(self, instruction, payload, schema, **kwargs):
             self.calls.append((instruction, payload))
-            values = [{"id": s["id"], "text": s["text"]} for s in payload["segments"]]
+            values = [{"id": s["id"], "text": s["text"].replace("Item", "Елемент")} for s in payload["segments"]]
             if "drafts" in payload:
                 values = [s for s in values if not s["id"].endswith("#7")]
             return {"segments": values}
@@ -845,3 +892,101 @@ def test_cancellation_at_export_boundary_does_not_write_final_document(docx_file
             docx_file, tmp_path / "out", Options(auto_glossary=False), progress
         )
     assert not list((tmp_path / "out").glob("*.docx"))
+
+
+def test_targeted_editor_rewrites_only_flagged_heading_before_publishing(tmp_path):
+    from dataclasses import replace
+
+    from docx import Document
+
+    source = tmp_path / "headings.docx"
+    doc = Document()
+    paragraph = doc.add_paragraph()
+    paragraph.add_run("Перелік ").bold = True
+    paragraph.add_run("скорочень 5 кВт")
+    doc.add_paragraph("ККД")
+    doc.save(source)
+    options = Options("uk", "en", auto_glossary=False, glossary={"ККД": "ККД"})
+    heading = OfficeDocument(source).segments[0]
+
+    class Editor(FakeProvider):
+        def complete(self, instruction, payload, schema, **kwargs):
+            self.calls.append((instruction, payload))
+            if "editorial_feedback" in payload:
+                state = json.loads(next((tmp_path / "appdata/checkpoints").glob("*.json")).read_text())
+                assert heading.id not in state.get("translations", {})
+                provisional, = state["editorial_revisions"].values()
+                assert provisional["candidate"] == heading.source and provisional["completed"] is False
+                feedback, = payload["editorial_feedback"]
+                assert feedback["id"] == heading.id
+                assert feedback["current_candidate"] == heading.source
+                assert feedback["findings"] == [{
+                    "code": "unchanged", "severity": "warning",
+                    "message": "Текст залишився без змін; перевірте, чи потрібен переклад.",
+                }]
+                assert feedback["numbers"] == {"source": ["5"], "translation": ["5"], "missing": [], "unexpected": []}
+            return {"segments": [{"id": item["id"], "text": (
+                item["text"].replace("Перелік ", "List of ")
+                .replace("скорочень", "abbreviations").replace("кВт", "kW")
+                if "editorial_feedback" in payload else item["text"]
+            )} for item in payload["segments"]]}
+
+    provider = Editor()
+    result = TranslationEngine(local_settings(), provider=provider).translate(source, tmp_path / "out", options)
+    assert [len(payload["segments"]) for _, payload in provider.calls] == [2, 2, 1]
+    assert "List of abbreviations 5 kW" in Document(result.output).paragraphs[0].text
+    assert Document(result.output).paragraphs[0].runs[0].bold
+    assert Document(result.output).paragraphs[1].text == "ККД"
+    assert not [issue for issue in result.issues if issue.segment_id == heading.id]
+    cached = Editor()
+    TranslationEngine(local_settings(), provider=cached).translate(source, tmp_path / "out", options)
+    assert not cached.calls
+    plain = Editor()
+    TranslationEngine(local_settings(), provider=plain).translate(source, tmp_path / "no-review", replace(options, review=False))
+    assert len(plain.calls) == 1 and "editorial_feedback" not in plain.calls[0][1]
+
+
+def test_old_warning_final_keeps_valid_text_after_empty_revision_and_cancel(tmp_path):
+    from dataclasses import replace
+
+    from docx import Document
+
+    from forma.providers.client import JobControl
+    from forma.translation.editorial import completion_marker
+    from forma.translation.engine import file_digest, load_checkpoint
+
+    source = tmp_path / "legacy-heading.docx"
+    doc = Document()
+    doc.add_paragraph("ККД")
+    doc.save(source)
+    segment, = OfficeDocument(source).segments
+    settings, options, control = local_settings(), Options("uk", "en", auto_glossary=False), JobControl()
+    checkpoint, _ = load_checkpoint(file_digest(source), options, settings)
+    checkpoint.parent.mkdir(parents=True, exist_ok=True)
+    checkpoint.write_text(json.dumps({"translations": {segment.id: segment.source}}))
+
+    class EmptyEditor(FakeProvider):
+        def complete(self, instruction, payload, schema, **kwargs):
+            self.calls.append((instruction, payload))
+            assert "drafts" in payload and "editorial_feedback" in payload
+            state = json.loads(checkpoint.read_text())
+            assert state["translations"][segment.id] == segment.source
+            assert any(entry["completed"] is False for entry in state["editorial_revisions"].values())
+            control.cancelled.set()
+            return {"segments": [{"id": segment.id, "text": "<r0></r0>"}]}
+
+    provider = EmptyEditor()
+    with pytest.raises(Cancelled):
+        TranslationEngine(settings, control, provider=provider).translate(source, tmp_path / "out", options)
+    assert len(provider.calls) == 1 and not list((tmp_path / "out").glob("*.docx"))
+    state = json.loads(checkpoint.read_text())
+    entry, = state["editorial_revisions"].values()
+    assert entry["candidate"] == state["translations"][segment.id] == segment.source
+    assert entry["completed"] is True and entry["outcome"] == "attempted"
+    assert entry["marker"] == completion_marker(segment, segment.source, options, settings)
+    assert entry["marker"] != completion_marker(replace(segment, context="another table"), segment.source, options, settings)
+    assert entry["marker"] != completion_marker(segment, segment.source, replace(options, instructions="Another policy"), settings)
+    resumed = FakeProvider(invalid=True)
+    result = TranslationEngine(settings, provider=resumed).translate(source, tmp_path / "out", options)
+    assert not resumed.calls and Document(result.output).paragraphs[0].text == "ККД"
+    assert any(issue.code == "unchanged" for issue in result.issues)

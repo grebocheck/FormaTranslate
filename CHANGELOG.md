@@ -2,6 +2,13 @@
 
 Versions follow semantic versioning. Changes before 1.0 may evolve as document compatibility improves.
 
+## 0.11.1 — 2026-11-12
+
+- Deliver Windows and Linux as portable folders inside ZIP archives, with a small launcher and `_internal` dependencies. Retain the complete Windows OCR/models/Tesseract/BabelDOC package without repeated self-extraction. Validate the complete file inventory, runtime bytes, Linux symlinks and executable permissions.
+- Give the bilingual editor explicit freedom to rewrite whole sentences across formatting spans. Send structured findings and allow one targeted revision for actionable remaining text, repetition, shortening and unchanged source-script labels within the existing stage budget.
+- Persist hard-valid provisional wording before optional revisions and retain completed attempt markers across interruptions and exact machine-memory reuse. Keep residual findings visible, preserve approved wording and prevent rejected paragraph pieces from returning through editorial recovery.
+- Refresh saved-result checks in background work without changing canonical reports, edits or acknowledgements. Keep Review, Documents and history counts consistent; show preserved XLSX sheet names as information.
+
 ## 0.11.0 — 2026-11-12
 
 - Translate shared-string XLSX cells independently using their real worksheet contexts; clone only changed rich-text outputs while preserving original strings, numeric cells, formulas and caches. Version reports/checkpoints and retain legacy review/export and one-pass memory migration.

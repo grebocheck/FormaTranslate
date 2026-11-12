@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import threading
 
 import pytest
 from support import pump
@@ -9,12 +10,23 @@ from forma.documents.ooxml import OfficeDocument
 from forma.persistence.review_store import ReviewStore
 
 
-def test_confirm_and_reopen_persist_without_changing_document(reviewed, qapp):
+def test_confirm_and_reopen_persist_without_changing_document(reviewed, qapp, monkeypatch):
+    import forma.documents.review as module
+
+    original_check = module.translation_issues
+
+    def check(*args):
+        assert threading.current_thread() is not threading.main_thread()
+        return original_check(*args)
+
+    monkeypatch.setattr(module, "translation_issues", check)
     backend, result, segment = reviewed
     original, report = result.output.read_bytes(), result.report.read_bytes()
     assert backend.selectedReviewEntry["canAccept"]
+    original_count = backend.historyEntries[0]["warningCount"]
     backend.confirmReviewEntry()
     assert backend.selectedReviewEntry["accepted"]
+    assert backend.historyEntries[0]["warningCount"] == original_count - 1
     state = ReviewStore().load(result.report)
     assert segment.id in state["accepted"]
     backend.reviewHistory("attempt")
@@ -23,6 +35,7 @@ def test_confirm_and_reopen_persist_without_changing_document(reviewed, qapp):
     assert backend.selectedReviewEntry["accepted"]
     backend.reopenReviewEntry()
     assert not backend.selectedReviewEntry["accepted"]
+    assert backend.historyEntries[0]["warningCount"] == original_count
     assert not ReviewStore().load(result.report)["accepted"]
     assert result.output.read_bytes() == original and result.report.read_bytes() == report
 

@@ -15,7 +15,12 @@ from forma.core.models import (
     Options,
 )
 from forma.documents.editor import edit_translation_markup, export_reviewed_copy
-from forma.documents.review import actionable_count, build_review, load_report
+from forma.documents.review import (
+    actionable_count,
+    build_review,
+    load_report,
+    refresh_segment_checks,
+)
 from forma.localization.catalog import translate_ui_message as tr
 from forma.persistence.review_store import ReviewStore
 from forma.presentation.file_availability import inspect_files
@@ -132,6 +137,7 @@ class ReviewWorkflow:
             context["options"],
             edits=self._review_edits,
             accepted=self._review_accepted,
+            checks_current=True,
         )
         self._review_all_entries, self._review_summary = payload["entries"], payload["summary"]
         self._sync_review_counts()
@@ -146,7 +152,7 @@ class ReviewWorkflow:
         summary = self._review_summary
         if self._review_edits:
             summary = build_review(
-                context["result"], context["options"], accepted=self._review_accepted
+                context["result"], context["options"], accepted=self._review_accepted, checks_current=True,
             )["summary"]
         count = summary["warningCount"]
         document["warningCount"] = count
@@ -158,6 +164,7 @@ class ReviewWorkflow:
         for entry in self._history:
             if report and entry.get("report") == report and entry.get("warningCount") != count:
                 entry["warningCount"] = count
+                self._history_cache = None
                 if self._library:
                     try:
                         self._library.add_history(entry)
@@ -466,14 +473,15 @@ class ReviewWorkflow:
                     if state["reportFingerprint"] != verified["reportFingerprint"]:
                         raise FormaError("Звіт змінився під час читання. Відкрийте його знову.")
             else:
-                current_result, current_options = result, options
+                current_options = options
+                current_result = refresh_segment_checks(result, current_options)
             segment_ids = {s.id for s in current_result.segments}
             if not set(state["edits"]) <= segment_ids:
                 raise FormaError(
                     "Чернетка містить невідомі фрагменти. Збережені правки не змінено."
                 )
             payload = build_review(
-                current_result, current_options, edits=state["edits"], accepted=state["accepted"]
+                current_result, current_options, edits=state["edits"], accepted=state["accepted"], checks_current=True,
             )
             payload.update(
                 context={

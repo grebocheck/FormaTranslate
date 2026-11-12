@@ -23,6 +23,7 @@ from forma.memory.store import exact_fingerprint, generation_fingerprint, policy
 from forma.persistence.files import atomic_json, available_output
 from forma.providers.client import Provider
 from forma.translation.budget import validate_segment_sizes
+from forma.translation.editorial import EditorialCache, needs_editorial
 from forma.translation.engine import (
     PROTOCOL_VERSION,
     batched,
@@ -117,12 +118,25 @@ def translate_with_memory(engine, source, folder, options, progress):
 
     lock = threading.RLock()
     fragment_cache = FragmentCache(state, checkpoint, lock, plans=fragment_plans)
+    editorial_cache = EditorialCache(fragment_cache, options, settings)
+    request_segments = {
+        segment.id: replace(segment, context=request_context(contexts[keys[segment.id]]))
+        for segment in document.segments
+    }
     owned, borrowed = {}, {}
     claimed = set()
     adaptations = {}
+    final_seeds = {}
     legacy_edits = set()
     provider = engine.provider
     stopped = threading.Event()
+
+    def needs_revision(segment, candidate, marker=""):
+        current = request_segments[segment.id]
+        return needs_editorial(
+            current, candidate, options, settings, translation_issues(current, candidate, options),
+            marker or editorial_cache.completed_marker(current, candidate),
+        )
 
     def check_identity(hit, members):
         key = keys[members[0].id]
@@ -166,6 +180,9 @@ def translate_with_memory(engine, source, folder, options, progress):
                 persist()
                 previous = adaptations.get(sid)
                 provenance = {"source_sha256": source_hash, "segment_id": sid, "model": settings.model}
+                marker = editorial_cache.completed_marker(request_segments[sid], candidate) if reviewed else ""
+                if marker:
+                    provenance["editorial_completion"] = marker
                 if retrieval_contexts[key] is not None:
                     provenance["adaptation_context_sha256"] = retrieval_contexts[key]
                 if previous is not None:
@@ -244,12 +261,19 @@ def translate_with_memory(engine, source, folder, options, progress):
             claimed.add(key)
             if len(cached) == 1:
                 value = next(iter(cached))
+                marker = hit.provenance.get("editorial_completion", "") if hit is not None and hit.target == value else ""
+                if needs_revision(representative, value, marker):
+                    final_seeds[representative.id] = value
+                    owned[key] = representative
+                    continue
+                marker = marker or editorial_cache.completed_marker(request_segments[representative.id], value)
                 hit = run.memory.save_machine(
                     run.snapshot.project_id, key, representative.source, value,
                     contexts[key], roles[key], run.policy, run.generation,
                     provenance={
                         "kind": "checkpoint", "source_sha256": source_hash, "segment_id": representative.id,
                         **({"adaptation_context_sha256": retrieval_contexts[key]} if retrieval_contexts[key] is not None else {}),
+                        **({"editorial_completion": marker} if marker else {}),
                     },
                 )
                 for member in members:
@@ -263,6 +287,10 @@ def translate_with_memory(engine, source, folder, options, progress):
                 run.complete(key, hit)
                 continue
             if hit is not None and hit.status != "draft" and not blocking_issues(representative, hit.target, options):
+                if needs_revision(representative, hit.target, hit.provenance.get("editorial_completion", "")):
+                    final_seeds[representative.id] = hit.target
+                    owned[key] = representative
+                    continue
                 hit = remember(hit, members, "memory")
                 run.complete(key, hit)
                 continue
@@ -285,7 +313,7 @@ def translate_with_memory(engine, source, folder, options, progress):
             owned[key] = representative
         with lock:
             persist()
-        pending = [replace(segment, context=request_context(contexts[keys[segment.id]])) for segment in owned.values()]
+        pending = [request_segments[segment.id] for segment in owned.values()]
         if pending:
             provider = provider or Provider(settings, control)
         common = {
@@ -306,7 +334,8 @@ def translate_with_memory(engine, source, folder, options, progress):
                 control.check()
                 report_stage(f"Перекладаємо · пакет із {len(batch)} фрагментів")
                 with lock:
-                    untranslated = [segment for segment in batch if segment.id not in drafts and segment.id not in adaptations]
+                    untranslated = [segment for segment in batch if segment.id not in drafts
+                                    and segment.id not in adaptations and segment.id not in final_seeds]
                 if untranslated:
                     engine._stage(
                         untranslated, common, options, provider,
@@ -318,7 +347,8 @@ def translate_with_memory(engine, source, folder, options, progress):
                     report_stage(f"Редакторська перевірка · {len(batch)} фрагментів")
                     with lock:
                         batch_drafts = {
-                            segment.id: adaptations[segment.id].target if segment.id in adaptations else drafts[segment.id]
+                            segment.id: final_seeds[segment.id] if segment.id in final_seeds
+                            else adaptations[segment.id].target if segment.id in adaptations else drafts[segment.id]
                             for segment in batch
                         }
                     adaptation_references = {}
@@ -339,7 +369,7 @@ def translate_with_memory(engine, source, folder, options, progress):
                         batch, common, options, provider,
                         lambda values: save_stage(values, reviewed=True),
                         drafts=batch_drafts, memory_references=adaptation_references, progress=report_stage,
-                        fragment_cache=fragment_cache,
+                        fragment_cache=fragment_cache, final_seeds=final_seeds,
                     )
             except BaseException:
                 stopped.set()

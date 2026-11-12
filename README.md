@@ -19,13 +19,13 @@ The interface supports **English, Ukrainian, Polish, German, French and Spanish*
 
 ## Download and start
 
-Get the package for your platform from **[GitHub Releases](https://github.com/grebocheck/FormaTranslate/releases)**. Extract it and launch the executable. Python and a `.env` file are not needed for the packaged app. On Linux, make the executable runnable with `chmod +x Forma-linux-x86_64` if necessary. The current Linux binary requires **glibc 2.43 or newer** (built on Ubuntu 26.04); use the source installation on older distributions. See each release's platform validation notes; macOS is not supported yet.
+Get the ZIP for your platform from **[GitHub Releases](https://github.com/grebocheck/FormaTranslate/releases)**. **Extract the entire archive into a folder**, then launch `Forma-windows-x86_64.exe` on Windows or `Forma-linux-x86_64` on Linux from that folder. Candidate Windows builds include `candidate` in the executable name. Keep `_internal` and all other extracted files beside the executable; moving only the executable will break the app. Python and a `.env` file are not needed. Dependencies load from the extracted folder, avoiding a large self-extraction on every startup. On Linux, make the executable runnable with `chmod +x Forma-linux-x86_64` if necessary. The current Linux binary requires **glibc 2.43 or newer** (built on Ubuntu 26.04); use the source installation on older distributions. See each release's platform validation notes; macOS is not supported yet.
 
 1. Open **Settings** and enter your API address, model and API key. The model list can be loaded from providers that support it, or entered manually.
 2. Add DOCX, XLSX or PDF files and select the source and target languages. **Translate** prepares scanned PDFs through OCR and continues automatically; additional PDF actions also allow preparation before translation.
 3. Translate, open the output folder, and use **Review** to inspect the result.
 
-Windows has one download, with BabelDOC, the local OCR worker, four OCR language-model sets and Tesseract included. Its one-file executable extracts these components at startup. An installed ABBYY can still be selected in OCR settings; [ABBYY setup](docs/ABBYY.md) explains the supported workflows.
+Windows has one full application ZIP, with BabelDOC, the local OCR worker, four OCR language-model sets and Tesseract included in its folders. Extract them together with the application; they are ready to load in place. An installed ABBYY can still be selected in OCR settings; [ABBYY setup](docs/ABBYY.md) explains the supported workflows.
 
 Release descriptions provide direct platform download links. A single **Sources** archive contains the developer and dependency source materials.
 
@@ -79,6 +79,8 @@ Open the official OpenAI billing page for your actual credit balance, or enter a
 | XLSX | Translates supported text cells and rich text while retaining formulas, native numeric cells and workbook structure. |
 | PDF | Translate chooses text-based PDF → BabelDOC or scan → editable OCR DOCX → Office translation. Windows includes both engines; Linux/source installations use separate workers. |
 
+With editorial review enabled for DOCX/XLSX, Forma can make one bounded additional correction pass for remaining source prose, introduced repetition, suspicious shortening and untranslated labels across different scripts. It keeps an earlier valid version if the revision fails checks or does not improve those findings. Cached machine wording can go straight to the editor; completed checks are remembered for the same candidate and settings. Human-approved project wording is preserved. Remaining findings stay visible and are never marked as approved automatically. Disabling editorial review disables this additional work.
+
 - Context-aware translation, terminology consistency, optional CSV glossary and an editorial pass for Office files.
 - Optional project memory for exact Office matches, reviewed adaptation of similar passages, a shared glossary and explicitly approved wording across related documents.
 - Shared API concurrency limits and a document queue, with pause/cancel controls and local progress recovery.
@@ -87,6 +89,8 @@ Open the official OpenAI billing page for your actual credit balance, or enter a
 - Local checks for changed numbers, identifiers, missing text and damaged formatting markers.
 
 These checks help catch mistakes; they are not a score of linguistic accuracy. AI output still needs review for consequential documents. Longer translations can change pagination or overflow narrow cells and text boxes. Images embedded in documents are not translated automatically; translate individual images in Text & photos. Scan reconstruction can need OCR and table corrections before translation; it does not promise pixel-identical layout. Encrypted/signed Office files and Strict OOXML are not supported. Word tracked changes are preserved: deleted revision text remains in its original language. See the [detailed guide](docs/GUIDE.uk.md) and [evaluation method](docs/BENCHMARK.md).
+
+Opening **Review** refreshes local checks without API calls or changes to the document or saved report. Original HTML reports retain the findings recorded when they were created.
 
 ## Privacy and storage
 

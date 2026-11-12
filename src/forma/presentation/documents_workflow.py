@@ -134,6 +134,13 @@ class DocumentWorkflow:
     def issues(self):
         document = self._selected_document()
         result = document.get("result") if document else None
+        if (
+            document and document.get("id") == self._review_document_id
+            and self._review_context and self._review_context.get("result") is not None
+        ):
+            # Reuse the background-loaded current findings, including saved
+            # reports. A binding read must never recheck an entire document.
+            result = self._review_context["result"]
         if not result:
             return []
         segments = {s.id: s for s in result.segments}

@@ -7,6 +7,7 @@ from pathlib import Path
 
 INFORMATION_CODES = {
     "fields_preserved",
+    "sheet_names_preserved",
     "external_engine",
     "pdf_visual_review",
     "shared_memory",
