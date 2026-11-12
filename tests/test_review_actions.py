@@ -38,6 +38,17 @@ def test_confirm_and_reopen_persist_without_changing_document(reviewed, qapp, mo
     assert backend.historyEntries[0]["warningCount"] == original_count
     assert not ReviewStore().load(result.report)["accepted"]
     assert result.output.read_bytes() == original and result.report.read_bytes() == report
+    backend.setReviewFilter("issues")
+    entries = backend.reviewEntries
+    index = len(entries) // 2
+    backend.selectReviewEntry(entries[index]["id"])
+    backend.confirmReviewEntry()
+    assert backend.selectedReviewId == entries[index + 1]["id"]
+    last = backend.reviewEntries[-1]["id"]
+    preceding = backend.reviewEntries[-2]["id"]
+    backend.selectReviewEntry(last)
+    backend.confirmReviewEntry()
+    assert backend.selectedReviewId == preceding
 
 
 def test_edit_applies_draft_then_exports_separate_copy_without_api(reviewed, qapp, monkeypatch):
@@ -77,6 +88,16 @@ def test_edit_applies_draft_then_exports_separate_copy_without_api(reviewed, qap
     assert not ReviewStore().load(result.report)["edits"]
     backend.selectReviewEntry(segment.id)
     assert backend.selectedReviewEntry["accepted"]
+    backend.setReviewFilter("issues")
+    entry = next(s for s in result.segments if s.plain == "Operating conditions")
+    entries = backend.reviewEntries
+    index = next(i for i, item in enumerate(entries) if item["id"] == entry.id)
+    backend.selectReviewEntry(entry.id)
+    backend.beginReviewEdit()
+    backend.updateReviewDraft("Умови експлуатації")
+    assert backend.applyReviewEdit()
+    assert backend.selectedReviewId == entries[index + 1]["id"]
+    assert entry.id in ReviewStore().load(backend._review_context["report"])["edits"]
 
 
 def test_numeric_change_is_rejected_and_typing_survives_failed_close(reviewed):

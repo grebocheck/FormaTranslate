@@ -52,13 +52,33 @@ def select_preset(backend, window, identifier):
 
 
 def test_preset_changes_only_draft_and_clears_cross_provider_secret(settings_window, monkeypatch):
+    import httpx
+
+    from forma.settings.config import load_preferences
+
     backend, window, warnings = settings_window
     monkeypatch.setattr(backend, "_launch", lambda *args: pytest.fail("Preset started a job"))
+    monkeypatch.setattr(httpx, "Client", lambda *args, **kwargs: pytest.fail("Preset contacted a server"))
+    monkeypatch.setattr(httpx, "AsyncClient", lambda *args, **kwargs: pytest.fail("Preset contacted a server"))
+    saved = load_preferences()
     key = window.findChild(QQuickItem, "apiKeyField")
     key.setProperty("text", "typed-private-key")
     window.setProperty("keyVisible", True)
     backend._model_choices = ["old-catalog-model"]
     backend.changed.emit()
+    select_preset(backend, window, "openai")
+    assert window.findChild(QQuickItem, "modelField").property("text") == "gpt-6-luna"
+    assert window.findChild(QQuickItem, "reviewModelField").property("text") == "gpt-6.1-terra"
+    assert backend._settings.model == "existing-model" and backend._settings.review_model == ""
+    for identifier, port in (("lmstudio", 1234), ("ollama", 11434)):
+        select_preset(backend, window, "openai")
+        key.setProperty("text", "another-unsaved-cloud-key")
+        select_preset(backend, window, identifier)
+        assert window.findChild(QQuickItem, "baseUrlField").property("text") == f"http://localhost:{port}/v1"
+        assert window.findChild(QQuickItem, "modelField").property("text") == ""
+        assert window.findChild(QQuickItem, "reviewModelField").property("text") == ""
+        assert window.findChild(QQuickItem, "apiModeSelector").property("currentText") == "chat"
+        assert key.property("text") == ""
     select_preset(backend, window, "gemini-free")
     assert window.property("providerPresetId") == "gemini-free"
     assert window.findChild(QQuickItem, "apiModeSelector").property("currentText") == "gemini"
@@ -68,6 +88,7 @@ def test_preset_changes_only_draft_and_clears_cross_provider_secret(settings_win
     assert window.findChild(QQuickItem, "requestsPerMinuteField").property("text") == "5"
     assert window.findChild(QQuickItem, "parallelRequestsField").property("text") == "1"
     assert window.findChild(QQuickItem, "parallelDocumentsField").property("text") == "1"
+    assert window.findChild(QQuickItem, "reviewModelField").property("text") == ""
     assert key.property("text") == ""
     assert key.property("placeholderText") == "Вставте API-ключ"
     assert window.property("keyVisible") is False
@@ -76,6 +97,7 @@ def test_preset_changes_only_draft_and_clears_cross_provider_secret(settings_win
     assert backend._settings.model == "existing-model"
     assert backend._settings.api_key == "old-secret"
     assert backend._settings.base_url == "https://existing.invalid/v1"
+    assert load_preferences() == saved
     description = window.findChild(QQuickItem, "providerPresetDescription").property("text")
     assert "не вимикає білінг" in description
     assert not warnings, "\n".join(warnings)

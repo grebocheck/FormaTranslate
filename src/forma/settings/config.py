@@ -14,6 +14,12 @@ from platformdirs import user_data_path
 
 from forma.core.models import FormaError, validate_instructions
 from forma.persistence.files import atomic_json
+from forma.settings.defaults import (
+    OPENAI_BASE_URL,
+    OPENAI_REVIEW_MODEL,
+    OPENAI_TRANSLATION_MODEL,
+    official_openai_profile,
+)
 
 STRING_PREFERENCES = {
     "base_url",
@@ -82,7 +88,9 @@ def default_env_path() -> Path:
 @dataclass(frozen=True)
 class Settings:
     api_key: str = field(default="", repr=False)
-    base_url: str = "https://api.openai.com/v1"
+    base_url: str = OPENAI_BASE_URL
+    # Keep direct custom/native Settings construction neutral. New OpenAI
+    # profile defaults are applied by load(), with explicit blanks preserved.
     model: str = ""
     api_mode: str = "chat"
     response_format: str = "auto"
@@ -128,6 +136,16 @@ class Settings:
             for name, env_name in ENV_FIELDS.items()
         }
         fields["base_url"] = preferences.get("base_url", environment_base)
+        if (
+            official_openai_profile(fields["base_url"], fields["api_mode"])
+            and fields["provider_preset"] in {"custom", "openai"}
+            and "model" not in preferences and "OPENAI_MODEL" not in values
+        ):
+            fields["model"] = OPENAI_TRANSLATION_MODEL
+            if "review_model" not in preferences and "FORMA_REVIEW_MODEL" not in values:
+                fields["review_model"] = OPENAI_REVIEW_MODEL
+            if "provider_preset" not in preferences and "FORMA_PROVIDER_PRESET" not in values:
+                fields["provider_preset"] = "openai"
         fields["translation_instructions"] = preferences.get("translation_instructions", "")
         fields["memory_project_id"] = preferences.get("memory_project_id", "")
         fields["abbyy_extended_cli_confirmed"] = preferences.get("abbyy_extended_cli_confirmed", False)

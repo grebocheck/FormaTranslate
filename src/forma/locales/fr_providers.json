@@ -5,6 +5,7 @@
   "Не більше %1 запитів за хвилину. Ліміти провайдера можуть бути нижчими.": "Au maximum %1 requêtes par minute. Votre fournisseur peut imposer des limites inférieures.",
   "Кількість паралельних запитів впливає на швидкість і навантаження на API.": "Le nombre de requêtes simultanées influe sur la vitesse et la charge de l’API.",
   "Запитів за хвилину, 0 — без обмеження": "Requêtes par minute, 0 — sans limite",
+  "Власне підключення": "Connexion personnalisée",
   "Власне підключення / OpenAI": "Connexion personnalisée / OpenAI",
   "Вкажіть адресу, модель і параметри свого API.": "Saisissez l’adresse, le modèle et les paramètres de votre API.",
   "Google Gemini — Free Tier": "Google Gemini — Offre gratuite",
@@ -18,5 +19,11 @@
   "Режим API має бути chat, responses, gemini або anthropic.": "Le mode API doit être chat, responses, gemini ou anthropic.",
   "Вичерпано квоту API для PDF-перекладу. Перевірте ліміти проєкту та повторіть пізніше.": "Quota API de traduction PDF épuisé. Vérifiez les limites du projet et réessayez plus tard.",
   "API повернув некоректну відповідь PDF-перекладу. Перевірте модель і режим API.": "L’API a renvoyé une réponse de traduction PDF invalide. Vérifiez le modèle et le mode API.",
-  "Вичерпано денну квоту Gemini або модель недоступна для цього тарифу. Перевірте ліміти проєкту в Google AI Studio.": "Le quota quotidien de Gemini est épuisé ou le modèle n’est pas disponible avec cette offre. Vérifiez les limites du projet dans Google AI Studio."
+  "Вичерпано денну квоту Gemini або модель недоступна для цього тарифу. Перевірте ліміти проєкту в Google AI Studio.": "Le quota quotidien de Gemini est épuisé ou le modèle n’est pas disponible avec cette offre. Vérifiez les limites du projet dans Google AI Studio.",
+  "LM Studio (локально)": "LM Studio (local)",
+  "Ollama (локально)": "Ollama (local)",
+  "Мовний сервер на цьому ПК. Запустіть його окремо та виберіть встановлену модель.": "Un serveur de modèles de langage sur ce PC. Lancez-le séparément et choisissez un modèle installé.",
+  "Оберіть готове підключення або задайте власне. Збережіть налаштування перед перекладом.": "Choisissez une connexion prédéfinie ou configurez la vôtre. Enregistrez les paramètres avant de traduire.",
+  "Залиште поле порожнім, якщо локальний сервер не вимагає ключа.": "Laissez ce champ vide si le serveur local ne demande pas de clé.",
+  "Ключ іншого сервісу не переноситься.": "Les clés ne sont pas transférées entre services."
 }

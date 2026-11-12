@@ -65,5 +65,9 @@
   "Спосіб обробки цього PDF": "How to process this PDF",
   "Розпізнати через OCR перед перекладом": "Recognize with OCR before translation",
   "Прямий переклад PDF": "Direct PDF translation",
-  "Прямий PDF перекладає лише текстовий шар. Написи у зображеннях можуть залишитися без перекладу; для них виберіть OCR.": "Direct PDF translation uses only the text layer. Text in images may remain untranslated; choose OCR for it."
+  "Прямий PDF перекладає лише текстовий шар. Написи у зображеннях можуть залишитися без перекладу; для них виберіть OCR.": "Direct PDF translation uses only the text layer. Text in images may remain untranslated; choose OCR for it.",
+  "Правок: %1": "Edits: %1",
+  "Зберегти правку": "Save edit",
+  "Інші дії": "More actions",
+  "Спочатку збережіть правку фрагмента": "Save this segment’s edit first"
 }

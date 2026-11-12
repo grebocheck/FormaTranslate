@@ -82,13 +82,13 @@ Click **Add reference**. Verification is local and makes no API requests. Forma 
 
 The checkbox **I checked this translation: use its wording in the project** is **off by default**. Without it, entries remain references. Select it only after reviewing the translation: this explicitly approves compatible entries for future exact matches. Their languages and effective glossary must match the project. The whole import succeeds or fails together.
 
-Use **Edit → Apply → Save copy** in Forma to produce a corrected DOCX and its matching report, then select that reviewed copy and new report. An externally changed translation with an old report is rejected. Older reports without file hashes undergo stricter package verification. Reports that do not record the effective automatic glossary can be stored as references, but cannot be approved for automatic reuse.
+Use **Edit → Save edit → Save copy** in Forma to produce a corrected DOCX and its matching report, then select that reviewed copy and new report. An externally changed translation with an old report is rejected. Older reports without file hashes undergo stricter package verification. Reports that do not record the effective automatic glossary can be stored as references, but cannot be approved for automatic reuse.
 
 Import and individual wording approval currently support **DOCX only**; ordinary project-memory translation supports both DOCX and XLSX.
 
 ## Remember a correction
 
-In **Review**, select a DOCX segment and click **Remember wording**, then **Use in project**. An applied local draft can be remembered after validation; saving an Office copy is a separate action. This does not rewrite the current document or change its review acknowledgements.
+In **Review**, select a DOCX segment and open **More actions → Remember wording**, then **Use in project**. An applied local draft can be remembered after validation; saving an Office copy is a separate action. This does not rewrite the current document or change its review acknowledgements.
 
 **This is correct** acknowledges a review finding. It does not approve a translation-memory entry. Use **Remember wording** for that explicit decision.
 

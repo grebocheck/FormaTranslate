@@ -37,6 +37,8 @@ Item {
         property bool editing: false
         property bool edited: false
         property string editError: ""
+        property alias footerContent: footerActions.data
+        readonly property bool editorHasFocus: textContent.activeFocus
         signal draftEdited(string value)
         onTextChanged: if (!editing && textScroll.contentItem) textScroll.contentItem.contentY = 0
         onEditingChanged: if (editing) Qt.callLater(function() { textContent.forceActiveFocus() })
@@ -46,7 +48,7 @@ Item {
             anchors.fill: parent; anchors.margins: 14; spacing: 10
             RowLayout {
                 Layout.fillWidth: true
-                Caption { text: textPanel.heading; font.weight: Font.DemiBold; Layout.fillWidth: true }
+                Caption { text: textPanel.heading; font.weight: Font.DemiBold; Layout.fillWidth: true; elide: Text.ElideRight }
                 Caption { text: textPanel.editing ? qsTr("Редагування") : qsTr("Чернетка"); visible: textPanel.editing || textPanel.edited; color: Theme.accent; font.weight: Font.DemiBold }
             }
             Divider { }
@@ -72,6 +74,12 @@ Item {
                     placeholderText: textPanel.editing ? qsTr("Введіть переклад") : qsTr("Текст відсутній")
                     Accessible.name: textPanel.heading
                 }
+            }
+            Flow {
+                id: footerActions
+                Layout.fillWidth: true; Layout.preferredHeight: implicitHeight
+                spacing: 6
+                visible: children.length > 0
             }
         }
     }

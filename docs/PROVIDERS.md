@@ -2,11 +2,13 @@
 
 Forma supports OpenAI-compatible Chat Completions, OpenAI Responses, native Gemini `generateContent` and native Anthropic Claude Messages. These connections work for DOCX/XLSX, quick text and photo translation. PDF uses the same native adapters through Forma's local bridge to a separately installed BabelDOC; Responses mode is still unsupported for PDF. No provider SDK or hosted relay is required.
 
+An external **LM Studio** or **Ollama** server can supply a local model through an OpenAI-compatible `chat` connection. Select the matching local preset, click **Refresh models** and choose an installed model. The presets only fill editable settings: neither server nor translation model is bundled or started by Forma. See the [Ukrainian local AI guide](LOCAL-AI.uk.md) for setup, authentication, structured-output requirements and validation limits.
+
 ## Configure in the application
 
 1. Open **Settings** and select a provider preset.
-2. Enter an API key for that provider. Choose whether to store it in the operating system's credential vault or keep it for the session.
-3. Check the model, then save. **Load models** reads the provider's catalog; **Test connection** makes a small generation request that consumes quota and may be billed.
+2. Enter an API key if the provider requires one. Local servers without authentication can leave it empty. For a required key, choose whether to store it in the operating system's credential vault or keep it for the session.
+3. Check the model, then save. **Refresh models** reads the provider's catalog; **Test connection** makes a small generation request that consumes quota and may be billed.
 4. Translate as usual. Photos need a model supporting image input. An optional editor model must belong to the same provider connection.
 
 Presets are editable starting points, not separate accounts or subscriptions. Selecting a preset does not save settings, send requests, create a key or change billing. Changing providers clears a typed key; an already saved key is only reused for the matching endpoint. Switching between Gemini presets keeps access to the same endpoint's saved key.
@@ -19,12 +21,19 @@ The desktop reads and writes the OS vault in background tasks. Translating waits
 
 | Preset | Default model | Initial pacing |
 | --- | --- | --- |
+| OpenAI | Translation: `gpt-6-luna`; editor: `gpt-6.1-terra` | 8 simultaneous requests, 2 documents, no added RPM limit |
 | Google Gemini — Free Tier | `gemini-3.5-flash-lite` | 1 simultaneous request, 1 document, 5 requests/minute |
 | Google Gemini | `gemini-3.8-flash` | 4 simultaneous requests, 2 documents, no added RPM limit |
 | Anthropic Claude | `claude-sonnet-5-5` | 4 simultaneous requests, 2 documents, no added RPM limit |
-| Custom / OpenAI | Your existing/manual configuration | Your existing/manual configuration |
+| LM Studio (local) | Empty: select an installed model; empty editor uses that same model | 1 simultaneous request, 1 document, no added RPM limit |
+| Ollama (local) | Empty: select an installed model; empty editor uses that same model | 1 simultaneous request, 1 document, no added RPM limit |
+| Custom connection | Your existing/manual configuration | Your existing/manual configuration |
 
-Default model IDs were checked against official documentation on 2026-11-10. Access can differ by account and change over time. Load models or enter an available model manually; Forma never silently switches to another model or a paid tier.
+Gemini and Claude default model IDs were checked against official documentation on 2026-11-10. Access can differ by account and change over time. Load models or enter an available model manually; Forma never silently switches to another model or a paid tier.
+
+The OpenAI model IDs were checked against [official GPT-6 guidance](https://developers.openai.com/api/docs/guides/latest-model) on 2026-11-12. Forma uses these defaults for a fresh official OpenAI profile; existing saved model choices are preserved. Explicitly choosing the OpenAI preset reapplies its editable defaults. Account access to those models is not guaranteed: load your model catalog or choose an available model manually.
+
+The local presets use `http://localhost:1234/v1` for LM Studio and `http://localhost:11434/v1` for Ollama, with `chat`, `auto` and both model fields initially empty. They clear stale cloud model names. Start the external server yourself, choose a local model before saving, and provide its token only if authentication is enabled. Host, port and other fields remain editable; **Custom connection** is also available for manual setup.
 
 ## Gemini Free Tier
 

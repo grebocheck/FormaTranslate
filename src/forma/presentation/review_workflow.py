@@ -141,7 +141,7 @@ class ReviewWorkflow:
         )
         self._review_all_entries, self._review_summary = payload["entries"], payload["summary"]
         self._sync_review_counts()
-        self._filter_review()
+        self._filter_review(nearest=True)
 
     def _sync_review_counts(self):
         document, context = self._review_document(), self._review_context
@@ -364,7 +364,10 @@ class ReviewWorkflow:
         self._review_search = value[:500]
         self._filter_review()
 
-    def _filter_review(self):
+    def _filter_review(self, *, nearest=False):
+        previous_index = next(
+            (index for index, entry in enumerate(self._review_entries) if entry["id"] == self._review_selected), 0,
+        ) if nearest else 0
         query = self._review_search.casefold().strip()
         self._review_entries = [
             entry
@@ -387,7 +390,10 @@ class ReviewWorkflow:
             )
         ]
         if not any(entry["id"] == self._review_selected for entry in self._review_entries):
-            self._review_selected = self._review_entries[0]["id"] if self._review_entries else ""
+            self._review_selected = (
+                self._review_entries[min(previous_index, len(self._review_entries) - 1)]["id"]
+                if self._review_entries else ""
+            )
         self.changed.emit()
 
     def selectReviewEntry(self, entry_id):

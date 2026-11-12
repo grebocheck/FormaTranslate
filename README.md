@@ -31,6 +31,13 @@ Release descriptions provide direct platform download links. A single **Sources*
 
 DOCX and XLSX work directly. **Direct PDF translation uses BabelDOC; scanned PDF preparation uses the local OCR helper**. Complete Windows builds include both engines and their local assets; Linux and source installations use separate workers. See [PDF setup](docs/PDF.md) and [complete Windows builds](docs/WINDOWS-RUNTIME.md). Some OpenAI-compatible providers omit features used by particular API modes; choose the mode and response format supported by yours.
 
+For a model running on your own computer, choose **LM Studio (local)** or **Ollama (local)** in Settings, load the server's model list and select an installed model. These presets fill in editable connection fields and clear old model names; they make no requests until you ask. Neither server nor translation model is bundled with Forma. Follow the [local AI setup guide in Ukrainian](docs/LOCAL-AI.uk.md) for installation, authentication and a short compatibility check.
+
+| Local preset | Default API address |
+| --- | --- |
+| LM Studio (local) | `http://localhost:1234/v1` |
+| Ollama (local) | `http://localhost:11434/v1` |
+
 ## Gemini and Claude
 
 In **Settings**, choose **Google Gemini — Free Tier**, **Google Gemini**, or **Anthropic Claude**, enter the corresponding API key and save. The preset fills in the address, native API mode, model and request limits; you can edit them or load the provider's available models. Preset selection alone makes no requests and does not save a key.
@@ -61,7 +68,7 @@ Save reusable terminology and style rules with **Custom instructions** in Docume
 
 For related DOCX/XLSX files, choose **Project memory** in Documents, or click **Create project…** with explicit source and target languages. The memory fills automatically; a glossary and reference import are optional. **Glossary (optional)…** lets you enter terms yourself or request suggestions from the queued documents, edit the draft and click **Apply glossary**. Suggestions use your configured provider and incur its API charges. CSV import/export is an optional transfer method. **References & glossary…** also accepts verified DOCX/report pairs. This mode uses the project's fixed shared glossary for the queue; separate automatic glossaries are disabled. Memory starts **Off**, which keeps the ordinary translation workflow.
 
-Exact source/context/policy matches can reuse completed machine results. With editorial review enabled, closely related passages can use an earlier translation as a reference for a paid adaptation request. In Review, **Remember wording → Use in project** explicitly approves a preferred translation for future runs; acknowledging a finding does not. Imported references and adapted results are not approved automatically. Conflicts require a separate replacement decision, and a running queue keeps its captured memory revision. See the [translation memory guide](docs/TRANSLATION-MEMORY.md) for matching rules, reference verification, counts and limits.
+Exact source/context/policy matches can reuse completed machine results. With editorial review enabled, closely related passages can use an earlier translation as a reference for a paid adaptation request. In Review, **More actions → Remember wording → Use in project** explicitly approves a preferred translation for future runs; acknowledging a finding does not. Imported references and adapted results are not approved automatically. Conflicts require a separate replacement decision, and a running queue keeps its captured memory revision. See the [translation memory guide](docs/TRANSLATION-MEMORY.md) for matching rules, reference verification, counts and limits.
 
 Outside project memory, automatic document terminology provides contextual suggestions. An ambiguous word can take different translations in different table or worksheet contexts; explicitly applied user terms remain binding.
 

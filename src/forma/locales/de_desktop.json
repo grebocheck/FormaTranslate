@@ -65,5 +65,9 @@
   "Спосіб обробки цього PDF": "Verarbeitung dieser PDF",
   "Розпізнати через OCR перед перекладом": "Vor der Übersetzung mit OCR erkennen",
   "Прямий переклад PDF": "Direkte PDF-Übersetzung",
-  "Прямий PDF перекладає лише текстовий шар. Написи у зображеннях можуть залишитися без перекладу; для них виберіть OCR.": "Die direkte PDF-Übersetzung verwendet nur die Textebene. Text in Bildern kann unübersetzt bleiben; wählen Sie dafür OCR."
+  "Прямий PDF перекладає лише текстовий шар. Написи у зображеннях можуть залишитися без перекладу; для них виберіть OCR.": "Die direkte PDF-Übersetzung verwendet nur die Textebene. Text in Bildern kann unübersetzt bleiben; wählen Sie dafür OCR.",
+  "Правок: %1": "Änderungen: %1",
+  "Зберегти правку": "Änderung übernehmen",
+  "Інші дії": "Weitere Aktionen",
+  "Спочатку збережіть правку фрагмента": "Übernehmen Sie zuerst die Änderung dieses Abschnitts"
 }

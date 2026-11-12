@@ -5,6 +5,7 @@
   "Не більше %1 запитів за хвилину. Ліміти провайдера можуть бути нижчими.": "Maksymalnie %1 żądań na minutę. Limity dostawcy mogą być niższe.",
   "Кількість паралельних запитів впливає на швидкість і навантаження на API.": "Liczba równoległych żądań wpływa na szybkość i obciążenie API.",
   "Запитів за хвилину, 0 — без обмеження": "Żądań na minutę, 0 — bez limitu",
+  "Власне підключення": "Własne połączenie",
   "Власне підключення / OpenAI": "Własne połączenie / OpenAI",
   "Вкажіть адресу, модель і параметри свого API.": "Podaj adres API, model i ustawienia.",
   "Google Gemini — Free Tier": "Google Gemini — Free Tier",
@@ -18,5 +19,11 @@
   "Режим API має бути chat, responses, gemini або anthropic.": "Tryb API musi mieć wartość chat, responses, gemini lub anthropic.",
   "Вичерпано квоту API для PDF-перекладу. Перевірте ліміти проєкту та повторіть пізніше.": "Wyczerpano limit API dla tłumaczenia PDF. Sprawdź limity projektu i spróbuj ponownie później.",
   "API повернув некоректну відповідь PDF-перекладу. Перевірте модель і режим API.": "API zwróciło nieprawidłową odpowiedź tłumaczenia PDF. Sprawdź model i tryb API.",
-  "Вичерпано денну квоту Gemini або модель недоступна для цього тарифу. Перевірте ліміти проєкту в Google AI Studio.": "Wyczerpano dzienny limit Gemini lub model jest niedostępny w tym planie. Sprawdź limity projektu w Google AI Studio."
+  "Вичерпано денну квоту Gemini або модель недоступна для цього тарифу. Перевірте ліміти проєкту в Google AI Studio.": "Wyczerpano dzienny limit Gemini lub model jest niedostępny w tym planie. Sprawdź limity projektu w Google AI Studio.",
+  "LM Studio (локально)": "LM Studio (lokalnie)",
+  "Ollama (локально)": "Ollama (lokalnie)",
+  "Мовний сервер на цьому ПК. Запустіть його окремо та виберіть встановлену модель.": "Serwer modeli językowych na tym komputerze. Uruchom go osobno i wybierz zainstalowany model.",
+  "Оберіть готове підключення або задайте власне. Збережіть налаштування перед перекладом.": "Wybierz gotowe połączenie lub skonfiguruj własne. Zapisz ustawienia przed tłumaczeniem.",
+  "Залиште поле порожнім, якщо локальний сервер не вимагає ключа.": "Pozostaw to pole puste, jeśli lokalny serwer nie wymaga klucza.",
+  "Ключ іншого сервісу не переноситься.": "Klucz innej usługi nie jest przenoszony."
 }

@@ -195,7 +195,8 @@ def test_deeply_nested_preferences_do_not_prevent_startup(store, tmp_path):
     content = '{"model":' + "[" * 20000 + "0" + "]" * 20000 + "}"
     path.write_text(content)
     assert load_preferences() == {}
-    assert Settings.load().model == ""
+    loaded = Settings.load()
+    assert (loaded.model, loaded.review_model) == ("gpt-6-luna", "gpt-6.1-terra")
     assert path.read_text() == content
 
 

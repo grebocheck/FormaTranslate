@@ -2,6 +2,14 @@
 
 Versions follow semantic versioning. Changes before 1.0 may evolve as document compatibility improves.
 
+## 0.12.0 — 2026-11-12
+
+- Give Review more reading/editing space, move edit actions beside the translation and keep Save copy and the draft count visible. Preserve cursor/selection through live theme/language changes; Ctrl+Enter saves only from the focused editor and never through a modal dialog.
+- Continue at the nearest remaining finding after a correction or acknowledgement instead of jumping to the start. Keep document export, local draft edits and preferred memory wording as distinct explicit actions.
+- Start unconfigured official OpenAI profiles with `gpt-6-luna` for translation and `gpt-6.1-terra` for editing; add an explicit OpenAI preset while preserving saved choices, intentional blank editor values and custom/native profiles.
+- Add lightweight LM Studio and Ollama connection presets with empty model/editor choices and single-request defaults. Models and AI servers remain separately installed; no server/model dependencies are added to Forma.
+- Document external local-AI setup, structured-output compatibility, context limits and model selection. Refresh current review instructions and distinguish optional local authentication from cloud API keys.
+
 ## 0.11.1 — 2026-11-12
 
 - Deliver Windows and Linux as portable folders inside ZIP archives, with a small launcher and `_internal` dependencies. Retain the complete Windows OCR/models/Tesseract/BabelDOC package without repeated self-extraction. Validate the complete file inventory, runtime bytes, Linux symlinks and executable permissions.

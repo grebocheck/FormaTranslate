@@ -2,13 +2,55 @@
 
 from __future__ import annotations
 
-# Model availability/pricing verified 2026-11-10. Quotas belong to the provider's
+from forma.settings.defaults import OPENAI_BASE_URL, OPENAI_REVIEW_MODEL, OPENAI_TRANSLATION_MODEL
+
+# Defaults remain editable. Availability and quotas belong to the provider's
 # project/account; RPM here is a local pacing choice, never a promised free quota.
+_LOCAL_DEFAULTS = {
+    "description": "Мовний сервер на цьому ПК. Запустіть його окремо та виберіть встановлену модель.",
+    "apiMode": "chat",
+    "model": "",
+    "reviewModel": "",
+    "responseFormat": "auto",
+    "reasoningEffort": "",
+    "maxOutputTokens": 0,
+    "maxParallelRequests": 1,
+    "parallelDocuments": 1,
+    "requestsPerMinute": 0,
+}
+
 PRESETS = (
     {
         "id": "custom",
-        "label": "Власне підключення / OpenAI",
+        "label": "Власне підключення",
         "description": "Вкажіть адресу, модель і параметри свого API.",
+    },
+    {
+        "id": "openai",
+        "label": "OpenAI",
+        "description": "Вкажіть адресу, модель і параметри свого API.",
+        "baseUrl": OPENAI_BASE_URL,
+        "apiMode": "chat",
+        "model": OPENAI_TRANSLATION_MODEL,
+        "reviewModel": OPENAI_REVIEW_MODEL,
+        "responseFormat": "auto",
+        "reasoningEffort": "",
+        "maxOutputTokens": 0,
+        "maxParallelRequests": 8,
+        "parallelDocuments": 2,
+        "requestsPerMinute": 0,
+    },
+    {
+        **_LOCAL_DEFAULTS,
+        "id": "lmstudio",
+        "label": "LM Studio (локально)",
+        "baseUrl": "http://localhost:1234/v1",
+    },
+    {
+        **_LOCAL_DEFAULTS,
+        "id": "ollama",
+        "label": "Ollama (локально)",
+        "baseUrl": "http://localhost:11434/v1",
     },
     {
         "id": "gemini-free",

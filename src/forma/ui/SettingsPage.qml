@@ -18,7 +18,7 @@ ColumnLayout {
                     id: connectionBody
                     anchors.left: parent.left; anchors.right: parent.right; anchors.top: parent.top; anchors.margins: 20; spacing: 10
                     PageControls.Heading { text: qsTr("Підключення до AI") }
-                    PageControls.Caption { text: qsTr("Оберіть готове підключення або задайте власне. Додайте API-ключ і збережіть налаштування."); wrapMode: Text.WordWrap; Layout.fillWidth: true; Layout.bottomMargin: 4 }
+                    PageControls.Caption { text: qsTr("Оберіть готове підключення або задайте власне. Збережіть налаштування перед перекладом."); wrapMode: Text.WordWrap; Layout.fillWidth: true; Layout.bottomMargin: 4 }
                     PageControls.Caption { text: qsTr("Провайдер і пресет") }
                     PageControls.Select {
                         id: providerPreset; objectName: "providerPresetSelector"
@@ -53,7 +53,18 @@ ColumnLayout {
                             onClicked: { page.removeSavedKey = !page.removeSavedKey; apiKey.clear(); page.keyVisible = false }
                         }
                     }
-                    PageControls.Caption { objectName: "credentialStatusCaption"; text: page.removeSavedKey ? qsTr("Ключ буде видалено після натискання «Зберегти».") : !page.savedEndpointSelected ? qsTr("Введіть ключ для вибраного провайдера. Ключ іншого сервісу не переноситься.") : backend.settings.credentialStatus || qsTr("Ключ не відображається після збереження."); wrapMode: Text.WordWrap; Layout.fillWidth: true; color: page.removeSavedKey ? Theme.warning : shell.muted }
+                    PageControls.Caption {
+                        objectName: "credentialStatusCaption"
+                        text: {
+                            if (page.removeSavedKey) return qsTr("Ключ буде видалено після натискання «Зберегти».")
+                            if (page.localConnectionPreset && !apiKey.text.trim().length && !(page.savedEndpointSelected && backend.settings.keyPresent))
+                                return qsTr("Залиште поле порожнім, якщо локальний сервер не вимагає ключа.")
+                            if (!page.savedEndpointSelected) return qsTr("Ключ іншого сервісу не переноситься.")
+                            return backend.settings.credentialStatus || qsTr("Ключ не відображається після збереження.")
+                        }
+                        wrapMode: Text.WordWrap; Layout.fillWidth: true
+                        color: page.removeSavedKey ? Theme.warning : shell.muted
+                    }
                     RowLayout {
                         Layout.fillWidth: true; spacing: 16; Layout.topMargin: 6
                         ColumnLayout {
@@ -208,6 +219,7 @@ ColumnLayout {
     property bool keyVisible: false
     property string providerPresetId: "custom"
     readonly property var activeProviderPreset: backend.providerPresets.find(function(item) { return item.id === page.providerPresetId }) || ({})
+    readonly property bool localConnectionPreset: page.providerPresetId === "lmstudio" || page.providerPresetId === "ollama"
     readonly property bool nativeProvider: apiMode.currentText === "gemini" || apiMode.currentText === "anthropic"
     readonly property bool savedEndpointSelected: baseUrl.text.trim().replace(/\/+$/, "") === (backend.settings.baseUrl || "").trim().replace(/\/+$/, "")
     readonly property bool showLocalOcrSettings: scanProvider.currentIndex === 1 || (scanProvider.currentIndex === 0 && (scanConverterPath.text.trim().length > 0 || backend.settings.scanConverterReady || !backend.settings.abbyyReady))

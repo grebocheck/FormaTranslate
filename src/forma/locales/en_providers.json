@@ -5,6 +5,7 @@
   "Не більше %1 запитів за хвилину. Ліміти провайдера можуть бути нижчими.": "At most %1 requests per minute. Your provider may impose lower limits.",
   "Кількість паралельних запитів впливає на швидкість і навантаження на API.": "Concurrent requests affect speed and API load.",
   "Запитів за хвилину, 0 — без обмеження": "Requests per minute, 0 — no limit",
+  "Власне підключення": "Custom connection",
   "Власне підключення / OpenAI": "Custom connection / OpenAI",
   "Вкажіть адресу, модель і параметри свого API.": "Enter your API address, model and settings.",
   "Google Gemini — Free Tier": "Google Gemini — Free Tier",
@@ -18,5 +19,11 @@
   "Режим API має бути chat, responses, gemini або anthropic.": "API mode must be chat, responses, gemini or anthropic.",
   "Вичерпано квоту API для PDF-перекладу. Перевірте ліміти проєкту та повторіть пізніше.": "The API quota for PDF translation is exhausted. Check your project limits and try again later.",
   "API повернув некоректну відповідь PDF-перекладу. Перевірте модель і режим API.": "The API returned an invalid PDF translation response. Check the model and API mode.",
-  "Вичерпано денну квоту Gemini або модель недоступна для цього тарифу. Перевірте ліміти проєкту в Google AI Studio.": "The Gemini daily quota is exhausted or the model is unavailable on this tier. Check your project limits in Google AI Studio."
+  "Вичерпано денну квоту Gemini або модель недоступна для цього тарифу. Перевірте ліміти проєкту в Google AI Studio.": "The Gemini daily quota is exhausted or the model is unavailable on this tier. Check your project limits in Google AI Studio.",
+  "LM Studio (локально)": "LM Studio (local)",
+  "Ollama (локально)": "Ollama (local)",
+  "Мовний сервер на цьому ПК. Запустіть його окремо та виберіть встановлену модель.": "A model server on this PC. Start it separately and select an installed model.",
+  "Оберіть готове підключення або задайте власне. Збережіть налаштування перед перекладом.": "Choose a connection preset or configure your own. Save settings before translating.",
+  "Залиште поле порожнім, якщо локальний сервер не вимагає ключа.": "Leave this field empty if the local server does not require a key.",
+  "Ключ іншого сервісу не переноситься.": "Keys are not transferred between services."
 }
