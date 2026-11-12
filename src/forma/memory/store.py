@@ -358,6 +358,18 @@ class TranslationMemory:
         with self._connect() as db:
             return self._project(db, self._project_row(db, project_id))
 
+    def delete_project(self, project_id) -> None:
+        """Delete only this project's memory in one transaction.
+
+        References are records in ``entries``; their source/translated files,
+        reports, document history and other projects live outside this store.
+        """
+        with self._connect(write=True) as db:
+            self._project_row(db, project_id)
+            db.execute("DELETE FROM entries WHERE project_id=?", (project_id,))
+            db.execute("DELETE FROM glossaries WHERE project_id=?", (project_id,))
+            db.execute("DELETE FROM projects WHERE id=?", (project_id,))
+
     def update_glossary(self, project_id, glossary, expected_revision=None) -> Project:
         glossary, expected_revision = _glossary(glossary), _revision(expected_revision)
         with self._connect(write=True) as db:

@@ -298,5 +298,7 @@
   "Фрагмент ще не надсилали до API.": "Le segment n’a pas encore été envoyé à l’API.",
   "Не вдалося безпечно поділити фрагмент. Перегляньте звіт про проблемні фрагменти.": "Le segment n’a pas pu être divisé de manière sûre. Consultez le rapport des segments problématiques.",
   "Некоректна таблиця спільних рядків XLSX.": "Table de chaînes partagées XLSX incorrecte.",
-  "Некоректне посилання на спільний рядок XLSX.": "Référence à une chaîne partagée XLSX incorrecte."
+  "Некоректне посилання на спільний рядок XLSX.": "Référence à une chaîne partagée XLSX incorrecte.",
+  "Один додаток має різні позначення у перекладі. Узгодьте його позначення у змісті та заголовках.": "Une même annexe porte des repères différents dans la traduction. Harmonisez ses repères dans la table des matières et les titres.",
+  "Позначення різних додатків збігаються або виглядають однаково. Перевірте зміст і заголовки.": "Les repères de différentes annexes sont identiques ou se ressemblent visuellement. Vérifiez la table des matières et les titres."
 }

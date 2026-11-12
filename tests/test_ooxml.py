@@ -51,6 +51,73 @@ def test_translation_preserves_nontext_structure(fixture, request, tmp_path):
     assert metric["numbers_preserved"]
 
 
+def test_word_chart_scope_reports_text_caches_once_and_preserves_their_data(docx_file, tmp_path):
+    from forma.documents.ooxml import A, C
+
+    with ZipFile(docx_file) as archive:
+        parts = {name: archive.read(name) for name in archive.namelist()}
+    prose_chart = f'''<c:chartSpace xmlns:c="{C}" xmlns:a="{A}">
+      <c:chart><c:title><c:tx><c:rich><a:p><a:r><a:t>Heat meter</a:t></a:r></a:p></c:rich></c:tx></c:title>
+      <c:plotArea><c:barChart><c:ser>
+        <c:tx><c:v>Electricity consumption</c:v></c:tx>
+        <c:cat><c:strRef><c:strCache><c:pt idx="0"><c:v>January</c:v></c:pt></c:strCache></c:strRef></c:cat>
+        <c:val><c:numRef><c:numCache><c:pt idx="0"><c:v>31.5</c:v></c:pt></c:numCache></c:numRef></c:val>
+      </c:ser></c:barChart></c:plotArea></c:chart></c:chartSpace>'''.encode()
+    data_chart = f'''<c:chartSpace xmlns:c="{C}"><c:chart><c:plotArea><c:barChart><c:ser>
+      <c:tx><c:v>AM-100</c:v></c:tx>
+      <c:cat><c:strRef><c:strCache><c:pt idx="0"><c:v>2025</c:v></c:pt></c:strCache></c:strRef></c:cat>
+      <c:val><c:numRef><c:numCache><c:pt idx="0"><c:v>#N/A</c:v></c:pt></c:numCache></c:numRef></c:val>
+    </c:ser></c:barChart></c:plotArea></c:chart></c:chartSpace>'''.encode()
+    parts.update({"word/charts/chart1.xml": prose_chart, "word/charts/chart2.xml": data_chart,
+                  "word/embeddings/data.xlsx": b"Original workbook bytes"})
+    source = tmp_path / "charts.docx"
+    with ZipFile(source, "w") as archive:
+        for name, data in parts.items():
+            archive.writestr(name, data)
+    office = OfficeDocument(source)
+    findings = [issue for issue in office.issues if issue.code == "chart_labels_preserved"]
+    assert len(findings) == 1 and findings[0].severity == "warning"
+    assert not any(segment.plain in {"January", "Electricity consumption"} for segment in office.segments)
+    assert any(segment.plain == "Heat meter" for segment in office.segments)
+    output = tmp_path / "translated-charts.docx"
+    office.write(translated(office), output)
+    with ZipFile(output) as archive:
+        chart = etree.fromstring(archive.read("word/charts/chart1.xml"))
+        assert chart.xpath("//c:v/text()", namespaces={"c": C}) == [
+            "Electricity consumption", "January", "31.5",
+        ]
+        assert chart.xpath("//a:t/text()", namespaces={"a": A}) == ["Лічильник тепла"]
+        assert archive.read("word/charts/chart2.xml") == data_chart
+        assert archive.read("word/embeddings/data.xlsx") == b"Original workbook bytes"
+    with ZipFile(source, "w") as archive:
+        for name, data in parts.items():
+            if name != "word/charts/chart1.xml":
+                archive.writestr(name, data)
+    assert not any(issue.code == "chart_labels_preserved" for issue in OfficeDocument(source).issues)
+
+
+def test_word_raster_scope_is_one_information_note_without_reading_pixels(docx_file, tmp_path):
+    assert not any(issue.code == "embedded_image_text" for issue in OfficeDocument(docx_file).issues)
+    with ZipFile(docx_file) as archive:
+        parts = {name: archive.read(name) for name in archive.namelist()}
+    # The parser reports the translation boundary; it does not decode images or
+    # assume they contain words. Binary payloads stay outside the text mapping.
+    parts.update({"word/media/image1.png": b"Unmodified image payload",
+                  "word/media/image2.jpg": b"Another unmodified image payload"})
+    source = tmp_path / "images.docx"
+    with ZipFile(source, "w") as archive:
+        for name, data in parts.items():
+            archive.writestr(name, data)
+    office = OfficeDocument(source)
+    findings = [issue for issue in office.issues if issue.code == "embedded_image_text"]
+    assert len(findings) == 1 and findings[0].severity == "info"
+    output = tmp_path / "translated-images.docx"
+    office.write(translated(office), output)
+    with ZipFile(output) as archive:
+        assert archive.read("word/media/image1.png") == parts["word/media/image1.png"]
+        assert archive.read("word/media/image2.jpg") == parts["word/media/image2.jpg"]
+
+
 def test_fields_hyperlink_and_table(docx_file):
     document = OfficeDocument(docx_file)
     assert any("Installation manual" in s.plain for s in document.segments)

@@ -58,6 +58,7 @@ class Backend(
     uiThemeChanged = Signal()
     reviewEditChanged = Signal()
     recoveryStarted = Signal()
+    memoryProjectDeleted = Signal(str)
     closedReady = Signal()
     workerAvailabilityReady = Signal(int, object)
     settingsSaved = Signal()
@@ -126,12 +127,21 @@ class Backend(
         self._memory_reference = {"source": "", "output": "", "report": ""}
         self._memory_conflict = {}
         self._memory_conflict_request = None
+        requested_memory_project = self._settings.memory_project_id
         try:
             self._memory = TranslationMemory()
             self._memory_projects = self._memory.list_projects()
             if self._settings.memory_project_id:
-                self._memory_project = self._memory.get_project(self._settings.memory_project_id)
-                self._glossary = dict(self._memory_project.glossary)
+                self._memory_project = next(
+                    (project for project in self._memory_projects if project.id == self._settings.memory_project_id),
+                    None,
+                )
+                if self._memory_project:
+                    self._glossary = dict(self._memory_project.glossary)
+                else:
+                    self._settings = self._settings.with_overrides(memory_project_id="")
+                    self._memory_message = "Вибраний проєкт пам’яті недоступний. Пам’ять вимкнено; виберіть інший проєкт."
+                    self._memory_message_error = True
         except FormaError as exc:
             self._memory_message, self._memory_message_error = str(exc), True
         self._closing = False
@@ -234,7 +244,7 @@ class Backend(
         except FormaError as exc:
             self._library = None
             self._notice(str(exc), "error")
-        if self._settings.memory_project_id and self._memory_message_error and not self._message:
+        if requested_memory_project and self._memory_message_error and not self._message:
             self._notice(self._memory_message, "warning")
         self._refresh_worker_availability()
         self.changed.connect(self._sync_document_model)
@@ -752,6 +762,10 @@ class Backend(
     @Slot(str, str, str, result=bool)
     def createMemoryProject(self, name, source_language, target_language):
         return MemoryWorkflow.createMemoryProject(self, name, source_language, target_language)
+
+    @Slot(str)
+    def deleteMemoryProject(self, project_id):
+        return MemoryWorkflow.deleteMemoryProject(self, project_id)
 
     @Slot()
     def prepareMemoryReference(self):

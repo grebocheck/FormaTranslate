@@ -83,5 +83,13 @@
   "Цей звіт не підтримує ручне продовження. Повторіть переклад: готові фрагменти буде використано повторно.": "Ce rapport ne permet pas de reprise manuelle. Relancez la traduction : les passages déjà terminés seront réutilisés.",
   "Переклад потребує виправлення після трьох спроб. Відкрийте проблемні фрагменти, виправте переклад і продовжіть.": "La traduction doit encore être corrigée après trois tentatives. Ouvrez les passages problématiques, corrigez la traduction et continuez.",
   "Документ ще не експортовано. У Forma відкрийте «Виправити й продовжити», перевірте проблемні фрагменти та продовжіть переклад. Готові фрагменти й ручні правки буде використано повторно.": "Le document n’a pas encore été exporté. Dans Forma, ouvrez « Corriger et continuer », vérifiez les passages problématiques et poursuivez la traduction. Les passages déjà terminés et les modifications manuelles seront réutilisés.",
-  "Цей переклад очікує відновлення DOCX після OCR. Відкрийте проблемні фрагменти знову.": "Cette traduction nécessite de reprendre le DOCX préparé par OCR. Ouvrez à nouveau les passages problématiques."
+  "Цей переклад очікує відновлення DOCX після OCR. Відкрийте проблемні фрагменти знову.": "Cette traduction nécessite de reprendre le DOCX préparé par OCR. Ouvrez à nouveau les passages problématiques.",
+  "Видалити проєкт…": "Supprimer le projet…",
+  "Видалити проєкт «%1»?": "Supprimer le projet « %1 » ?",
+  "Буде назавжди видалено пам’ять перекладів цього проєкту, його глосарій і записи еталонів. Оригінали, перекладені файли та історія документів залишаться.": "La mémoire de traduction, le glossaire et les entrées de référence de ce projet seront supprimés définitivement. Les fichiers originaux, les traductions et l’historique des documents seront conservés.",
+  "Видаляємо…": "Suppression…",
+  "Видалити назавжди": "Supprimer définitivement",
+  "Проєкт видалено. Не вдалося зберегти вибір; пам’ять вимкнено для цієї сесії.": "Le projet a été supprimé. La sélection n’a pas pu être enregistrée ; la mémoire est désactivée pour cette session.",
+  "Проєкт пам’яті видалено.": "Projet de mémoire de traduction supprimé.",
+  "Вибраний проєкт пам’яті недоступний. Пам’ять вимкнено; виберіть інший проєкт.": "Le projet de mémoire sélectionné est indisponible. La mémoire est désactivée ; choisissez un autre projet."
 }

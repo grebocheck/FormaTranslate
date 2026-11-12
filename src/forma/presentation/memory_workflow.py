@@ -115,6 +115,55 @@ class MemoryWorkflow:
             self._memory_notice(str(exc), error=True)
         return False
 
+    def deleteMemoryProject(self, project_id):
+        if (
+            self.busy or self._closing or self._review_editing or self._review_saving
+            or not self._memory or not project_id
+            or not any(project.id == project_id for project in self._memory_projects)
+        ):
+            return
+        memory = self._memory
+        selected = bool(self._memory_project and self._memory_project.id == project_id)
+        self._memory_working, self._busy = True, True
+        self._memory_message, self._memory_message_error = "", False
+
+        def run(emit):
+            memory.delete_project(project_id)
+            preference_error = False
+            if selected:
+                try:
+                    update_preferences({"memory_project_id": ""})
+                except OSError:
+                    preference_error = True
+            emit("memory_deleted", {"preference_error": preference_error})
+
+        def receive(kind, payload):
+            if kind != "memory_deleted":
+                self._memory_notice(payload, error=True)
+                return
+            self._memory_projects = [project for project in self._memory_projects if project.id != project_id]
+            if selected:
+                self._memory_project = None
+                self._settings = self._settings.with_overrides(memory_project_id="")
+                self._glossary = dict(self._standalone_glossary)
+                self._glossary_name = self._standalone_glossary_name
+                self._memory_conflict = {}
+                self._memory_conflict_request = None
+                self._memory_reference = {"source": "", "output": "", "report": ""}
+            self._memory_notice(
+                "Проєкт видалено. Не вдалося зберегти вибір; пам’ять вимкнено для цієї сесії."
+                if payload["preference_error"] else "Проєкт пам’яті видалено.",
+                error=payload["preference_error"],
+            )
+            self.memoryProjectDeleted.emit(project_id)
+
+        def finish():
+            self._memory_working, self._busy = False, False
+            self.changed.emit()
+
+        self._launch(run, handler=receive, done=finish)
+        self.changed.emit()
+
     def prepareMemoryReference(self):
         if self.busy:
             return

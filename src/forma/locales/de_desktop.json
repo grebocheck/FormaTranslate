@@ -83,5 +83,13 @@
   "Цей звіт не підтримує ручне продовження. Повторіть переклад: готові фрагменти буде використано повторно.": "Dieser Bericht unterstützt keine manuelle Fortsetzung. Starten Sie die Übersetzung erneut: fertige Abschnitte werden wiederverwendet.",
   "Переклад потребує виправлення після трьох спроб. Відкрийте проблемні фрагменти, виправте переклад і продовжіть.": "Die Übersetzung muss nach drei Versuchen noch korrigiert werden. Öffnen Sie die problematischen Abschnitte, korrigieren Sie die Übersetzung und fahren Sie fort.",
   "Документ ще не експортовано. У Forma відкрийте «Виправити й продовжити», перевірте проблемні фрагменти та продовжіть переклад. Готові фрагменти й ручні правки буде використано повторно.": "Das Dokument wurde noch nicht exportiert. Öffnen Sie in Forma „Korrigieren und fortfahren“, prüfen Sie die problematischen Abschnitte und setzen Sie die Übersetzung fort. Fertige Abschnitte und manuelle Änderungen werden wiederverwendet.",
-  "Цей переклад очікує відновлення DOCX після OCR. Відкрийте проблемні фрагменти знову.": "Diese Übersetzung erfordert die Fortsetzung der durch OCR vorbereiteten DOCX-Datei. Öffnen Sie die problematischen Abschnitte erneut."
+  "Цей переклад очікує відновлення DOCX після OCR. Відкрийте проблемні фрагменти знову.": "Diese Übersetzung erfordert die Fortsetzung der durch OCR vorbereiteten DOCX-Datei. Öffnen Sie die problematischen Abschnitte erneut.",
+  "Видалити проєкт…": "Projekt löschen…",
+  "Видалити проєкт «%1»?": "Projekt „%1“ löschen?",
+  "Буде назавжди видалено пам’ять перекладів цього проєкту, його глосарій і записи еталонів. Оригінали, перекладені файли та історія документів залишаться.": "Der Übersetzungsspeicher, das Glossar und die Referenzeinträge dieses Projekts werden dauerhaft gelöscht. Originaldateien, übersetzte Dateien und der Dokumentverlauf bleiben erhalten.",
+  "Видаляємо…": "Wird gelöscht…",
+  "Видалити назавжди": "Dauerhaft löschen",
+  "Проєкт видалено. Не вдалося зберегти вибір; пам’ять вимкнено для цієї сесії.": "Das Projekt wurde gelöscht. Die Auswahl konnte nicht gespeichert werden; der Speicher ist für diese Sitzung deaktiviert.",
+  "Проєкт пам’яті видалено.": "Übersetzungsspeicher-Projekt gelöscht.",
+  "Вибраний проєкт пам’яті недоступний. Пам’ять вимкнено; виберіть інший проєкт.": "Das ausgewählte Speicherprojekt ist nicht verfügbar. Der Speicher ist deaktiviert; wählen Sie ein anderes Projekt."
 }

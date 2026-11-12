@@ -2,12 +2,13 @@ from __future__ import annotations
 
 import hashlib
 import json
+import threading
 from dataclasses import asdict
 from pathlib import Path
 
 import pytest
 from docx import Document
-from PySide6.QtCore import QCoreApplication, QEvent, QObject, QUrl
+from PySide6.QtCore import QCoreApplication, QEvent, QObject, QPointF, Qt, QTimer, QUrl
 from PySide6.QtQml import QQmlApplicationEngine
 from PySide6.QtQuick import QQuickItem
 from PySide6.QtTest import QTest
@@ -108,6 +109,99 @@ def test_memory_project_selection_and_shared_glossary_survive_restart(memory_bac
     assert restarted._glossary == {"насос": "pump"}
     assert backend.selectMemoryProject("")
     assert backend._glossary == {"термін": "term"}
+
+
+def test_project_delete_runs_off_thread_and_resets_only_selected_memory(qapp, memory_backend, tmp_path, monkeypatch):
+    backend = memory_backend
+    standalone = tmp_path / "standalone.csv"
+    standalone.write_text("source,target\nтермін,term\n", encoding="utf-8")
+    backend.loadGlossary(str(standalone))
+    backend.createMemoryProject("Delete this project", "uk", "en")
+    selected = backend.memoryProject["id"]
+    other = backend._memory.create_project("Keep this project", "uk", "en")
+    backend.prepareMemoryReference()
+    files = reference_files(tmp_path)
+    before = [path.read_bytes() for path in files[:3]]
+    for kind, path in zip(("source", "output", "report"), files, strict=False):
+        backend.setMemoryReferencePath(kind, str(path))
+    backend._library.add_history({"id": "retained", "name": "source.docx", "format": "DOCX", "status": "done", "output": str(files[1])})
+    history = backend._library.list_history()
+    actual_delete = backend._memory.delete_project
+    started, release = threading.Event(), threading.Event()
+
+    def delete(project_id):
+        assert threading.current_thread() is not threading.main_thread()
+        started.set()
+        assert release.wait(3)
+        actual_delete(project_id)
+
+    monkeypatch.setattr(backend._memory, "delete_project", delete)
+    backend._review_editing = True
+    backend.deleteMemoryProject(selected)
+    assert not started.is_set() and not backend.memoryWorking
+    backend._review_editing = False
+    try:
+        backend.deleteMemoryProject(selected)
+        assert backend.memoryWorking and backend.busy
+        heartbeat = []
+        QTimer.singleShot(0, lambda: heartbeat.append(True))
+        QTest.qWait(20)
+        assert started.is_set() and heartbeat
+        assert not backend.selectMemoryProject(other.id)
+        backend.deleteMemoryProject(other.id)
+    finally:
+        release.set()
+        settle(qapp, backend)
+    assert not backend.memoryProject and not backend._settings.memory_project_id
+    assert load_preferences()["memory_project_id"] == ""
+    assert backend._glossary == {"термін": "term"}
+    assert not any(backend.memoryReference.values())
+    assert not backend.memoryConflict
+    assert backend._memory.get_project(other.id).id == other.id
+    assert backend._library.list_history() == history
+    assert [path.read_bytes() for path in files[:3]] == before
+    restarted = Backend()
+    try:
+        assert not restarted.memoryProject and not restarted._settings.memory_project_id
+        assert [value["id"] for value in restarted.memoryProjects] == ["", other.id]
+    finally:
+        settle(qapp, restarted)
+
+
+def test_delete_failure_preserves_project_and_stale_preference_is_safe_after_restart(qapp, memory_backend, monkeypatch):
+    backend = memory_backend
+    backend.createMemoryProject("Delete after retry", "uk", "en")
+    selected = backend.memoryProject["id"]
+    actual_delete = backend._memory.delete_project
+
+    def fail_delete(project_id):
+        raise FormaError("Simulated database failure")
+
+    monkeypatch.setattr(backend._memory, "delete_project", fail_delete)
+    backend.deleteMemoryProject(selected)
+    settle(qapp, backend)
+    assert backend.memoryProject["id"] == selected
+    assert backend._memory.get_project(selected).id == selected
+    assert load_preferences()["memory_project_id"] == selected
+    assert backend.memoryMessageError
+    monkeypatch.setattr(backend._memory, "delete_project", actual_delete)
+
+    def fail_preferences(values):
+        raise OSError("Simulated preference failure")
+
+    monkeypatch.setattr(memory_workflow, "update_preferences", fail_preferences)
+    backend.deleteMemoryProject(selected)
+    settle(qapp, backend)
+    assert not backend.memoryProject and not backend._settings.memory_project_id
+    assert backend.memoryMessageError and "Проєкт видалено" in backend.memoryMessage
+    assert load_preferences()["memory_project_id"] == selected
+    restarted = Backend()
+    try:
+        assert not restarted.memoryProject and not restarted._settings.memory_project_id
+        assert restarted.memoryMessageError and "недоступний" in restarted.memoryMessage
+        assert "недоступний" in restarted.message
+    finally:
+        settle(qapp, restarted)
     assert not backend.settings["keyPresent"]
 
 
@@ -324,7 +418,7 @@ def test_preferred_dialog_async_close_preserves_conflict_and_replacement(
         qapp.removeTranslator(translator)
 
 
-def test_memory_dialog_drafts_and_project_survive_four_language_switches(
+def test_memory_dialog_drafts_project_and_delete_confirmation_survive_language_switches(
     qapp, memory_backend
 ):
     backend = memory_backend
@@ -341,6 +435,14 @@ def test_memory_dialog_drafts_and_project_survive_four_language_switches(
     window = engine.rootObjects()[0]
     window.setWidth(960)
     window.setHeight(680)
+
+    def click(name):
+        button = window.findChild(QQuickItem, name)
+        assert button is not None and button.isVisible() and button.isEnabled(), name
+        point = button.mapToScene(QPointF(button.width() / 2, button.height() / 2))
+        QTest.mouseClick(window, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier, point.toPoint())
+        QTest.qWait(10)
+
     try:
         window.findChild(QQuickItem, "manageMemoryButton").clicked.emit()
         QTest.qWait(30)
@@ -349,18 +451,37 @@ def test_memory_dialog_drafts_and_project_survive_four_language_switches(
         backend.setMemoryReferencePath("source", "/unsaved/Документ.docx")
         approved = window.findChild(QQuickItem, "memoryReferencePreferred")
         approved.setProperty("checked", True)
-        for language in ("en", "pl", "de", "uk"):
+        project_id = backend.memoryProject["id"]
+        click("deleteMemoryProjectButton")
+        confirmation = window.findChild(QObject, "deleteMemoryProjectDialog")
+        assert confirmation.property("opened")
+        for language in ("en", "pl", "de", "fr", "es", "uk"):
             backend.setUiLanguage(language)
             QTest.qWait(30)
             assert name.property("text") == "Unsaved — {draft}"
             assert approved.property("checked")
             assert backend.memoryReference["source"] == "/unsaved/Документ.docx"
             assert backend.memoryProject["name"] == "Energy — {name}"
+            assert confirmation.property("projectId") == project_id
+            assert confirmation.property("projectName") == "Energy — {name}"
             assert window.findChild(QQuickItem, "sourceLanguage").property("currentIndex") == 2
             assert window.findChild(QQuickItem, "targetLanguage").property("currentIndex") == 0
             assert not window.grabWindow().isNull()
+        click("cancelDeleteMemoryProjectButton")
+        assert backend._memory.get_project(project_id).name == "Energy — {name}"
+        assert not backend.memoryWorking
         backend.setMemoryReferencePath("output", "/another/reference.en.docx")
         assert not approved.property("checked")
+        other = backend._memory.create_project("Another selected project", "uk", "en")
+        backend.prepareMemoryReference()
+        click("deleteMemoryProjectButton")
+        assert backend.selectMemoryProject(other.id)
+        assert confirmation.property("projectId") == project_id
+        click("confirmDeleteMemoryProjectButton")
+        settle(qapp, backend)
+        assert not confirmation.property("opened")
+        assert backend.memoryProject["id"] == other.id
+        assert project_id not in {project["id"] for project in backend.memoryProjects}
         window.findChild(QObject, "closeMemoryDialogButton").clicked.emit()
         assert not warnings, "\n".join(warnings)
     finally:

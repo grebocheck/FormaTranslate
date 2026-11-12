@@ -2,6 +2,14 @@
 
 Versions follow semantic versioning. Changes before 1.0 may evolve as document compatibility improves.
 
+## 0.13.0 — 2026-11-12
+
+- Delete memory projects through an explicit confirmation, using a background transaction that removes only the selected project's entries and glossary. Preserve documents, history and other projects; recover safely from missing saved selections and preference-write failures.
+- Check explicit Word appendix headings for inconsistent reference labels and collisions, including visually identical Cyrillic/Latin letters. Keep findings nonblocking, skip ambiguous prose/ranges/subappendices and bind review acknowledgements to all participating headings.
+- Tell the translator and editor to retain original appendix identifiers unless an authoritative glossary supplies a replacement. Recheck reference warnings after manual edits and when opening older reports without repeating paid translation.
+- Warn when native Word chart string caches retain untranslated labels, and explain that raster images can contain text outside Office translation. Preserve chart numbers, workbooks and image bytes.
+- Reconcile an interrupted desktop's terminal queue state with a newer completed history record only after background source/report/output validation, preserving current user work and selections.
+
 ## 0.12.1 — 2026-11-12
 
 - Recognize a separated decimal mark such as `1 ,5` as the same value as `1.5`, including nonbreaking spaces and Word run boundaries. Keep actual lists, signs, precision, percentages, units and protected identifiers checked.

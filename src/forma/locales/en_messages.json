@@ -298,6 +298,7 @@
   "Фрагмент ще не надсилали до API.": "The segment has not been sent to the API yet.",
   "Не вдалося безпечно поділити фрагмент. Перегляньте звіт про проблемні фрагменти.": "The segment could not be split safely. See the report of problematic segments.",
   "Некоректна таблиця спільних рядків XLSX.": "Invalid XLSX shared-string table.",
-  "Некоректне посилання на спільний рядок XLSX.": "Invalid XLSX shared-string reference."
+  "Некоректне посилання на спільний рядок XLSX.": "Invalid XLSX shared-string reference.",
+  "Один додаток має різні позначення у перекладі. Узгодьте його позначення у змісті та заголовках.": "One appendix has different labels in the translation. Make its table-of-contents and heading labels consistent.",
+  "Позначення різних додатків збігаються або виглядають однаково. Перевірте зміст і заголовки.": "The labels of different appendices match or look identical. Check the table of contents and headings."
 }
-

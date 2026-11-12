@@ -7,17 +7,20 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
-from PySide6.QtCore import QPersistentModelIndex
+from PySide6.QtCore import QPersistentModelIndex, QTimer
 from PySide6.QtTest import QSignalSpy
 from support import pump
 
-from forma.core.models import Cancelled, FormaError, TranslationResult
+from forma.core.models import Cancelled, FormaError, Options, TranslationResult
 from forma.documents.ooxml import OfficeDocument
 from forma.persistence.files import available_output
+from forma.persistence.review_store import ReviewStore
 from forma.presentation.backend import Backend
 from forma.presentation.documents_workflow import DocumentWorkflow
 from forma.settings.config import ENV_FIELDS, Settings
 from forma.settings.credentials import CredentialError
+from forma.translation.engine import file_digest
+from forma.translation.reports import write_translation_report
 
 
 class FakeEngine:
@@ -301,6 +304,157 @@ def test_restart_keeps_committed_completion_when_queue_snapshot_was_interrupted(
     assert restarted.historyEntries[0]["status"] == "done"
     assert restarted.historyEntries[0]["inputTokens"] == 55
     assert not FakeEngine.calls
+
+
+def tracked_office_completion(factory, qapp, docx_file, tmp_path):
+    backend = factory()
+    qapp.processEvents()
+    pump(qapp, lambda: not backend._threads)
+    output = tmp_path / "external-completion.uk.docx"
+    document = OfficeDocument(docx_file)
+    translations = {segment.id: segment.source for segment in document.segments}
+    document.write(translations, output)
+    result = TranslationResult(
+        docx_file, output, document.segments, translations, [], input_tokens=23, output_tokens=11,
+        source_sha256=file_digest(docx_file), output_sha256=file_digest(output),
+        extraction_profile=document.extraction_profile,
+    )
+    write_translation_report(result, Options("en", "uk", review=False, auto_glossary=False), "fixture-model")
+    failed = {
+        "id": "job", "path": str(docx_file), "name": docx_file.name, "format": "DOCX",
+        "status": "error", "statusText": "Потрібна увага", "error": "Earlier validation failure",
+        "sourceLanguage": "en", "targetLanguage": "uk", "model": "fixture-model", "reviewModel": "",
+        "startedAt": 1000, "elapsedSeconds": 1, "diagnosticReport": str(tmp_path / "old.html"),
+    }
+    Path(failed["diagnosticReport"]).write_text("Earlier private diagnostic")
+    Path(failed["diagnosticReport"]).with_suffix(".json").write_text('{"kind":"translation_validation_failure"}')
+    history = {
+        "id": "failed-attempt", "source": str(docx_file), "name": docx_file.name, "format": "DOCX",
+        "status": "error", "finishedAt": 2000, "sourceLanguage": "en", "targetLanguage": "uk",
+        "model": "fixture-model", "reviewModel": "",
+    }
+    backend._library.add_history(history)
+    history = {**history, "id": "external-completion", "status": "done", "finishedAt": 5000,
+               "output": str(output), "report": str(result.report), "inputTokens": 23,
+               "outputTokens": 11, "warningCount": 2, "elapsedSeconds": 2}
+    backend._library.add_history(history)
+    backend._library.save_queue([failed])
+    return backend, failed, history, result
+
+
+def test_terminal_queue_restores_newer_bound_office_completion_in_background(
+    factory, qapp, monkeypatch, docx_file, tmp_path,
+):
+    import forma.presentation.session_reconcile as module
+
+    original_backend, failed, _, result = tracked_office_completion(factory, qapp, docx_file, tmp_path)
+    original = module._validated_completion
+    entered, release = threading.Event(), threading.Event()
+    ticks = []
+
+    def blocked(*args):
+        assert threading.current_thread() is not threading.main_thread()
+        entered.set()
+        assert release.wait(5)
+        return original(*args)
+
+    monkeypatch.setattr(module, "_validated_completion", blocked)
+    timer = QTimer()
+    timer.setInterval(1)
+    timer.timeout.connect(lambda: ticks.append(True))
+    timer.start()
+    restarted = factory()
+    settings = restarted._settings
+    before = (docx_file.read_bytes(), result.output.read_bytes(), result.report.read_bytes())
+    try:
+        pump(qapp, lambda: entered.is_set() and len(ticks) >= 3)
+        assert restarted.documents[0]["status"] == "error" and not restarted.busy
+        assert restarted._selected == failed["id"]
+        release.set()
+        pump(qapp, lambda: not restarted._threads)
+        restored = restarted.documents[0]
+        assert restored["status"] == "done" and restored["output"] == str(result.output)
+        assert restored["report"] == str(result.report) and restored["diagnosticReport"] == ""
+        assert restored["tokens"] == "34" and restored["warningCount"] == 2
+        assert restarted._selected == failed["id"] and restarted._settings == settings
+        assert not restarted.reviewSummary["hasResult"]
+        assert original_backend._library.load_queue()[0]["status"] == "done"
+        assert len(restarted.historyEntries) == 2 and not FakeEngine.calls
+        assert before == (docx_file.read_bytes(), result.output.read_bytes(), result.report.read_bytes())
+    finally:
+        release.set()
+        timer.stop()
+        pump(qapp, lambda: not restarted._threads)
+
+
+def test_terminal_reconciliation_rejects_changed_files_newer_failures_and_new_user_intent(
+    factory, qapp, monkeypatch, docx_file, tmp_path,
+):
+    import forma.presentation.session_reconcile as module
+
+    backend, failed, completed, result = tracked_office_completion(factory, qapp, docx_file, tmp_path)
+    original_source, original_output = docx_file.read_bytes(), result.output.read_bytes()
+    for path, before in ((docx_file, original_source), (result.output, original_output)):
+        path.write_bytes(before + b"changed after report")
+        backend._library.save_queue([failed])
+        restarted = factory()
+        qapp.processEvents()
+        pump(qapp, lambda restarted=restarted: not restarted._threads)
+        assert restarted.documents[0]["status"] == "error"
+        path.write_bytes(before)
+    report_bytes = result.report.read_bytes()
+    raw_report = json.loads(report_bytes)
+    for changes in ({"model": "another-profile"},
+                    {"options": {**raw_report["options"], "target_language": "de"}}):
+        result.report.write_text(json.dumps({**raw_report, **changes}))
+        backend._library.save_queue([failed])
+        restarted = factory()
+        qapp.processEvents()
+        pump(qapp, lambda restarted=restarted: not restarted._threads)
+        assert restarted.documents[0]["status"] == "error"
+    result.report.write_bytes(report_bytes)
+    diagnostic = Path(failed["diagnosticReport"]).with_suffix(".json")
+    store = ReviewStore()
+    state = store.load(diagnostic)
+    edits = {result.segments[0].id: result.translations[result.segments[0].id]}
+    store.save(diagnostic, {}, edits, expected_fingerprint=state["reportFingerprint"])
+    backend._library.save_queue([failed])
+    drafted = factory()
+    qapp.processEvents()
+    pump(qapp, lambda: not drafted._threads)
+    assert drafted.documents[0]["status"] == "error" and not drafted._review_edits
+    assert store.load(diagnostic)["edits"] == edits
+    store.save(diagnostic, {}, {}, expected_fingerprint=state["reportFingerprint"])
+    backend._library.add_history({**completed, "id": "newer-cancellation", "status": "cancelled", "finishedAt": 6000,
+                                 "report": "", "output": ""})
+    backend._library.save_queue([failed])
+    cancelled = factory()
+    qapp.processEvents()
+    pump(qapp, lambda: not cancelled._threads)
+    assert cancelled.documents[0]["status"] == "error"
+    backend._library.remove_history("newer-cancellation")
+    backend._library.save_queue([failed])
+    original = module._validated_completion
+    entered, release = threading.Event(), threading.Event()
+
+    def blocked(*args):
+        entered.set()
+        assert release.wait(5)
+        return original(*args)
+
+    monkeypatch.setattr(module, "_validated_completion", blocked)
+    restarted = factory()
+    try:
+        pump(qapp, lambda: entered.is_set())
+        restarted.requeueHistory(completed["id"])
+        pump(qapp, lambda: restarted.documents[0]["status"] == "ready")
+        release.set()
+        pump(qapp, lambda: not restarted._threads)
+        assert restarted.documents[0]["status"] == "ready"
+        assert not restarted.documents[0].get("output") and not FakeEngine.calls
+    finally:
+        release.set()
+        pump(qapp, lambda: not restarted._threads)
 
 
 def test_terminal_attempts_enter_history_and_repeat_creates_new_attempt(

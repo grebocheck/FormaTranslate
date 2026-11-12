@@ -19,12 +19,14 @@ from forma.translation.quality import immutable_spans
 
 W = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
 A = "http://schemas.openxmlformats.org/drawingml/2006/main"
+C = "http://schemas.openxmlformats.org/drawingml/2006/chart"
 S = "http://schemas.openxmlformats.org/spreadsheetml/2006/main"
 R = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
 XML_SPACE = "{http://www.w3.org/XML/1998/namespace}space"
 NS = {"w": W, "a": A, "s": S}
 MAX_UNPACKED = 512 * 1024 * 1024
 MAX_XML = 64 * 1024 * 1024
+RASTER_IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".bmp", ".gif", ".tif", ".tiff", ".webp"}
 
 
 def parse_xml(data: bytes) -> etree._ElementTree:
@@ -139,6 +141,7 @@ class OfficeDocument:
         if self.path.suffix.lower() == ".docx":
             if "word/document.xml" not in self.parts:
                 raise FormaError("У DOCX відсутня основна частина документа.")
+            chart_data_labels = False
             for part in self.parts:
                 if re.fullmatch(
                     r"word/(document|header\d*|footer\d*|footnotes|endnotes|comments)\.xml", part
@@ -146,6 +149,20 @@ class OfficeDocument:
                     self._word(part)
                 elif re.fullmatch(r"word/(charts|diagrams)/[^/]+\.xml", part):
                     self._drawing(part)
+                    if part.startswith("word/charts/") and self._chart_data_labels(part):
+                        chart_data_labels = True
+            if chart_data_labels:
+                self.issues.append(Issue(
+                    "chart_labels_preserved",
+                    "Деякі підписи вбудованих діаграм збережено без перекладу. Перевірте назви рядів і категорій у Word.",
+                ))
+            if any(part.startswith("word/media/") and Path(part).suffix.lower() in RASTER_IMAGE_SUFFIXES
+                   for part in self.parts):
+                self.issues.append(Issue(
+                    "embedded_image_text",
+                    "Текст усередині вбудованих зображень не перекладається автоматично. Якщо зображення містять написи, перевірте їх окремо.",
+                    severity="info",
+                ))
         else:
             self._excel()
         for i, segment in enumerate(self.segments):
@@ -158,6 +175,27 @@ class OfficeDocument:
                 for n in neighbors
                 if self.targets[n.id].part == self.targets[segment.id].part
             )
+
+    def _chart_data_labels(self, part: str) -> bool:
+        # DrawingML a:t is already extracted. Chart string caches/direct series
+        # names need different handling, including their source workbook. Report
+        # that boundary without treating numeric caches or identifiers as prose.
+        for node in self._tree(part).iter(f"{{{C}}}v"):
+            parent = node.getparent()
+            if parent is None:
+                continue
+            container = parent.getparent()
+            if not (parent.tag == f"{{{C}}}tx" or (
+                parent.tag == f"{{{C}}}pt" and container is not None
+                and container.tag == f"{{{C}}}strCache"
+            )):
+                continue
+            value = (node.text or "").strip()
+            if any(character.isalpha() for character in value) and not any(
+                start == 0 and end == len(value) for start, end, _ in immutable_spans(value)
+            ):
+                return True
+        return False
 
     def _word(self, part: str) -> None:
         tree = self._tree(part)

@@ -55,7 +55,20 @@ Popup {
                     Field { id: projectName; objectName: "memoryProjectNameField"; Layout.fillWidth: true; placeholderText: qsTr("Назва проєкту"); enabled: !dialog.controller.busy; maximumLength: 120; Accessible.name: qsTr("Назва проєкту") }
                     Action { text: qsTr("Створити"); objectName: "createMemoryProjectButton"; enabled: !dialog.controller.busy && projectName.text.trim().length > 0; onClicked: { if (dialog.controller.createMemoryProject(projectName.text, dialog.sourceLanguageCode, dialog.targetLanguageCode)) projectName.clear() } }
                 }
-                Copy { text: dialog.controller.memoryProject.name ? qsTr("Вибрано: %1").arg(dialog.controller.memoryProject.name) : qsTr("Спочатку створіть або виберіть проєкт у документах."); color: Theme.muted }
+                RowLayout {
+                    Layout.fillWidth: true; spacing: 10
+                    Copy { text: dialog.controller.memoryProject.name ? qsTr("Вибрано: %1").arg(dialog.controller.memoryProject.name) : qsTr("Спочатку створіть або виберіть проєкт у документах."); color: Theme.muted; Layout.minimumWidth: 0 }
+                    Action {
+                        text: qsTr("Видалити проєкт…"); objectName: "deleteMemoryProjectButton"; iconName: "trash"; danger: true; subtle: true
+                        visible: !!dialog.controller.memoryProject.id
+                        enabled: !dialog.controller.busy
+                        onClicked: {
+                            deleteConfirmation.projectId = dialog.controller.memoryProject.id
+                            deleteConfirmation.projectName = dialog.controller.memoryProject.name
+                            deleteConfirmation.open()
+                        }
+                    }
+                }
                 Copy { text: qsTr("Спільний глосарій"); font.weight: Font.DemiBold; Layout.topMargin: 6 }
                 RowLayout {
                     Layout.fillWidth: true; spacing: 10
@@ -111,6 +124,43 @@ Popup {
             Layout.fillWidth: true
             Item { Layout.fillWidth: true }
             Action { text: qsTr("Закрити"); objectName: "closeMemoryDialogButton"; enabled: !dialog.controller.memoryWorking; onClicked: dialog.close() }
+        }
+    }
+    Popup {
+        id: deleteConfirmation
+        objectName: "deleteMemoryProjectDialog"
+        property string projectId: ""
+        property string projectName: ""
+        property bool submitted: false
+        parent: Overlay.overlay; anchors.centerIn: parent
+        width: Math.min(560, parent.width - 32); padding: 22
+        modal: true; focus: true
+        closePolicy: dialog.controller.memoryWorking ? Popup.NoAutoClose : Popup.CloseOnEscape
+        background: Rectangle { color: Theme.surface; radius: 12; border.color: Theme.line }
+        Overlay.modal: Rectangle { color: Theme.overlay }
+        onOpened: submitted = false
+        Connections {
+            target: dialog.controller
+            function onMemoryProjectDeleted(projectId) {
+                if (projectId === deleteConfirmation.projectId) deleteConfirmation.close()
+            }
+        }
+        contentItem: ColumnLayout {
+            spacing: 14
+            Copy { objectName: "deleteMemoryProjectTitle"; text: qsTr("Видалити проєкт «%1»?").arg(deleteConfirmation.projectName); font.pixelSize: 21; font.weight: Font.DemiBold }
+            Copy { text: qsTr("Буде назавжди видалено пам’ять перекладів цього проєкту, його глосарій і записи еталонів. Оригінали, перекладені файли та історія документів залишаться."); color: Theme.muted }
+            Copy { text: dialog.controller.memoryMessage; visible: deleteConfirmation.submitted && dialog.controller.memoryMessageError; color: Theme.danger }
+            RowLayout {
+                Layout.fillWidth: true; spacing: 10
+                Item { Layout.fillWidth: true }
+                Action { text: qsTr("Скасувати"); objectName: "cancelDeleteMemoryProjectButton"; enabled: !dialog.controller.memoryWorking; onClicked: deleteConfirmation.close() }
+                Action {
+                    text: dialog.controller.memoryWorking ? qsTr("Видаляємо…") : qsTr("Видалити назавжди")
+                    objectName: "confirmDeleteMemoryProjectButton"; danger: true; iconName: "trash"
+                    enabled: !dialog.controller.busy && !!deleteConfirmation.projectId
+                    onClicked: { deleteConfirmation.submitted = true; dialog.controller.deleteMemoryProject(deleteConfirmation.projectId) }
+                }
+            }
         }
     }
 }

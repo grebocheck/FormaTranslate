@@ -68,6 +68,36 @@ def test_project_language_binding_and_private_isolation(memory, project):
         memory.get_project("missing")
 
 
+def test_delete_project_is_atomic_and_keeps_other_projects_and_files(memory, project, record, profile, tmp_path):
+    other = memory.create_project("Other project", "en", "de", {"pump": "Pumpe"})
+    memory.save_machine(project.id, **record, generation_profile=profile)
+    memory.save_reference(project.id, **another(record))
+    memory.update_glossary(project.id, {"pump": "насос"})
+    memory.save_machine(other.id, **record, generation_profile=profile)
+    source, translated = tmp_path / "original.docx", tmp_path / "translated.docx"
+    source.write_bytes(b"original document")
+    translated.write_bytes(b"translated document")
+    with memory._connect(write=True) as db:
+        db.execute("CREATE TRIGGER fail_project_delete BEFORE DELETE ON projects BEGIN SELECT RAISE(ABORT,'simulated failure'); END")
+    with pytest.raises(FormaError):
+        memory.delete_project(project.id)
+    assert len(memory.list_entries(project.id)) == 2
+    assert memory.get_project(project.id).glossary == {"pump": "насос"}
+    with memory._connect(write=True) as db:
+        db.execute("DROP TRIGGER fail_project_delete")
+    memory.delete_project(project.id)
+    assert [value.id for value in memory.list_projects()] == [other.id]
+    assert len(memory.list_entries(other.id)) == 1
+    assert memory.get_project(other.id).glossary == {"pump": "Pumpe"}
+    with memory._connect() as db:
+        assert db.execute("SELECT count(*) FROM glossaries WHERE project_id=?", (project.id,)).fetchone()[0] == 0
+        assert db.execute("SELECT count(*) FROM entries WHERE project_id=?", (project.id,)).fetchone()[0] == 0
+    with pytest.raises(FormaError, match="not found"):
+        memory.get_project(project.id)
+    assert source.read_bytes() == b"original document"
+    assert translated.read_bytes() == b"translated document"
+
+
 def test_snapshots_are_deeply_immutable_and_asdict_json_compatible(memory, project):
     snapshot = memory.snapshot(project.id)
     with pytest.raises(FrozenInstanceError):

@@ -35,6 +35,7 @@ from forma.translation.engine import (
 )
 from forma.translation.fragments import FragmentCache
 from forma.translation.recovery import attach_recovery, load_recovery, validate_recovery_checkpoint
+from forma.translation.references import check_document_references
 
 
 def _changed_spans(previous, current):
@@ -437,6 +438,7 @@ def translate_with_memory(engine, source, folder, options, progress):
             raise FormaError("Експорт зупинено: переклад містить не всі фрагменти.")
         issues = [
             *document.issues,
+            *check_document_references(document.segments, translations),
             *(issue for segment in document.segments for issue in translation_issues(segment, translations[segment.id], options)),
         ]
         folder.mkdir(parents=True, exist_ok=True)

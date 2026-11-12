@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+from collections import defaultdict
 from dataclasses import replace
 from pathlib import Path, PureWindowsPath
 
@@ -19,6 +20,11 @@ from forma.core.models import (
     plain_text,
 )
 from forma.translation.engine import translation_issues
+from forma.translation.references import (
+    REFERENCE_CODES,
+    check_document_references,
+    document_reference_findings,
+)
 
 # These describe the workflow, not a defect in the translated document.
 SEGMENT_CHECK_CODES = {
@@ -191,6 +197,8 @@ def entry_fingerprint(entry: dict) -> str:
     fields = {
         key: entry[key] for key in ("id", "source", "translation", "messages", "severity", "kind")
     }
+    if "referenceContextFingerprint" in entry:
+        fields["referenceContextFingerprint"] = entry["referenceContextFingerprint"]
     return hashlib.sha256(
         json.dumps(fields, ensure_ascii=False, sort_keys=True).encode()
     ).hexdigest()
@@ -210,7 +218,8 @@ def refresh_segment_checks(result: TranslationResult, options: Options) -> Trans
         issues = [
             issue
             for issue in issues
-            if issue.code not in SEGMENT_CHECK_CODES or issue.segment_id not in segment_ids
+            if issue.code not in REFERENCE_CODES
+            and (issue.code not in SEGMENT_CHECK_CODES or issue.segment_id not in segment_ids)
         ]
         for segment in result.segments:
             translated = result.translations.get(segment.id, "")
@@ -225,6 +234,7 @@ def refresh_segment_checks(result: TranslationResult, options: Options) -> Trans
                 )
             else:
                 issues.extend(translation_issues(segment, translated, options))
+        issues.extend(check_document_references(result.segments, result.translations))
     return replace(result, issues=[
         replace(issue, severity="info")
         if issue.code in INFORMATION_CODES and issue.severity != "error" else issue
@@ -295,7 +305,17 @@ def build_review(result: TranslationResult, options: Options, *, edits=None, acc
         if priority[severity] > priority[entry["severity"]]:
             entry["severity"] = severity
     all_entries = [*document_entries.values(), *entries.values()]
+    reference_contexts = defaultdict(list)
+    if any(issue.code in REFERENCE_CODES for issue in issues):
+        for finding in document_reference_findings(result.segments, result.translations):
+            reference_contexts[finding.issue.segment_id].append(
+                (finding.issue.code, finding.context_fingerprint)
+            )
     for entry in all_entries:
+        if entry["id"] in reference_contexts:
+            entry["referenceContextFingerprint"] = hashlib.sha256(
+                json.dumps(reference_contexts[entry["id"]], sort_keys=True).encode()
+            ).hexdigest()
         entry["fingerprint"] = entry_fingerprint(entry)
         entry["accepted"] = (
             entry["severity"] != "error" and accepted.get(entry["id"]) == entry["fingerprint"]

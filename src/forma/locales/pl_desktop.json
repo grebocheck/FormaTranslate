@@ -83,5 +83,13 @@
   "Цей звіт не підтримує ручне продовження. Повторіть переклад: готові фрагменти буде використано повторно.": "Ten raport nie obsługuje ręcznego wznawiania. Uruchom tłumaczenie ponownie: gotowe fragmenty zostaną wykorzystane ponownie.",
   "Переклад потребує виправлення після трьох спроб. Відкрийте проблемні фрагменти, виправте переклад і продовжіть.": "Po trzech próbach tłumaczenie nadal wymaga poprawek. Otwórz problematyczne fragmenty, popraw tłumaczenie i kontynuuj.",
   "Документ ще не експортовано. У Forma відкрийте «Виправити й продовжити», перевірте проблемні фрагменти та продовжіть переклад. Готові фрагменти й ручні правки буде використано повторно.": "Dokument nie został jeszcze wyeksportowany. W Forma wybierz „Popraw i kontynuuj”, sprawdź problematyczne fragmenty i kontynuuj tłumaczenie. Gotowe fragmenty i ręczne poprawki zostaną wykorzystane ponownie.",
-  "Цей переклад очікує відновлення DOCX після OCR. Відкрийте проблемні фрагменти знову.": "To tłumaczenie wymaga wznowienia dokumentu DOCX przygotowanego przez OCR. Otwórz ponownie problematyczne fragmenty."
+  "Цей переклад очікує відновлення DOCX після OCR. Відкрийте проблемні фрагменти знову.": "To tłumaczenie wymaga wznowienia dokumentu DOCX przygotowanego przez OCR. Otwórz ponownie problematyczne fragmenty.",
+  "Видалити проєкт…": "Usuń projekt…",
+  "Видалити проєкт «%1»?": "Usunąć projekt „%1”?",
+  "Буде назавжди видалено пам’ять перекладів цього проєкту, його глосарій і записи еталонів. Оригінали, перекладені файли та історія документів залишаться.": "Pamięć tłumaczeń, glosariusz i wpisy referencyjne tego projektu zostaną trwale usunięte. Pliki oryginalne, tłumaczenia i historia dokumentów zostaną zachowane.",
+  "Видаляємо…": "Usuwanie…",
+  "Видалити назавжди": "Usuń trwale",
+  "Проєкт видалено. Не вдалося зберегти вибір; пам’ять вимкнено для цієї сесії.": "Projekt został usunięty. Nie udało się zapisać wyboru; pamięć jest wyłączona w tej sesji.",
+  "Проєкт пам’яті видалено.": "Projekt pamięci tłumaczeń został usunięty.",
+  "Вибраний проєкт пам’яті недоступний. Пам’ять вимкнено; виберіть інший проєкт.": "Wybrany projekt pamięci jest niedostępny. Pamięć jest wyłączona; wybierz inny projekt."
 }

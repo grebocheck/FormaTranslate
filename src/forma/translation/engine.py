@@ -40,6 +40,7 @@ from forma.translation.recovery import (
     load_recovery,
     validate_recovery_checkpoint,
 )
+from forma.translation.references import check_document_references
 
 PROTOCOL_VERSION = 5
 TRANSLATE_PROMPT = """You are a meticulous professional document translator.
@@ -59,6 +60,9 @@ sentence, distributing the translated words among the existing spans. Empty rN s
 when grammar requires it. Keep XML escaping valid. kN tags are immutable document elements.
 Preserve numeric values and precision; follow number_format without adding thousands separators.
 Preserve product codes, URLs, emails, and placeholders verbatim.
+Preserve appendix/annex identifier letters as in the original unless the authoritative user
+glossary explicitly defines their replacement. Never transliterate or renumber those labels
+independently for each paragraph; headings, contents and references must stay consistent.
 Every __FORMA_LOCK_N__ token stands for an immutable identifier: copy it exactly once unchanged.
 Do not translate identifiers or invent missing source text. Return segments with the exact input IDs.
 """
@@ -75,6 +79,8 @@ Return the final, corrected translations for
 every input ID. Keep all formatting tags in exactly the same order, with no new tags, attributes,
 nesting or text outside tags. Preserve numeric values and precision, following number_format.
 Preserve codes, URLs and placeholders verbatim.
+Preserve the original appendix/annex identifier letters unless an authoritative user glossary
+defines their replacement. Do not independently transliterate or renumber reference labels.
 Keep every __FORMA_LOCK_N__ token exactly once, unchanged.
 Do not simplify or summarize the source. If a draft is already correct, return it unchanged.
 """
@@ -985,6 +991,7 @@ class TranslationEngine:
             self.control.check()
             issues = [
                 *document.issues,
+                *check_document_references(document.segments, translations),
                 *[
                     issue
                     for s in document.segments

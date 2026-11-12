@@ -298,5 +298,7 @@
   "Фрагмент ще не надсилали до API.": "El segmento aún no se ha enviado a la API.",
   "Не вдалося безпечно поділити фрагмент. Перегляньте звіт про проблемні фрагменти.": "No se ha podido dividir el segmento de forma segura. Consulte el informe de segmentos problemáticos.",
   "Некоректна таблиця спільних рядків XLSX.": "La tabla de cadenas compartidas XLSX no es válida.",
-  "Некоректне посилання на спільний рядок XLSX.": "La referencia a una cadena compartida XLSX no es válida."
+  "Некоректне посилання на спільний рядок XLSX.": "La referencia a una cadena compartida XLSX no es válida.",
+  "Один додаток має різні позначення у перекладі. Узгодьте його позначення у змісті та заголовках.": "Un mismo anexo tiene identificadores distintos en la traducción. Unifique los identificadores del índice y de los títulos.",
+  "Позначення різних додатків збігаються або виглядають однаково. Перевірте зміст і заголовки.": "Los identificadores de anexos distintos coinciden o tienen el mismo aspecto. Revise el índice y los títulos."
 }

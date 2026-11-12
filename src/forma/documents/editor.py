@@ -20,6 +20,7 @@ from forma.documents.review import SEGMENT_CHECK_CODES
 from forma.persistence.files import atomic_bytes, atomic_json
 from forma.translation.engine import translation_issues
 from forma.translation.quality import immutable_spans, parse_translation
+from forma.translation.references import REFERENCE_CODES, check_document_references
 from forma.translation.reports import write_translation_report
 
 
@@ -421,12 +422,20 @@ def _export(source, output, report, edits, folder, expected_report_fingerprint, 
     issues = [
         issue
         for issue in previous.issues
-        if issue.code not in SEGMENT_CHECK_CODES or issue.segment_id not in segment_ids
+        if issue.code not in REFERENCE_CODES
+        and (issue.code not in SEGMENT_CHECK_CODES or issue.segment_id not in segment_ids)
     ]
+    present_scope = {issue.code for issue in issues}
+    issues.extend(
+        issue for issue in current.issues
+        if issue.code in {"chart_labels_preserved", "embedded_image_text"}
+        and issue.code not in present_scope
+    )
     for segment in segments:
         if segment.plain.strip() and not plain_text(translations[segment.id]).strip():
             raise FormaError("Переклад фрагмента не може бути порожнім.")
         issues.extend(translation_issues(segment, translations[segment.id], options))
+    issues.extend(check_document_references(segments, translations))
     if any(issue.severity == "error" for issue in issues):
         raise FormaError(
             "Експорт зупинено: перевірте числа, коди й форматування відредагованих фрагментів."

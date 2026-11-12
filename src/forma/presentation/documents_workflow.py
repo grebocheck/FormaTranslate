@@ -23,6 +23,7 @@ from forma.documents.pdf import inspect_pdf, needs_ocr
 from forma.documents.review import actionable_count
 from forma.localization.catalog import current_language
 from forma.localization.catalog import translate_ui_message as tr
+from forma.presentation.session_reconcile import restore_history_completions
 from forma.providers.client import JobControl
 from forma.settings.config import update_preferences
 from forma.translation.engine import TranslationEngine
@@ -219,6 +220,7 @@ class DocumentWorkflow:
         self._persist_queue()
         if not self._review_document_id and self._selected:
             self._review_document_id = self._selected
+        restore_history_completions(self)
 
     def _inspect_document(self, document):
         if self._closing or document.get("status") != "loading":

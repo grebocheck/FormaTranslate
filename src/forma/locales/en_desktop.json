@@ -83,5 +83,13 @@
   "Цей звіт не підтримує ручне продовження. Повторіть переклад: готові фрагменти буде використано повторно.": "This report does not support manual continuation. Run the translation again: completed segments will be reused.",
   "Переклад потребує виправлення після трьох спроб. Відкрийте проблемні фрагменти, виправте переклад і продовжіть.": "The translation still needs correction after three attempts. Open the problem segments, correct the translation and continue.",
   "Документ ще не експортовано. У Forma відкрийте «Виправити й продовжити», перевірте проблемні фрагменти та продовжіть переклад. Готові фрагменти й ручні правки буде використано повторно.": "The document has not been exported yet. In Forma, open “Fix and continue”, check the problem segments and continue translation. Completed segments and manual edits will be reused.",
-  "Цей переклад очікує відновлення DOCX після OCR. Відкрийте проблемні фрагменти знову.": "This translation requires resuming the DOCX prepared by OCR. Open the problem segments again."
+  "Цей переклад очікує відновлення DOCX після OCR. Відкрийте проблемні фрагменти знову.": "This translation requires resuming the DOCX prepared by OCR. Open the problem segments again.",
+  "Видалити проєкт…": "Delete project…",
+  "Видалити проєкт «%1»?": "Delete project “%1”?",
+  "Буде назавжди видалено пам’ять перекладів цього проєкту, його глосарій і записи еталонів. Оригінали, перекладені файли та історія документів залишаться.": "This permanently deletes the project’s translation memory, glossary and reference records. Original files, translated files and document history are kept.",
+  "Видаляємо…": "Deleting…",
+  "Видалити назавжди": "Delete permanently",
+  "Проєкт видалено. Не вдалося зберегти вибір; пам’ять вимкнено для цієї сесії.": "The project was deleted. The selection could not be saved; memory is disabled for this session.",
+  "Проєкт пам’яті видалено.": "Translation memory project deleted.",
+  "Вибраний проєкт пам’яті недоступний. Пам’ять вимкнено; виберіть інший проєкт.": "The selected memory project is unavailable. Memory is disabled; choose another project."
 }

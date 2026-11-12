@@ -12,6 +12,7 @@ INFORMATION_CODES = {
     "pdf_visual_review",
     "shared_memory",
     "tracked_changes",
+    "embedded_image_text",
 }
 
 ISSUE_EXPLANATIONS = {

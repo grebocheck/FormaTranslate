@@ -11,6 +11,8 @@ Project memory is an optional, local way to reuse exact translations and adapt c
 
 The selected project keeps one shared glossary for its documents. Separate automatic document glossaries are disabled in this mode. The queue captures the glossary and approved-memory revision when it starts. Later changes apply to the next run; existing results are not rewritten. Selecting **Off** returns to ordinary document translation and its glossary settings.
 
+To remove a project, select it and open **References & glossary… → Delete project…**. The confirmation names the project and explains what will be removed. **Delete permanently** deletes its translation-memory entries, glossary revisions and reference records; original documents, translated files and document history stay intact. Deleting the selected project turns project memory Off and restores the ordinary glossary. Deletion is unavailable during active work or an unsaved Review edit.
+
 ## Make a glossary without a CSV file
 
 A glossary is your list of terms and their preferred translations, such as a technical term, an official organization name or an agreed abbreviation. Use translations your organization or customer already approves, or start with suggestions from your own documents. You do not need to find or download a ready-made glossary to use Forma.
