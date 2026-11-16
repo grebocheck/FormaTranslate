@@ -26,6 +26,7 @@ from forma.persistence.review_store import ReviewStore
 from forma.presentation.file_availability import inspect_files
 from forma.translation.engine import blocking_issues
 from forma.translation.recovery import load_failure_report
+from forma.translation.references import plan_reference_alignment, reference_label_choice
 
 
 class ReviewWorkflow:
@@ -106,11 +107,14 @@ class ReviewWorkflow:
             reason = "Оригінальний файл недоступний. Він потрібен для збереження форматування."
         elif not recovery and (not document.get("output") or not self._file_status.is_file(document["output"])):
             reason = "Файл перекладу переміщено або видалено."
+        reference_label = reference_label_choice(entry["id"], entry.get("source", ""), entry.get("translation", ""))
         return {
             **self._display_entry(entry),
             "canAccept": persisted and not recovery and entry["severity"] != "error" and not self._review_saving,
             "canEdit": not reason and not self._review_saving,
             "editReason": tr(reason),
+            "referenceLabel": reference_label,
+            "canAlignReferences": bool(reference_label) and not reason and not recovery and not self._review_saving,
         }
 
     def beginReviewEdit(self):
@@ -230,6 +234,41 @@ class ReviewWorkflow:
         edits.pop(entry_id, None)
         accepted.pop(entry_id, None)
         self._change_review_state(accepted, edits)
+
+    def alignReviewReferences(self):
+        """Persist one atomic manual label map; exporting remains a separate action."""
+        if self._review_editing or not self.selectedReviewEntry.get("canAlignReferences"):
+            return False
+        try:
+            context = self._review_context
+            result, options = context["result"], context["options"]
+            current = {**result.translations, **self._review_edits}
+            planned = plan_reference_alignment(result.segments, current, self._review_selected)
+            if not planned:
+                self._review_action_error = ""
+                self.reviewEditChanged.emit()
+                return True
+            segments = {segment.id: segment for segment in result.segments}
+            edits, accepted = dict(self._review_edits), dict(self._review_accepted)
+            for segment_id, text in planned.items():
+                revised = edit_translation_markup(current[segment_id], text)
+                errors = blocking_issues(segments[segment_id], revised, options)
+                if errors:
+                    raise FormaError("Правку не збережено: " + " ".join(issue.message for issue in errors))
+                if revised == result.translations.get(segment_id, ""):
+                    edits.pop(segment_id, None)
+                else:
+                    edits[segment_id] = revised
+                accepted.pop(segment_id, None)
+            self._save_review_state(accepted, edits)
+            self._review_action_error = ""
+            self._rebuild_review()
+            self.reviewEditChanged.emit()
+            return True
+        except FormaError as exc:
+            self._review_action_error = str(exc)
+            self.reviewEditChanged.emit()
+            return False
 
     def _change_review_state(self, accepted, edits):
         try:

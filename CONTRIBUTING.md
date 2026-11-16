@@ -2,6 +2,8 @@
 
 Small, focused improvements are welcome. Before a large change, open an issue describing the user problem and proposed behavior. Keep the desktop interface simple and preserve document content, structure and user choices.
 
+Participation follows our [code of conduct](CODE_OF_CONDUCT.md).
+
 ## Development
 
 Use Python 3.11–3.13 and uv:
@@ -19,7 +21,7 @@ Python code lives in `src/forma/`; Qt Quick UI files are in `src/forma/ui/`. Doc
 
 ## Pull requests
 
-Explain the problem, the resulting behavior, and how you verified it. Use a synthetic reproducer for document bugs. Add regression tests for content loss, formatting damage, credential handling or persistent-state bugs. For UI changes, check the minimum window size, scaling and all four interface languages. See [i18n](docs/I18N.md).
+Explain the problem, the resulting behavior, and how you verified it. Use a synthetic reproducer for document bugs. Add regression tests for content loss, formatting damage, credential handling or persistent-state bugs. For UI changes, check the minimum window size, scaling and all six interface languages. See [i18n](docs/I18N.md).
 
 Do not weaken number, identifier or formatting guards merely to reduce warnings. Structural preservation and linguistic quality need separate evidence. [Evaluation guide](docs/BENCHMARK.md).
 

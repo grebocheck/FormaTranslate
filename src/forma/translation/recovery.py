@@ -134,7 +134,7 @@ def _metadata(data, fingerprint):
         raise ValueError
     if any(not _valid_hash(raw[key]) for key in ("checkpoint_id", "source_sha256", "settings_signature")):
         raise ValueError
-    if type(raw["extraction_profile"]) is not int or raw["extraction_profile"] not in {1, 2}:
+    if type(raw["extraction_profile"]) is not int or raw["extraction_profile"] not in {1, 2, 3}:
         raise ValueError
     options = _options(raw["options"])
     requested = _options(data["requested_options"])

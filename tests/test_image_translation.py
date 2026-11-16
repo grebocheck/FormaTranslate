@@ -5,11 +5,12 @@ from dataclasses import asdict
 
 import pytest
 from PySide6.QtCore import QRect
-from PySide6.QtGui import QColor, QImage
+from PySide6.QtGui import QColor, QFont, QFontMetrics, QImage, QPainter
 
 from forma.core.models import FormaError
 from forma.providers.client import Cancelled, JobControl
 from forma.settings.config import Settings
+from forma.translation.image_geometry import TextLine, TextWord
 from forma.translation.images import (
     MAX_BLOCKS,
     MAX_IMAGE_PIXELS,
@@ -18,10 +19,17 @@ from forma.translation.images import (
     ImageBlock,
     _image_payload,
     _parse_blocks,
+    _render,
     _text_layout,
     translate_image,
     validate_image,
 )
+
+
+@pytest.fixture(autouse=True)
+def no_host_ocr(monkeypatch):
+    # Pixel/protocol tests must not depend on host-installed language packs.
+    monkeypatch.setattr("forma.translation.images.detect_text", lambda *_: [])
 
 
 class FakeProvider:
@@ -287,3 +295,81 @@ def test_custom_instructions_reach_image_recognition_and_repair(qapp):
     assert result.translated_text == "Потужність 25 кВт"
     assert len(provider.calls) == 2
     assert all('"translation_preferences": "Use formal technical language."' in call[0] for call in provider.calls)
+
+
+def _draw_label(image, text, x, baseline, size=20, color="white"):
+    font = QFont("Sans Serif")
+    font.setPixelSize(size)
+    painter = QPainter(image)
+    painter.setFont(font)
+    painter.setPen(QColor(color))
+    painter.drawText(x, baseline, text)
+    painter.end()
+    rect = QFontMetrics(font).tightBoundingRect(text).translated(x, baseline)
+    return TextLine((TextWord(text, rect),))
+
+
+def test_local_word_anchors_correct_displaced_tiny_vision_boxes_and_fit_readable_text(qapp, monkeypatch):
+    image = picture(620, 260, color="#161b22")
+    heading = _draw_label(image, "Community standards", 20, 50, 28)
+    label = _draw_label(image, "Code of conduct", 28, 145, 19, "#58a6ff")
+    neighbour = _draw_label(image, "Security policy", 28, 215, 19, "#58a6ff")
+    lines = [heading, label, neighbour]
+    monkeypatch.setattr("forma.translation.images.detect_text", lambda *_: lines)
+    # Wrong positions and nine-pixel heights reproduce the reported symptom.
+    provider = FakeProvider({"blocks": [
+        block("Community standards", "Стандарти спільноти", x=35, y=100, width=350, height=35),
+        block("Code of conduct", "Кодекс поведінки спільноти", x=50, y=350, width=160, height=35),
+        block("Security policy", "Security policy", x=50, y=740, width=260, height=35),
+    ]})
+    original = image.copy()
+    result = translate_image(provider, image, "en", "uk")
+    assert image == original
+    assert result.warnings == []
+    assert len(provider.calls) == 1
+    assert provider.calls[0][1]["local_text_regions"][1]["text"] == "Code of conduct"
+    for index, line in enumerate(lines[:2]):
+        painted = result.blocks[index].rectangle(image.width(), image.height())
+        assert painted.contains(line.rectangle)
+        assert painted.height() >= line.rectangle.height()
+    # Translation uses adjacent blank space instead of an eight-pixel font.
+    label_bounds = result.blocks[1].rectangle(image.width(), image.height())
+    assert label_bounds.width() > label.rectangle.width()
+    assert not label_bounds.intersects(neighbour.rectangle)
+    ink_rows = {y for y in range(label_bounds.top(), label_bounds.bottom() + 1)
+                for x in range(label_bounds.left(), label_bounds.right() + 1)
+                if result.image.pixelColor(x, y).blue() > 130}
+    assert max(ink_rows) - min(ink_rows) >= label.rectangle.height() * 0.65
+    bounds = [item.rectangle(image.width(), image.height()) for item in result.blocks[:2]]
+    for y in range(image.height()):
+        for x in range(image.width()):
+            if not any(rect.contains(x, y) for rect in bounds):
+                assert result.image.pixelColor(x, y) == image.pixelColor(x, y)
+
+
+def test_local_anchors_resolve_model_overlap_and_preserve_neighbouring_artwork(qapp):
+    image = picture(420, 180, color="#161b22")
+    one = _draw_label(image, "Description", 20, 45, 18)
+    two = _draw_label(image, "Contributing", 20, 125, 18)
+    painter = QPainter(image)
+    painter.fillRect(QRect(230, 0, 2, 180), QColor("#58a6ff"))
+    painter.end()
+    blocks = [ImageBlock(**block("Description", "Дуже докладний опис спільноти", x=40, y=100, width=700, height=500)),
+              ImageBlock(**block("Contributing", "Участь у розробці", x=40, y=300, width=700, height=500))]
+    result, warnings = _render(image, blocks, lambda: None, lines=[one, two])
+    assert not warnings
+    for item in blocks:
+        assert item.rectangle(420, 180).right() < 230
+    assert not blocks[0].rectangle(420, 180).intersects(blocks[1].rectangle(420, 180))
+    assert all(result.pixelColor(230, y) == image.pixelColor(230, y) for y in range(180))
+
+
+def test_unrelated_local_ocr_does_not_move_a_vision_label(qapp):
+    image = picture(400, 200)
+    line = _draw_label(image, "Another label", 20, 50, 18, "black")
+    item = ImageBlock(**block("Power output", "Вихідна потужність", x=500, y=500, width=450, height=350))
+    blocks = [item]
+    result, warnings = _render(image, blocks, lambda: None, lines=[line])
+    assert not warnings
+    assert result.copy(line.rectangle) == image.copy(line.rectangle)
+    assert blocks[0].rectangle(400, 200) == item.rectangle(400, 200)

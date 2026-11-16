@@ -167,19 +167,35 @@ def parse_report_data(data: dict, path: Path) -> tuple[TranslationResult, Option
         if engine not in ("forma-ooxml", "forma-corpus", "babeldoc"):
             raise ValueError
         extraction_profile = data.get("extraction_profile", 1)
-        if type(extraction_profile) is not int or extraction_profile not in {1, 2}:
+        if type(extraction_profile) is not int or extraction_profile not in {1, 2, 3}:
             raise ValueError("extraction profile")
-        if extraction_profile == 2 and engine != "forma-ooxml":
+        if extraction_profile in {2, 3} and engine != "forma-ooxml":
             raise ValueError("extraction engine")
-        if extraction_profile == 2 and (
+        if extraction_profile in {2, 3} and (
             not isinstance(data.get("source"), str)
-            or PureWindowsPath(data["source"]).suffix.lower() != ".xlsx"
+            or PureWindowsPath(data["source"]).suffix.lower() != (".xlsx" if extraction_profile == 2 else ".docx")
         ):
             raise ValueError("extraction format")
         result = TranslationResult(
             path, None, segments, translations, issues, engine=engine, report=path,
             extraction_profile=extraction_profile,
         )
+        for field in ("usage_run_id", "usage_document_id"):
+            value = data.get(field, "")
+            if not isinstance(value, str) or (value and not re.fullmatch(r"[0-9a-f]{32}", value)):
+                raise ValueError("usage identity")
+            setattr(result, field, value)
+        profile = data.get("translation_profile", {})
+        allowed_profile = {"app_version", "protocol", "model", "review_model", "api_mode", "response_format", "reasoning_effort", "max_output_tokens"}
+        if not isinstance(profile, dict) or not set(profile) <= allowed_profile:
+            raise ValueError("translation profile")
+        for key, value in profile.items():
+            if key in {"protocol", "max_output_tokens"}:
+                if type(value) is not int or value < 0:
+                    raise ValueError("translation profile number")
+            elif not isinstance(value, str) or len(value) > 256 or any(ord(char) < 32 for char in value):
+                raise ValueError("translation profile value")
+        result.translation_profile = dict(profile)
         result.preparation = _parse_preparation(data, options)
         if result.preparation:
             if engine not in {"forma-ooxml", "forma-corpus"}:

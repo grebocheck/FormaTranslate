@@ -34,5 +34,18 @@
   "Запитів: %1 · токени вхід / вихід: %2": "Requests: %1 · input / output tokens: %2",
   "Кеш · читання: %1 · запис: %2": "Cache · read: %1 · write: %2",
   "Автотарифи OpenAI: %1, стандартна обробка. Враховано читання та запис кешу за даними API. Податки й регіональні доплати не включені. Точні списання перевіряйте у провайдера.": "Automatic OpenAI rates: %1, standard processing. Includes cache reads and writes reported by the API. Excludes taxes and regional surcharges. Check your provider for actual charges.",
-  "Залишок невідомий: після введення балансу є запити без повної оцінки вартості.": "Remaining balance unknown: some requests since the balance entry have no complete cost estimate."
+  "Залишок невідомий: після введення балансу є запити без повної оцінки вартості.": "Remaining balance unknown: some requests since the balance entry have no complete cost estimate.",
+  "Витрати за етапами": "Costs by stage",
+  "Початковий переклад": "Initial translation",
+  "Редакторська перевірка": "Editorial review",
+  "Цільове доопрацювання": "Targeted revision",
+  "Виправлення після перевірки": "Validation repair",
+  "Узгодження термінології": "Terminology alignment",
+  "Переклад фото": "Photo translation",
+  "Переклад тексту": "Text translation",
+  "Переклад PDF": "PDF translation",
+  "Перевірка підключення": "Connection test",
+  "Без розподілу за етапами": "Unattributed",
+  "За останні 30 днів. Старі запити залишаються без розподілу; повторні спроби включено у вартість відповідного етапу.": "Over the last 30 days. Older requests remain unattributed; retries are included in the cost of their stage.",
+  "Повтори: мережа / сервер — %1; формат — %2; сумісність — %3.": "Retries: network / server — %1; format — %2; compatibility — %3."
 }

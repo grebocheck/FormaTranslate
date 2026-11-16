@@ -145,6 +145,9 @@ class TranslationResult:
     preparation: dict = field(default_factory=dict)
     extraction_profile: int = 1
     automatic_glossary: dict[str, str] | None = None
+    usage_run_id: str = ""
+    usage_document_id: str = ""
+    translation_profile: dict = field(default_factory=dict)
 
     def serializable(self) -> dict:
         result = {
@@ -174,6 +177,12 @@ class TranslationResult:
         if self.automatic_glossary is not None:
             result["automatic_glossary"] = dict(self.automatic_glossary)
             result["automatic_glossary_policy"] = 2
+        if self.usage_run_id:
+            result["usage_run_id"] = self.usage_run_id
+        if self.usage_document_id:
+            result["usage_document_id"] = self.usage_document_id
+        if self.translation_profile:
+            result["translation_profile"] = dict(self.translation_profile)
         if self.memory_project_id:
             result.update(
                 memory_project_id=self.memory_project_id,

@@ -13,7 +13,7 @@ import re
 from collections import defaultdict
 from dataclasses import dataclass
 
-from forma.core.models import Issue, plain_text
+from forma.core.models import FormaError, Issue, plain_text
 
 REFERENCE_CODES = frozenset({"reference_consistency", "reference_collision"})
 _LETTER = r"(?:(?i:shch|zh|kh|ts|ch|sh)|[A-Za-zА-Яа-яЁёЇїІіЄєҐґ])"
@@ -98,3 +98,58 @@ def document_reference_findings(segments, translations):
 
 def check_document_references(segments, translations):
     return [finding.issue for finding in document_reference_findings(segments, translations)]
+
+
+def reference_label_choice(segment_id, source, translation):
+    """The current explicit heading label a reviewer can choose for its peers."""
+    part, separator, _ = segment_id.partition("#")
+    if not separator or not part.startswith("word/") or not _label(source, source=True):
+        return ""
+    if not _label(translation):
+        return ""
+    return _HEADING.match(plain_text(translation)).group(1)
+
+
+def plan_reference_alignment(segments, translations, selected_id):
+    """Plan plain-text label edits using the selected heading's exact spelling.
+
+    This is an explicit review action, not an alphabet/numbering policy. Only
+    unambiguous headings in the same Word part participate, including TOC text.
+    A collision or an unrecognizable peer refuses the entire plan. Callers apply
+    these small edits through the ordinary run-preserving editor and validators.
+    """
+    selected = next((segment for segment in segments if segment.id == selected_id), None)
+    choice = reference_label_choice(
+        selected_id, selected.source if selected else "", translations.get(selected_id, ""),
+    )
+    if not choice:
+        raise FormaError("Виберіть заголовок додатка з однозначним позначенням у перекладі.")
+    source_label = _label(selected.source, source=True)
+    target_label = choice.upper().translate(_LOOKALIKES)
+    part = selected_id.partition("#")[0]
+    peers = []
+    for segment in segments:
+        if segment.id.partition("#")[0] != part:
+            continue
+        label = _label(segment.source, source=True)
+        if not label:
+            continue
+        target = translations.get(segment.id, "")
+        if label != source_label:
+            if _label(target) == target_label:
+                raise FormaError(
+                    "Це позначення вже використано для іншого додатка. Спочатку задайте різні позначення."
+                )
+            continue
+        if not _label(target):
+            raise FormaError(
+                "Не всі заголовки цього додатка мають однозначне позначення. Спочатку відредагуйте їх вручну."
+            )
+        peers.append((segment.id, plain_text(target)))
+    changes = {}
+    for segment_id, target in peers:
+        match = _HEADING.match(target)
+        revised = target[:match.start(1)] + choice + target[match.end(1):]
+        if revised != target:
+            changes[segment_id] = revised
+    return changes

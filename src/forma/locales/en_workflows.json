@@ -65,5 +65,9 @@
   "Не вдалося відкрити звіт помилок. Повторіть переклад, щоб створити новий звіт.": "Could not open the error report. Run translation again to create a new report.",
   "Експорт зупинено: переклад не пройшов перевірку після трьох спроб. Перегляньте звіт про проблемні фрагменти та повторіть переклад.": "Export stopped: translation failed validation after three attempts. Review the report of affected segments and run translation again.",
   "Звіт .forma.json створюється поруч із перекладеним файлом Forma. Його не потрібно робити вручну.": "A .forma.json report is created beside the translated Forma file. You do not need to create it manually.",
-  "Не вдалося зберегти контрольну точку перекладу. Перевірте доступ до папки даних застосунку.": "Could not save the translation checkpoint. Check access to the application data folder."
+  "Не вдалося зберегти контрольну точку перекладу. Перевірте доступ до папки даних застосунку.": "Could not save the translation checkpoint. Check access to the application data folder.",
+  "Позначення «%1» для всіх заголовків цього додатка": "Use “%1” for all headings of this appendix",
+  "Виберіть заголовок додатка з однозначним позначенням у перекладі.": "Select an appendix heading with an unambiguous label in the translation.",
+  "Це позначення вже використано для іншого додатка. Спочатку задайте різні позначення.": "This label is already used for another appendix. Assign distinct labels first.",
+  "Не всі заголовки цього додатка мають однозначне позначення. Спочатку відредагуйте їх вручну.": "Some headings of this appendix have ambiguous labels. Edit them manually first."
 }

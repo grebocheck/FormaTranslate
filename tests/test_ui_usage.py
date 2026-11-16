@@ -8,6 +8,7 @@ from PySide6.QtQuick import QQuickItem
 from PySide6.QtTest import QSignalSpy, QTest
 from support import pump
 
+from forma.accounting.context import usage_context
 from forma.accounting.usage import UsageLedger
 from forma.localization.catalog import CatalogTranslator
 from forma.presentation.backend import Backend
@@ -43,18 +44,25 @@ def usage_window(qapp, monkeypatch):
     qapp.removeTranslator(translator)
 
 
-def test_usage_panel_live_languages_minimum_size_and_drafts(usage_window):
+def test_usage_panel_live_languages_minimum_size_and_drafts(usage_window, qapp):
     backend, window, warnings = usage_window
+    with usage_context(stage="review"):
+        UsageLedger().record(backend._settings, {"usage": {"input_tokens": 100, "output_tokens": 50}})
+    backend.usage.refresh()
+    pump(qapp, lambda: not backend.usage.working)
     button = window.findChild(QQuickItem, "usageButton")
     button.clicked.emit()
     panel = window.findChild(QObject, "usagePanel")
     assert panel.property("visible")
+    window.findChild(QQuickItem, "usageStagesToggle").setProperty("checked", True)
     balance = window.findChild(QQuickItem, "usageBalanceInput")
     rate = window.findChild(QQuickItem, "usageInputRate")
     balance.setProperty("text", "10,25")
     rate.setProperty("text", "0.15")
     backend._quick._source_text = "User draft"
-    for language in ("uk", "en", "pl", "de"):
+    for language, label in (("uk", "Редакторська перевірка"), ("en", "Editorial review"),
+                            ("pl", "Weryfikacja redakcyjna"), ("de", "Redaktionelle Prüfung"),
+                            ("fr", "Révision rédactionnelle"), ("es", "Revisión editorial")):
         backend.setUiLanguage(language)
         QTest.qWait(30)
         assert button.width() >= button.implicitWidth() - 1
@@ -64,6 +72,15 @@ def test_usage_panel_live_languages_minimum_size_and_drafts(usage_window):
         assert balance.property("text") == "10,25"
         assert rate.property("text") == "0.15"
         assert backend._quick._source_text == "User draft"
+        items = [window.contentItem()]
+        stage = None
+        while items:
+            item = items.pop()
+            if item.objectName() == "usageStageLabel_review":
+                stage = item
+                break
+            items.extend(item.childItems())
+        assert stage is not None and label in stage.property("text")
         assert not window.grabWindow().isNull()
     assert not warnings, "\n".join(warnings)
 

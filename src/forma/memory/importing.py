@@ -115,11 +115,11 @@ def _verify_legacy_package(source: Path, current: OfficeDocument, translations: 
     This also checks non-segment numeric cells, protected field values, images,
     and omitted XML which a segment-only comparison cannot authenticate.
     """
-    expected_source = OfficeDocument(source)
+    expected_source = OfficeDocument(source, extraction_profile=current.extraction_profile)
     with tempfile.TemporaryDirectory(prefix="forma-memory-verify-") as temporary:
         expected_path = Path(temporary) / "expected.docx"
         expected_source.write(translations, expected_path, decimal_comma_to_point=use_english_decimals(options))
-        expected = OfficeDocument(expected_path)
+        expected = OfficeDocument(expected_path, extraction_profile=current.extraction_profile)
     if set(expected.parts) != set(current.parts):
         raise FormaError(_MISMATCH)
     for name, data in expected.parts.items():
@@ -161,7 +161,12 @@ def _verify(source, output, report, expected_report_fingerprint=None) -> _Verifi
         for field, actual in (("source_sha256", source_hash), ("output_sha256", output_hash)):
             if field in metadata and metadata[field] != actual:
                 raise FormaError(_MISMATCH)
-        original, current = OfficeDocument(source), OfficeDocument(output)
+        original = OfficeDocument(source, extraction_profile=previous.extraction_profile)
+        current = OfficeDocument(output, extraction_profile=previous.extraction_profile)
+        if previous.extraction_profile == 3 and (
+            original.chart_labels is None or not original.chart_labels.compatible_layout(current.chart_labels)
+        ):
+            raise FormaError(_MISMATCH)
         by_source = {}
         for segment in original.segments:
             identity = (segment.location, segment.source)

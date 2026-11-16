@@ -74,7 +74,7 @@ def test_word_chart_scope_reports_text_caches_once_and_preserves_their_data(docx
     with ZipFile(source, "w") as archive:
         for name, data in parts.items():
             archive.writestr(name, data)
-    office = OfficeDocument(source)
+    office = OfficeDocument(source, extraction_profile=1)
     findings = [issue for issue in office.issues if issue.code == "chart_labels_preserved"]
     assert len(findings) == 1 and findings[0].severity == "warning"
     assert not any(segment.plain in {"January", "Electricity consumption"} for segment in office.segments)

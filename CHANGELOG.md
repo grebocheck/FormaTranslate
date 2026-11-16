@@ -2,6 +2,16 @@
 
 Versions follow semantic versioning. Changes before 1.0 may evolve as document compatibility improves.
 
+## 0.14.0 — 2026-11-16
+
+- Refine photo text rectangles with optional local Tesseract word anchors and fit translations to available space with adaptive fonts. Expand only into verified empty space, retain source text for unsafe placements and preserve full recognized/translated text beside the image.
+- Use explicit 30-minute cache boundaries for supported official OpenAI Chat/Responses requests, leaving changing segments, drafts and images outside writes. Compact repeated project context without dropping semantic facts or integrity hashes, changing models or weakening full editorial review.
+- Attribute request costs to opaque document/run IDs, translation stages and retry reasons. Show stage costs in all six interface languages, preserve historical accounting and keep credentials, document text and paths out of the ledger.
+- Translate supported native Word chart labels together with their bound embedded-workbook cells. Preserve numbers, formulas, unrelated cells and legacy reports; leave unsupported/stale/external bindings unchanged with a warning.
+- Record the safe model/editor/protocol configuration in new reports for reproducible cost comparisons.
+- Add an explicit Review action to align unambiguous appendix headings and table-of-contents labels with the selected heading, preserving manual edits and refusing collisions without an API call.
+- Add a project code of conduct and include it in source and portable release materials.
+
 ## 0.13.0 — 2026-11-12
 
 - Delete memory projects through an explicit confirmation, using a background transaction that removes only the selected project's entries and glossary. Preserve documents, history and other projects; recover safely from missing saved selections and preference-write failures.

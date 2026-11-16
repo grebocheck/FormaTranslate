@@ -97,6 +97,20 @@ Popup {
         cacheRate.text = loadedRates[1]
         outputRate.text = loadedRates[2]
     }
+    function stageLabel(stage) {
+        switch (stage) {
+        case "draft": return qsTr("Початковий переклад")
+        case "review": return qsTr("Редакторська перевірка")
+        case "revision": return qsTr("Цільове доопрацювання")
+        case "repair": return qsTr("Виправлення після перевірки")
+        case "glossary": return qsTr("Узгодження термінології")
+        case "photo": return qsTr("Переклад фото")
+        case "text": return qsTr("Переклад тексту")
+        case "pdf": return qsTr("Переклад PDF")
+        case "connection": return qsTr("Перевірка підключення")
+        default: return qsTr("Без розподілу за етапами")
+        }
+    }
     Connections {
         target: panel.controller
         function onSaved(kind) {
@@ -175,6 +189,26 @@ Popup {
                         Copy { text: modelData.model + " · " + modelData.costLabel; font.weight: Font.DemiBold }
                         Copy { text: qsTr("Запитів: %1 · токени вхід / вихід: %2").arg(modelData.requests).arg(modelData.tokensText); color: Theme.muted; font.pixelSize: 12 }
                         Copy { text: qsTr("Кеш · читання: %1 · запис: %2").arg(modelData.cached).arg(modelData.writeText); color: Theme.muted; font.pixelSize: 12 }
+                    }
+                }
+            }
+            Action { id: showStages; objectName: "usageStagesToggle"; checkable: true; text: qsTr("Витрати за етапами"); visible: !!panel.stats.stages && panel.stats.stages.length > 0 }
+            ColumnLayout {
+                visible: showStages.checked; Layout.fillWidth: true
+                Copy { text: qsTr("За останні 30 днів. Старі запити залишаються без розподілу; повторні спроби включено у вартість відповідного етапу."); color: Theme.muted; font.pixelSize: 12 }
+                Repeater {
+                    model: panel.stats.stages || []
+                    delegate: ColumnLayout {
+                        required property var modelData
+                        Layout.fillWidth: true; spacing: 4
+                        Copy { objectName: "usageStageLabel_" + modelData.stage; text: panel.stageLabel(modelData.stage) + " · " + modelData.costLabel; font.weight: Font.DemiBold }
+                        Copy { text: qsTr("Запитів: %1 · токени вхід / вихід: %2").arg(modelData.requests).arg(modelData.tokensText); color: Theme.muted; font.pixelSize: 12 }
+                        Copy { text: qsTr("Кеш · читання: %1 · запис: %2").arg(modelData.cached).arg(modelData.writeText); color: Theme.muted; font.pixelSize: 12 }
+                        Copy {
+                            visible: modelData.transport_retries + modelData.format_retries + modelData.capability_retries > 0
+                            text: qsTr("Повтори: мережа / сервер — %1; формат — %2; сумісність — %3.").arg(modelData.transport_retries).arg(modelData.format_retries).arg(modelData.capability_retries)
+                            color: Theme.muted; font.pixelSize: 12
+                        }
                     }
                 }
             }

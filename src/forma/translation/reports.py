@@ -19,8 +19,20 @@ def document_html(title: str, body: str, *, language: str = "uk") -> bytes:
     ).encode()
 
 
-def write_translation_report(result: TranslationResult, options: Options, model: str) -> None:
+def write_translation_report(result: TranslationResult, options: Options, model: str, *, settings=None) -> None:
     assert result.output is not None
+    if settings is not None:
+        from forma import __version__
+        from forma.translation.engine import PROTOCOL_VERSION
+
+        # Explicit public fields only: never serialize a Settings object, an
+        # endpoint, credential, or account identifier into a document report.
+        result.translation_profile = {
+            "app_version": __version__, "protocol": PROTOCOL_VERSION,
+            "model": model, "review_model": (settings.review_model or model) if options.review and result.engine != "babeldoc" else "",
+            "api_mode": settings.api_mode, "response_format": settings.response_format,
+            "reasoning_effort": settings.reasoning_effort, "max_output_tokens": settings.max_output_tokens,
+        }
     report = result.output.with_name(result.output.name + ".forma.json")
     payload = {**result.serializable(), "options": asdict(options), "model": model}
     atomic_json(report, payload)

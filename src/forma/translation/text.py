@@ -6,6 +6,7 @@ import re
 from collections.abc import Callable
 from dataclasses import dataclass
 
+from forma.accounting.context import usage_context, usage_operation
 from forma.core.models import FormaError, Options
 from forma.providers.client import TRANSLATION_SCHEMA, Provider
 from forma.translation.instructions import translation_prompt
@@ -154,6 +155,7 @@ def _validated_result(
     return result
 
 
+@usage_operation
 def translate_text(
     provider: Provider,
     text: str,
@@ -189,26 +191,28 @@ def translate_text(
     }
     if progress:
         progress(5, "Перекладаємо текст…")
-    draft = provider.complete(
-        translation_prompt(_TRANSLATE, provider.settings.translation_instructions),
-        payload,
-        TRANSLATION_SCHEMA,
-    )
+    with usage_context(stage="draft"):
+        draft = provider.complete(
+            translation_prompt(_TRANSLATE, provider.settings.translation_instructions),
+            payload,
+            TRANSLATION_SCHEMA,
+        )
     provider.control.check()
     draft = _validated_result(draft, lines, prefix, final=False)
     if progress:
         progress(60, "Перевіряємо переклад…")
-    reviewed = provider.complete(
-        translation_prompt(_REVIEW, provider.settings.translation_instructions),
-        {
-            **payload,
-            "segments": [
-                {"id": line.id, "source": line.locked, "draft": draft[line.id]} for line in lines
-            ],
-        },
-        TRANSLATION_SCHEMA,
-        model=provider.settings.review_model or provider.settings.model,
-    )
+    with usage_context(stage="review"):
+        reviewed = provider.complete(
+            translation_prompt(_REVIEW, provider.settings.translation_instructions),
+            {
+                **payload,
+                "segments": [
+                    {"id": line.id, "source": line.locked, "draft": draft[line.id]} for line in lines
+                ],
+            },
+            TRANSLATION_SCHEMA,
+            model=provider.settings.review_model or provider.settings.model,
+        )
     provider.control.check()
     reviewed = _validated_result(reviewed, lines, prefix, final=True)
     for line in lines:

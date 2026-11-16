@@ -10,7 +10,7 @@ from zipfile import ZipFile
 from lxml import etree
 
 from forma.core.models import FormaError
-from forma.documents.ooxml import A, R, S, W, parse_xml
+from forma.documents.ooxml import A, C, R, S, W, parse_xml
 from forma.persistence.files import atomic_bytes, atomic_json
 from forma.translation.quality import numbers_match
 from forma.translation.reports import document_html
@@ -110,11 +110,33 @@ def office_signature(path: Path) -> dict:
         parts = {name: archive.read(name) for name in archive.namelist()}
         if path.suffix.lower() == ".xlsx":
             parts = _xlsx_logical_parts(parts)
+        elif path.suffix.lower() == ".docx":
+            from forma.documents.charts import EmbeddedBook, UnsupportedChart
+
+            expanded = {}
+            for name, data in parts.items():
+                if name.startswith("word/embeddings/") and name.endswith(".xlsx"):
+                    try:
+                        book = EmbeddedBook(data)
+                    except UnsupportedChart:
+                        pass
+                    else:
+                        expanded.update({f"{name}!/{member}": raw for member, raw in _xlsx_logical_parts(book.parts).items()})
+                        continue
+                expanded[name] = data
+            parts = expanded
         for name, data in parts.items():
             if name.endswith(".xml"):
                 tree = parse_xml(data)
                 for node in tree.iter():
-                    if node.tag in TEXT_TAGS:
+                    parent = node.getparent()
+                    chart_text = node.tag == f"{{{C}}}v" and parent is not None and (
+                        parent.tag == f"{{{C}}}tx" or any(
+                            ancestor.tag in {f"{{{C}}}strCache", f"{{{C}}}strLit", f"{{{C}}}multiLvlStrCache"}
+                            for ancestor in node.iterancestors()
+                        )
+                    )
+                    if node.tag in TEXT_TAGS or chart_text:
                         cell = next(node.iterancestors(f"{{{S}}}c"), None)
                         if cell is not None and cell.find(f"{{{S}}}f") is not None:
                             # A formula's resolved string is a cached result, not
@@ -123,7 +145,7 @@ def office_signature(path: Path) -> dict:
                         text.append(node.text or "")
                         node.text = "__TEXT__"
                         node.attrib.pop(SPACE, None)
-                    elif node.tag == f"{{{S}}}f":
+                    elif node.tag in {f"{{{S}}}f", f"{{{C}}}f"}:
                         formulas.append(node.text or "")
                 data = etree.tostring(tree, method="c14n")
             structure[name] = hashlib.sha256(data).hexdigest()

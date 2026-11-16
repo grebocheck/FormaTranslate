@@ -18,6 +18,7 @@ from contextlib import closing, contextmanager
 from datetime import datetime, timedelta
 from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 
+from forma.accounting.context import current_attribution, opaque_id
 from forma.core.models import FormaError
 from forma.settings.config import data_directory
 from forma.settings.connection import connection_identity, legacy_connection_urls, legacy_endpoint
@@ -229,11 +230,11 @@ class UsageLedger:
     def connect(self):
         with closing(sqlite3.connect(self.path, timeout=0.5)) as db:
             db.row_factory = sqlite3.Row
-            if db.execute("PRAGMA user_version").fetchone()[0] != 2:
+            if db.execute("PRAGMA user_version").fetchone()[0] != 3:
                 with db:
                     db.execute("BEGIN IMMEDIATE")
                     version = db.execute("PRAGMA user_version").fetchone()[0]
-                    if version not in (0, 1, 2):
+                    if version not in (0, 1, 2, 3):
                         raise sqlite3.DatabaseError("Unsupported usage database version")
                     if version == 0:
                         for statement in (
@@ -262,7 +263,17 @@ class UsageLedger:
                             "(price_source LIKE 'openai_standard_%' AND "
                             "(model LIKE 'gpt-6%' OR model LIKE 'gpt-5.6-%')))"
                         )
-                        db.execute("PRAGMA user_version=2")
+                    if version in (0, 1, 2):
+                        for definition in (
+                            "run_id TEXT NOT NULL DEFAULT ''",
+                            "document_id TEXT NOT NULL DEFAULT ''",
+                            "stage TEXT NOT NULL DEFAULT 'unknown'",
+                            "attempt INTEGER NOT NULL DEFAULT 0",
+                            "reason TEXT NOT NULL DEFAULT 'legacy'",
+                        ):
+                            db.execute("ALTER TABLE requests ADD COLUMN " + definition)
+                        db.execute("CREATE INDEX requests_operation ON requests(account,run_id,document_id)")
+                        db.execute("PRAGMA user_version=3")
             with db:
                 db.execute("CREATE TABLE IF NOT EXISTS account_aliases (account TEXT NOT NULL, alias TEXT NOT NULL, PRIMARY KEY(account,alias))")
                 yield db
@@ -305,7 +316,7 @@ class UsageLedger:
         # the user intended. A new explicit tariff resolves the conflict.
         return next(iter(values)) if len(values) == 1 else None
 
-    def record(self, settings, raw, *, model="", status=200, timestamp=None):
+    def record(self, settings, raw, *, model="", status=200, timestamp=None, attempt=1, reason=None):
         now = time.time() if timestamp is None else timestamp
         try:
             data = json.loads(raw) if isinstance(raw, (str, bytes)) else raw
@@ -335,6 +346,12 @@ class UsageLedger:
             )
             else "unknown"
         )
+        attribution = current_attribution(attempt=attempt, reason=reason)
+        # An accidentally supplied credential must never become an opaque ID.
+        if settings.api_key:
+            for field in ("run_id", "document_id"):
+                if settings.api_key in attribution[field]:
+                    attribution[field] = ""
         with self.connect() as db:
             account, accounts = self._accounts(db, settings)
             tariff = self._tariff(db, account, accounts, requested)
@@ -343,8 +360,8 @@ class UsageLedger:
             if counts is None and status in (400, 401, 403, 404, 413, 422, 429):
                 cost, source = 0, "rejected"
             db.execute(
-                "INSERT INTO requests(account,at,model,status,input,cached,output,cost,price_source,cache_write,write_long,service_tier,uncertain) "
-                "VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                "INSERT INTO requests(account,at,model,status,input,cached,output,cost,price_source,cache_write,write_long,service_tier,uncertain,run_id,document_id,stage,attempt,reason) "
+                "VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                 (
                     account,
                     now,
@@ -357,6 +374,11 @@ class UsageLedger:
                     writes[2] if writes else None,
                     safe_tier,
                     int(source.endswith("_cache_unknown")),
+                    attribution["run_id"],
+                    attribution["document_id"],
+                    attribution["stage"],
+                    attribution["attempt"],
+                    attribution["reason"],
                 ),
             )
 
@@ -446,15 +468,53 @@ class UsageLedger:
                     (*accounts, start_month),
                 )
             ]
+            result["stages"] = self._stages(db, accounts, "at>=?", (start_month,))
         with _LOCK:
             result["incomplete"] = (str(self.path), account) in _FAILURES
         return result
 
+    @classmethod
+    def _stages(cls, db, accounts, condition, parameters):
+        return [dict(row) for row in db.execute(
+            "SELECT stage, COUNT(*) requests, COALESCE(SUM(input),0) input, "
+            "COALESCE(SUM(cached),0) cached, COALESCE(SUM(output),0) output, "
+            "COALESCE(SUM(cache_write),0) cache_write, COALESCE(SUM(cost),0) cost, "
+            "COALESCE(SUM(uncertain>0),0) uncertain, COALESCE(SUM(uncertain=2),0) unbounded, "
+            "COALESCE(SUM(cost IS NULL),0) unknown, "
+            "COALESCE(SUM(reason='transport_retry'),0) transport_retries, "
+            "COALESCE(SUM(reason='format_retry'),0) format_retries, "
+            "COALESCE(SUM(reason='capability_retry'),0) capability_retries "
+            f"FROM requests WHERE account IN ({cls._placeholders(accounts)}) AND {condition} "
+            "GROUP BY stage ORDER BY SUM(cost) DESC,stage",
+            (*accounts, *parameters),
+        )]
 
-def record_attempt(settings, raw=None, *, model="", status=0):
+    def operation_summary(self, settings, run_id, document_id=None):
+        """Resolve a report's opaque IDs within the current account only.
+
+        A failed/cancelled operation is still included; reports need not exist.
+        Unknown costs remain explicit and historic unattributed rows are never
+        guessed to belong to an operation.
+        """
+        if not opaque_id(run_id) or (document_id is not None and not opaque_id(document_id)):
+            raise ValueError("Invalid operation identity")
+        condition, parameters = "run_id=?", (run_id,)
+        if document_id is not None:
+            condition += " AND document_id=?"
+            parameters += (document_id,)
+        with self.connect() as db:
+            db.execute("BEGIN")
+            _, accounts = self._accounts(db, settings)
+            stages = self._stages(db, accounts, condition, parameters)
+        fields = ("requests", "input", "cached", "output", "cache_write", "cost", "uncertain",
+                  "unbounded", "unknown", "transport_retries", "format_retries", "capability_retries")
+        return {"stages": stages, "totals": {field: sum(row[field] for row in stages) for field in fields}}
+
+
+def record_attempt(settings, raw=None, *, model="", status=0, attempt=1, reason=None):
     """Accounting must never abort a translation; failures remain visible in UI."""
     try:
-        UsageLedger().record(settings, raw, model=model, status=status)
+        UsageLedger().record(settings, raw, model=model, status=status, attempt=attempt, reason=reason)
     except (OSError, sqlite3.Error, ValueError, TypeError, OverflowError, FormaError):
         try:
             failure = (str(data_directory() / "usage.sqlite3"), scope(settings))

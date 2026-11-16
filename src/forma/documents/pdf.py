@@ -14,6 +14,7 @@ from pathlib import Path
 
 from pypdf import PdfReader
 
+from forma.accounting.context import operation_ids
 from forma.core.models import Cancelled, FormaError, Issue, Options, TranslationResult
 from forma.documents.bundled_runtime import find_bundled, start_worker, worker_environment
 from forma.documents.pdf_api import PDFAPI
@@ -391,9 +392,10 @@ def translate_pdf(
         + statistics_path.name
         + ". Повторно використані переклади з кешу не витрачають токени; "
         "перервані запити можуть бути відсутні в обліку.",
+        **operation_ids(),
     )
     from forma.translation.reports import write_translation_report
 
-    write_translation_report(result, options, settings.model)
+    write_translation_report(result, options, settings.model, settings=settings)
     progress(100, "PDF готовий · перевірте верстку")
     return result

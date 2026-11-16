@@ -23,6 +23,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import httpx
 
+from forma.accounting.context import current_attribution, usage_context
 from forma.accounting.usage import record_attempt
 from forma.core.models import FormaError, Options
 from forma.providers.client import JobControl, retry_delay
@@ -274,6 +275,7 @@ class _Handler(BaseHTTPRequestHandler):
 class PDFAPI:
     def __init__(self, settings, workers, *, control=None):
         self.settings, self.workers = settings, workers
+        self.usage_attribution = current_attribution()
         self.control = control if control is not None else JobControl(workers)
         self.native = settings.api_mode in ("gemini", "anthropic")
         self.closing = False
@@ -384,7 +386,7 @@ class PDFAPI:
                         status, data = response.status_code, bytes(content)
                         headers = _retry_headers(response.headers)
                     accounted = True
-                    await asyncio.to_thread(record_attempt, self.settings, data, status=status)
+                    await asyncio.to_thread(self._record_attempt, data, status=status)
                     if status == 429:
                         try:
                             error = json.loads(data)
@@ -451,7 +453,7 @@ class PDFAPI:
                 finally:
                     if not accounted:
                         # Cancelled/truncated streams may still have incurred a charge.
-                        record_attempt(self.settings)
+                        self._record_attempt()
                     with self.lock:
                         self.active -= 1
                         self.elapsed += time.monotonic() - started
@@ -459,6 +461,15 @@ class PDFAPI:
                 return status, data, headers
         finally:
             self.tasks.discard(task)
+
+    def _record_attempt(self, data=None, *, status=0):
+        # HTTP handlers and the asyncio loop live in separate threads. Bind the
+        # operation captured when this document's bridge was created explicitly.
+        # BabelDOC owns retry scheduling, so its attempt ordinal is unknown.
+        with usage_context(run_id=self.usage_attribution["run_id"],
+                           document_id=self.usage_attribution["document_id"], stage="pdf",
+                           reason="unknown"):
+            record_attempt(self.settings, data, status=status, attempt=0)
 
     async def _wait_for_request(self):
         # The external pool already owns weighted concurrency slots. Reserve

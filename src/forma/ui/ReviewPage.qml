@@ -191,12 +191,14 @@ ColumnLayout {
                         PageControls.Action {
                             objectName: "reviewMoreActionsButton"
                             text: translationPane.width >= 380 ? qsTr("Інші дії") : ""; hint: qsTr("Інші дії"); iconName: "chevron-down"; subtle: true; implicitHeight: 32
-                            visible: !backend.reviewEditing && ((!backend.reviewDocument.recovery && !!backend.memoryProject.id) || !!backend.selectedReviewEntry.edited)
+                            visible: !backend.reviewEditing && ((!backend.reviewDocument.recovery && !!backend.memoryProject.id) || !!backend.selectedReviewEntry.edited || !!backend.selectedReviewEntry.canAlignReferences)
                             enabled: !shell.reviewLocked
                             onClicked: secondaryActions.open()
                             Menu {
                                 id: secondaryActions
+                                width: Math.min(shell.width - 40, Math.max(300, alignReferenceAction.implicitWidth + 24))
                                 MenuItem { text: qsTr("Запам’ятати формулювання"); objectName: "rememberReviewWordingButton"; visible: !backend.reviewDocument.recovery && !!backend.memoryProject.id; enabled: backend.canRememberReviewWording; onClicked: shell.showRememberWordingDialog() }
+                                MenuItem { id: alignReferenceAction; text: qsTr("Позначення «%1» для всіх заголовків цього додатка").arg(backend.selectedReviewEntry.referenceLabel || ""); objectName: "reviewAlignReferencesButton"; visible: !!backend.selectedReviewEntry.canAlignReferences; enabled: !shell.reviewLocked; onClicked: backend.alignReviewReferences() }
                                 MenuItem { text: qsTr("Скасувати збережену правку цього фрагмента"); objectName: "reviewDiscardEditButton"; visible: !!backend.selectedReviewEntry.edited; enabled: !shell.reviewLocked; onClicked: backend.discardReviewEdit() }
                             }
                         }

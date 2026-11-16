@@ -49,10 +49,11 @@ class Target:
     cell: etree._Element | None = None
     worksheet_part: str | None = None
     original_shared_index: int | None = None
+    chart_key: str = ""
 
 
 class OfficeDocument:
-    def __init__(self, path: Path, *, extraction_profile: int = 2):
+    def __init__(self, path: Path, *, extraction_profile: int | None = None):
         self.path = Path(path)
         self.parts: dict[str, bytes] = {}
         self.trees: dict[str, etree._ElementTree] = {}
@@ -62,9 +63,12 @@ class OfficeDocument:
         self.issues: list[Issue] = []
         if self.path.suffix.lower() not in (".docx", ".xlsx"):
             raise FormaError("Цей рушій підтримує DOCX і XLSX.")
-        if type(extraction_profile) is not int or extraction_profile not in {1, 2}:
+        if extraction_profile is not None and (type(extraction_profile) is not int or extraction_profile not in {1, 2, 3}):
             raise ValueError("Unsupported document extraction profile")
-        self.extraction_profile = extraction_profile if self.path.suffix.lower() == ".xlsx" else 1
+        if extraction_profile == 3 and self.path.suffix.lower() != ".docx":
+            raise ValueError("Chart extraction profile requires DOCX")
+        self.extraction_profile = (extraction_profile or 2) if self.path.suffix.lower() == ".xlsx" else (3 if extraction_profile in {None, 3} else 1)
+        self.chart_labels = None
         try:
             with ZipFile(self.path) as archive:
                 infos = archive.infolist()
@@ -108,6 +112,7 @@ class OfficeDocument:
         cell: etree._Element | None = None,
         worksheet_part: str | None = None,
         original_shared_index: int | None = None,
+        chart_key: str = "",
     ) -> None:
         if not nodes or not any(c.isalpha() for n in nodes for c in (n.text or "")):
             return
@@ -135,13 +140,14 @@ class OfficeDocument:
         if self.extraction_profile == 2:
             sid = "xlsx-v2:" + sid
         self.segments.append(Segment(sid, location, source, context))
-        self.targets[sid] = Target(part, nodes, marker_nodes, cell, worksheet_part, original_shared_index)
+        self.targets[sid] = Target(part, nodes, marker_nodes, cell, worksheet_part, original_shared_index, chart_key)
 
     def _extract(self) -> None:
         if self.path.suffix.lower() == ".docx":
             if "word/document.xml" not in self.parts:
                 raise FormaError("У DOCX відсутня основна частина документа.")
             chart_data_labels = False
+            chart_parts = []
             for part in self.parts:
                 if re.fullmatch(
                     r"word/(document|header\d*|footer\d*|footnotes|endnotes|comments)\.xml", part
@@ -149,8 +155,24 @@ class OfficeDocument:
                     self._word(part)
                 elif re.fullmatch(r"word/(charts|diagrams)/[^/]+\.xml", part):
                     self._drawing(part)
-                    if part.startswith("word/charts/") and self._chart_data_labels(part):
-                        chart_data_labels = True
+                    if part.startswith("word/charts/"):
+                        chart_parts.append(part)
+                        if self.extraction_profile != 3 and self._chart_data_labels(part):
+                            chart_data_labels = True
+            if self.extraction_profile == 3:
+                from forma.documents.charts import ChartLabels
+
+                self.chart_labels = ChartLabels(self, chart_parts)
+                chart_data_labels = self.chart_labels.unsupported
+                if not self.chart_labels.groups:
+                    # Keep legacy checkpoints/identities for documents whose
+                    # translatable surface did not expand.
+                    self.extraction_profile = 1
+                for index, group in enumerate(self.chart_labels.groups.values(), 1):
+                    part, node = group.nodes[0]
+                    self._add(part, f"{Path(part).stem} · напис даних {index}", [node],
+                              context=self.chart_labels.context(group),
+                              chart_key=group.key)
             if chart_data_labels:
                 self.issues.append(Issue(
                     "chart_labels_preserved",
@@ -555,11 +577,18 @@ class OfficeDocument:
                 node.set(XML_SPACE, "preserve")
 
         clones = {}
+        chart_replacements = {}
         shared_items = None
         shared_anchor = None
         for segment in self.segments:
             target = self.targets[segment.id]
             values = tuple(parsed[segment.id][f"r{index}"] for index in range(len(target.nodes)))
+            if target.chart_key:
+                chart_replacements[target.chart_key] = values[0]
+                for part, node in self.chart_labels.groups[target.chart_key].nodes:
+                    if values[0] != (node.text or ""):
+                        replace_text(editable(part, node), values[0])
+                continue
             if values == tuple(node.text or "" for node in target.nodes):
                 continue
             if target.original_shared_index is not None and target.cell is not None:
@@ -600,11 +629,12 @@ class OfficeDocument:
                         and next(node.iterancestors(f"{{{W}}}tc"), None) is not None
                     ):
                         editable(part, node).text = text.replace(",", ".")
+        chart_workbooks = self.chart_labels.write_workbooks(chart_replacements) if self.chart_labels else {}
         buffer = io.BytesIO()
         with ZipFile(buffer, "w") as archive:
             archive.comment = self.zip_comment
             for info in self.infos:
-                data = self.parts[info.filename]
+                data = chart_workbooks.get(info.filename, self.parts[info.filename])
                 if info.filename in staged:
                     original = data
                     data = etree.tostring(

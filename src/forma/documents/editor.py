@@ -183,6 +183,12 @@ def _shape(document: OfficeDocument, part: str, *, shared_cells=frozenset()) -> 
 
 
 def _locate_target(original: OfficeDocument, current: OfficeDocument, target: Target) -> Target:
+    if target.chart_key:
+        group = current.chart_labels.groups.get(target.chart_key) if current.chart_labels else None
+        if group is None:
+            raise FormaError("Структура перекладеного документа змінилася; зіставлення редактури небезпечне.")
+        part, node = group.nodes[0]
+        return Target(part, [node], chart_key=target.chart_key)
     if original.extraction_profile == 2 and target.cell is not None:
         worksheet = original._tree(target.worksheet_part)
         current_worksheet = current._tree(target.worksheet_part)
@@ -343,6 +349,10 @@ def _export(source, output, report, edits, folder, expected_report_fingerprint, 
         raise FormaError("Оригінал змінився після створення звіту.")
     original = OfficeDocument(source, extraction_profile=previous.extraction_profile)
     current = OfficeDocument(output, extraction_profile=previous.extraction_profile)
+    if previous.extraction_profile == 3 and (
+        original.chart_labels is None or not original.chart_labels.compatible_layout(current.chart_labels)
+    ):
+        raise FormaError("Структура перекладеного документа змінилася; зіставлення редактури небезпечне.")
     by_source = defaultdict(list)
     for segment in original.segments:
         by_source[(segment.location, segment.source)].append(segment)
@@ -464,6 +474,7 @@ def _export(source, output, report, edits, folder, expected_report_fingerprint, 
                 if previous.preparation else {}
             ),
               extraction_profile=previous.extraction_profile,
+            translation_profile=dict(previous.translation_profile),
         )
         # Unknown legacy glossary provenance stays unknown. Manual edits never
         # become preferred memory entries without the separate explicit action.

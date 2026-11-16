@@ -34,5 +34,18 @@
   "Запитів: %1 · токени вхід / вихід: %2": "Żądania: %1 · tokeny wejściowe / wyjściowe: %2",
   "Кеш · читання: %1 · запис: %2": "Pamięć podręczna · odczyt: %1 · zapis: %2",
   "Автотарифи OpenAI: %1, стандартна обробка. Враховано читання та запис кешу за даними API. Податки й регіональні доплати не включені. Точні списання перевіряйте у провайдера.": "Automatyczne stawki OpenAI: %1, przetwarzanie standardowe. Uwzględniają odczyt i zapis pamięci podręcznej zgłoszony przez API. Bez podatków i dopłat regionalnych. Rzeczywiste opłaty sprawdź u dostawcy.",
-  "Залишок невідомий: після введення балансу є запити без повної оцінки вартості.": "Pozostałe saldo jest nieznane: niektóre żądania od wpisania salda nie mają pełnej wyceny."
+  "Залишок невідомий: після введення балансу є запити без повної оцінки вартості.": "Pozostałe saldo jest nieznane: niektóre żądania od wpisania salda nie mają pełnej wyceny.",
+  "Витрати за етапами": "Koszty według etapów",
+  "Початковий переклад": "Tłumaczenie wstępne",
+  "Редакторська перевірка": "Weryfikacja redakcyjna",
+  "Цільове доопрацювання": "Ukierunkowana korekta",
+  "Виправлення після перевірки": "Naprawa po walidacji",
+  "Узгодження термінології": "Uzgadnianie terminologii",
+  "Переклад фото": "Tłumaczenie zdjęcia",
+  "Переклад тексту": "Tłumaczenie tekstu",
+  "Переклад PDF": "Tłumaczenie PDF",
+  "Перевірка підключення": "Test połączenia",
+  "Без розподілу за етапами": "Bez przypisanego etapu",
+  "За останні 30 днів. Старі запити залишаються без розподілу; повторні спроби включено у вартість відповідного етапу.": "Ostatnie 30 dni. Starsze żądania pozostają bez przypisanego etapu; ponowienia są wliczone w koszt danego etapu.",
+  "Повтори: мережа / сервер — %1; формат — %2; сумісність — %3.": "Ponowienia: sieć / serwer — %1; format — %2; zgodność — %3."
 }

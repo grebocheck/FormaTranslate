@@ -34,5 +34,18 @@
   "Запитів: %1 · токени вхід / вихід: %2": "Requêtes : %1 · jetons d’entrée / sortie : %2",
   "Кеш · читання: %1 · запис: %2": "Cache · lecture : %1 · écriture : %2",
   "Автотарифи OpenAI: %1, стандартна обробка. Враховано читання та запис кешу за даними API. Податки й регіональні доплати не включені. Точні списання перевіряйте у провайдера.": "Tarifs OpenAI automatiques : %1, traitement standard. Comprend les lectures et écritures en cache signalées par l’API. N’inclut ni taxes ni suppléments régionaux. Vérifiez les frais réels auprès de votre fournisseur.",
-  "Залишок невідомий: після введення балансу є запити без повної оцінки вартості.": "Solde restant inconnu : certaines requêtes depuis la saisie du solde n’ont pas d’estimation de coût complète."
+  "Залишок невідомий: після введення балансу є запити без повної оцінки вартості.": "Solde restant inconnu : certaines requêtes depuis la saisie du solde n’ont pas d’estimation de coût complète.",
+  "Витрати за етапами": "Coûts par étape",
+  "Початковий переклад": "Traduction initiale",
+  "Редакторська перевірка": "Révision éditoriale",
+  "Цільове доопрацювання": "Révision ciblée",
+  "Виправлення після перевірки": "Correction après validation",
+  "Узгодження термінології": "Harmonisation terminologique",
+  "Переклад фото": "Traduction de photo",
+  "Переклад тексту": "Traduction de texte",
+  "Переклад PDF": "Traduction PDF",
+  "Перевірка підключення": "Test de connexion",
+  "Без розподілу за етапами": "Sans attribution",
+  "За останні 30 днів. Старі запити залишаються без розподілу; повторні спроби включено у вартість відповідного етапу.": "Sur les 30 derniers jours. Les anciennes requêtes restent sans attribution ; les nouvelles tentatives sont incluses dans le coût de leur étape.",
+  "Повтори: мережа / сервер — %1; формат — %2; сумісність — %3.": "Nouvelles tentatives : réseau / serveur — %1 ; format — %2 ; compatibilité — %3."
 }

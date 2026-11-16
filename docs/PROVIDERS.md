@@ -13,6 +13,8 @@ An external **LM Studio** or **Ollama** server can supply a local model through 
 
 Presets are editable starting points, not separate accounts or subscriptions. Selecting a preset does not save settings, send requests, create a key or change billing. Changing providers clears a typed key; an already saved key is only reused for the matching endpoint. Switching between Gemini presets keeps access to the same endpoint's saved key.
 
+Recognized GPT-5.6/GPT-6 models on the official OpenAI endpoint use explicit 30-minute cache boundaries for stable request material in Chat and Responses. Variable segments/drafts/images remain outside those writes. Other endpoints and model families retain their original protocol behavior, and an explicit unsupported-cache-parameter response falls back without those controls. Saved models, full editorial review and the selected API mode remain unchanged. See [costs](COSTS.md) for measurement limits.
+
 Connections use the effective API root and protocol family. Chat Completions and Responses share their OpenAI-compatible credential scope; Gemini and Anthropic have separate scopes even on the same host. Native address forms such as Anthropic's root, `/v1` and `/v1/messages`, or Gemini's root and full `models/...:generateContent` address, keep the same saved key. A custom Chat Completions base ending in `/messages` remains a distinct custom path.
 
 Older saved profiles migrate their OS-vault key only when the stored protocol and address prove the matching connection. New protocol selections do not guess the owner of an old untyped vault entry. Existing legacy records are retained; conflicting old keys require the user to enter the intended key rather than choosing one silently.

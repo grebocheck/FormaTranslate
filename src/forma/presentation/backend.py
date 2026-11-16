@@ -405,6 +405,10 @@ class Backend(
     def discardReviewEdit(self):
         return ReviewWorkflow.discardReviewEdit(self)
 
+    @Slot(result=bool)
+    def alignReviewReferences(self):
+        return ReviewWorkflow.alignReviewReferences(self)
+
     @Slot()
     def confirmReviewEntry(self):
         return ReviewWorkflow.confirmReviewEntry(self)

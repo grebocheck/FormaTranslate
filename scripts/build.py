@@ -100,7 +100,7 @@ def prepare_release_materials(
                          (root / "THIRD_PARTY_NOTICES.md", "THIRD_PARTY_NOTICES.md"),
                          (root / "docs/BUILDING.md", "BUILDING.md")):
         shutil.copy2(source, payload / name)
-    public_docs = ["README.md", "CHANGELOG.md", "CONTRIBUTING.md", "SECURITY.md", "LICENSE"]
+    public_docs = ["README.md", "CHANGELOG.md", "CONTRIBUTING.md", "CODE_OF_CONDUCT.md", "SECURITY.md", "LICENSE"]
     public_docs += [path.relative_to(root).as_posix() for path in (root / "docs").glob("*.md")]
     public_docs += ["docs/interface.png", "docs/quick-translate.png"]
     for name in public_docs:

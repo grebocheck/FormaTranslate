@@ -34,5 +34,18 @@
   "Запитів: %1 · токени вхід / вихід: %2": "Anfragen: %1 · Eingabe- / Ausgabetokens: %2",
   "Кеш · читання: %1 · запис: %2": "Cache · gelesen: %1 · geschrieben: %2",
   "Автотарифи OpenAI: %1, стандартна обробка. Враховано читання та запис кешу за даними API. Податки й регіональні доплати не включені. Точні списання перевіряйте у провайдера.": "Automatische OpenAI-Tarife: %1, Standardverarbeitung. Berücksichtigt vom API gemeldete Cache-Lese- und Schreibvorgänge. Ohne Steuern und regionale Zuschläge. Tatsächliche Gebühren beim Anbieter prüfen.",
-  "Залишок невідомий: після введення балансу є запити без повної оцінки вартості.": "Restguthaben unbekannt: Für einige Anfragen seit der Guthabeneingabe fehlt eine vollständige Kostenschätzung."
+  "Залишок невідомий: після введення балансу є запити без повної оцінки вартості.": "Restguthaben unbekannt: Für einige Anfragen seit der Guthabeneingabe fehlt eine vollständige Kostenschätzung.",
+  "Витрати за етапами": "Kosten nach Arbeitsschritt",
+  "Початковий переклад": "Erste Übersetzung",
+  "Редакторська перевірка": "Redaktionelle Prüfung",
+  "Цільове доопрацювання": "Gezielte Überarbeitung",
+  "Виправлення після перевірки": "Korrektur nach Validierung",
+  "Узгодження термінології": "Terminologieabgleich",
+  "Переклад фото": "Fotoübersetzung",
+  "Переклад тексту": "Textübersetzung",
+  "Переклад PDF": "PDF-Übersetzung",
+  "Перевірка підключення": "Verbindungstest",
+  "Без розподілу за етапами": "Ohne Zuordnung",
+  "За останні 30 днів. Старі запити залишаються без розподілу; повторні спроби включено у вартість відповідного етапу.": "Letzte 30 Tage. Ältere Anfragen bleiben ohne Zuordnung; Wiederholungen sind in den Kosten des jeweiligen Schritts enthalten.",
+  "Повтори: мережа / сервер — %1; формат — %2; сумісність — %3.": "Wiederholungen: Netzwerk / Server — %1; Format — %2; Kompatibilität — %3."
 }

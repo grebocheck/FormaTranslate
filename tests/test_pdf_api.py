@@ -8,10 +8,12 @@ import tomllib
 from concurrent.futures import ThreadPoolExecutor
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from uuid import uuid4
 
 import httpx
 import pytest
 
+from forma.accounting.context import usage_context
 from forma.accounting.usage import UsageLedger
 from forma.core.models import FormaError, Options
 from forma.documents.pdf import translate_pdf
@@ -80,7 +82,8 @@ def post(bridge, body=None):
 
 
 def test_pdf_api_forwards_explicit_settings_and_accounts_usage(upstream):
-    with PDFAPI(config(upstream, reasoning_effort="low", max_output_tokens=4096), 2) as bridge:
+    run_id, document_id = uuid4().hex, uuid4().hex
+    with usage_context(run_id=run_id, document_id=document_id), PDFAPI(config(upstream, reasoning_effort="low", max_output_tokens=4096), 2) as bridge:
         response = post(bridge)
         assert response.status_code == 200
         path, headers, body = upstream.requests[0]
@@ -98,6 +101,9 @@ def test_pdf_api_forwards_explicit_settings_and_accounts_usage(upstream):
     assert recorded["requests"] == 1
     assert recorded["input"] == 31 and recorded["output"] == 12
     assert recorded["unknown"] == 1  # Custom endpoint: no automatic OpenAI prices.
+    operation = UsageLedger().operation_summary(config(upstream), run_id, document_id)
+    assert operation["totals"]["requests"] == 1
+    assert operation["stages"][0]["stage"] == "pdf"
 
 
 def test_pdf_body_preserves_unconfigured_values_and_unknown_model_compatibility():

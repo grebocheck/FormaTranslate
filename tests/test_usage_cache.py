@@ -155,7 +155,7 @@ def test_migrate_v1_preserves_history_tariffs_baselines_and_marks_missing_detail
         assert summary["balance"]["remaining"] is None
         assert summary["tariff"] == ["1", ".05", "5"]
     with ledger.connect() as db:
-        assert db.execute("PRAGMA user_version").fetchone()[0] == 2
+        assert db.execute("PRAGMA user_version").fetchone()[0] == 3
         assert (
             db.execute("SELECT count(*) FROM requests WHERE cache_write IS NOT NULL").fetchone()[0]
             == 0

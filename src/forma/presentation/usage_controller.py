@@ -160,13 +160,14 @@ class UsageController(QObject):
 
     @staticmethod
     def _format(data, settings):
-        for row in (data["today"], data["month"], *data["models"]):
+        for row in (data["today"], data["month"], *data["models"], *data.get("stages", [])):
             row["costText"] = money(row["cost"])
             row["costLabel"] = (
                 "≥ " if (row["unknown"] or row["uncertain"]) and not row["unbounded"] else "≈ "
             ) + row["costText"]
             row["writeText"] = "—" if row["uncertain"] or row["unknown"] else f"{row['cache_write']:,}"
             row["tokensText"] = f"{row['input']:,} / {row['output']:,}"
+            row["cacheReadPercentText"] = f"{100 * row['cached'] / row['input']:.2f}" if row["input"] else "—"
         balance = data.get("balance")
         if balance:
             balance["text"] = money(None if data["incomplete"] else balance["remaining"])

@@ -5,8 +5,10 @@ from __future__ import annotations
 import threading
 import time
 from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
+from contextvars import copy_context
 from dataclasses import replace
 
+from forma.accounting.context import operation_ids
 from forma.core.models import FormaError, Segment, TranslationFailure, TranslationResult
 from forma.documents.ooxml import OfficeDocument
 from forma.memory.context import (
@@ -409,7 +411,7 @@ def translate_with_memory(engine, source, folder, options, progress):
                     batch = next(batches, None)
                     if batch is None:
                         break
-                    active.add(pool.submit(process_batch, batch))
+                    active.add(pool.submit(copy_context().run, process_batch, batch))
 
             try:
                 fill_workers()
@@ -465,10 +467,11 @@ def translate_with_memory(engine, source, folder, options, progress):
             source_sha256=source_hash,
             output_sha256=file_digest(output),
             extraction_profile=document.extraction_profile,
+            **operation_ids(),
         )
         from forma.translation.reports import write_translation_report
 
-        write_translation_report(result, options, settings.model)
+        write_translation_report(result, options, settings.model, settings=settings)
         progress(100, "Переклад готовий")
         return result
     except TranslationFailure as failure:
