@@ -37,8 +37,6 @@ class DocumentWorkflow:
             candidates = [d for d in self._documents if d["status"] in {"queued", "translating"}]
         else:
             candidates = [d for d in self._documents if d["status"] in {"ready", "error", "cancelled"}]
-            if not candidates and self._documents and all(d["status"] == "done" for d in self._documents):
-                candidates = self._documents
         return any(d["format"] == "PDF" for d in candidates)
 
     def canMoveQueue(self, index, delta):
@@ -100,16 +98,18 @@ class DocumentWorkflow:
         return next((d for d in self._documents if d["id"] == self._selected), None)
 
     def selectedDocument(self):
-        document = self._selected_document()
-        return {**self._display_document(document), **self._workflow_details(document)} if document else {}
+        document = self._workspace_document()
+        return {**self._workspace_row(document), **self._workflow_details(document)} if document else {}
 
     def segments(self):
-        document = self._selected_document()
+        document = self._workspace_document()
         if not document:
             self._segments_cache = None
             return []
         result = document.get("result")
-        segments = document.get("segments", [])
+        if document.get("history") and self._review_view_id == document["id"] and self._review_context:
+            result = self._review_context.get("result")
+        segments = result.segments if result else document.get("segments", [])
         language = current_language()
         cached = self._segments_cache
         # Worker results replace whole snapshots; keep only the selected snapshot.
@@ -159,13 +159,7 @@ class DocumentWorkflow:
         ]
 
     def selectDocument(self, document_id):
-        if self._review_editing or self._review_saving:
-            return
-        self._selected = document_id
-        self._review_document_id = document_id
-        self._review_search = ""
-        self._reload_review()
-        self.changed.emit()
+        self.selectWorkspaceDocument(document_id)
 
     def addFiles(self, urls):
         if not self.canAddDocuments:
@@ -204,7 +198,7 @@ class DocumentWorkflow:
                 }
             )
             if not self._selected:
-                self._selected = did
+                self.selectWorkspaceDocument(did)
 
             self._inspect_document(self._documents[-1])
         self._persist_queue()
@@ -321,11 +315,8 @@ class DocumentWorkflow:
             return  # The scheduler has already claimed this file.
         self._inspection_pending.pop(document_id, None)
         self._documents.remove(document)
-        if self._selected == document_id:
-            self._selected = self._documents[0]["id"] if self._documents else ""
-        if self._review_document_id == document_id:
-            self._review_document_id = self._selected
-            self._reload_review()
+        if self._selected == document_id or self._review_document_id == document_id:
+            self._select_workspace_neighbor()
         self._persist_queue()
         self.changed.emit()
 
@@ -660,5 +651,6 @@ class DocumentWorkflow:
             self._persist_queue()
         else:
             self._document_model.update_row(self._document_row(doc))
+            self._workspace_document_model.update_row(self._workspace_row(doc))
             self._skip_document_sync = True
         self.changed.emit()

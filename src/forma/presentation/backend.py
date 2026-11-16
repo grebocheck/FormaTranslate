@@ -25,6 +25,7 @@ from forma.presentation.ocr_workflow import OcrWorkflow
 from forma.presentation.quick_controller import QuickTranslator
 from forma.presentation.recovery_workflow import RecoveryWorkflow
 from forma.presentation.review_workflow import ReviewWorkflow
+from forma.presentation.session_workflow import SessionWorkflow
 from forma.presentation.settings_workflow import SettingsWorkflow
 from forma.presentation.usage_controller import UsageController
 from forma.providers.presets import provider_presets
@@ -51,7 +52,7 @@ class TaskThread(QThread):
 
 
 class Backend(
-    QObject, ReviewWorkflow, RecoveryWorkflow, HistoryWorkflow, SettingsWorkflow, MemoryWorkflow, OcrWorkflow, DocumentWorkflow
+    QObject, SessionWorkflow, ReviewWorkflow, RecoveryWorkflow, HistoryWorkflow, SettingsWorkflow, MemoryWorkflow, OcrWorkflow, DocumentWorkflow
 ):
     changed = Signal()
     languageChanged = Signal()
@@ -78,6 +79,7 @@ class Backend(
         self._history_cache = None
         self._documents = []
         self._document_model = DocumentListModel(self)
+        self._workspace_document_model = DocumentListModel(self)
         self._skip_document_sync = False
         self._selected = ""
         self._threads: list[TaskThread] = []
@@ -164,7 +166,7 @@ class Backend(
         self._review_all_entries = []
         self._review_entries = []
         self._review_selected = ""
-        self._review_filter = "issues"
+        self._review_filter = "all"
         self._review_search = ""
         self._review_summary = self._empty_review_summary()
         self._review_context = None
@@ -244,6 +246,7 @@ class Backend(
         except FormaError as exc:
             self._library = None
             self._notice(str(exc), "error")
+        self._initialize_workspace()
         if requested_memory_project and self._memory_message_error and not self._message:
             self._notice(self._memory_message, "warning")
         self._refresh_worker_availability()
@@ -258,6 +261,7 @@ class Backend(
             self._skip_document_sync = False
             return
         self._document_model.sync(DocumentWorkflow.documents(self))
+        self._workspace_document_model.sync(SessionWorkflow.workspaceDocuments(self))
 
     def _read_settings(self):
         return Settings.load(load_credentials=False)
@@ -597,6 +601,50 @@ class Backend(
     @Slot(str, str)
     def setDocumentPdfMode(self, document_id, mode):
         return DocumentWorkflow.setDocumentPdfMode(self, document_id, mode)
+
+    @Property(QObject, constant=True)
+    def workspaceDocumentModel(self):
+        return self._workspace_document_model
+
+    @Property("QVariantList", notify=changed)
+    def workspaceDocuments(self):
+        return SessionWorkflow.workspaceDocuments(self)
+
+    @Property(str, notify=changed)
+    def workspaceDocumentId(self):
+        return self._selected
+
+    @Property(str, notify=changed)
+    def workspaceMode(self):
+        return self._workspace_mode
+
+    @Property("QVariantMap", notify=changed)
+    def workspaceOptions(self):
+        return dict(self._workspace_options)
+
+    @Slot("QVariantMap", result=bool)
+    def setWorkspaceOptions(self, options):
+        return SessionWorkflow.setWorkspaceOptions(self, options)
+
+    @Slot(str)
+    def openWorkspaceReport(self, document_id):
+        return SessionWorkflow.openWorkspaceReport(self, document_id)
+
+    @Property(int, notify=changed)
+    def pendingDocumentCount(self):
+        return SessionWorkflow.pendingDocumentCount(self)
+
+    @Slot(str)
+    def selectWorkspaceDocument(self, document_id):
+        return SessionWorkflow.selectWorkspaceDocument(self, document_id)
+
+    @Slot(str)
+    def closeWorkspaceDocument(self, document_id):
+        return SessionWorkflow.closeWorkspaceDocument(self, document_id)
+
+    @Slot(str)
+    def setWorkspaceMode(self, mode):
+        return SessionWorkflow.setWorkspaceMode(self, mode)
 
     @Property(str, notify=changed)
     def selectedId(self):

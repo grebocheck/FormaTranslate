@@ -23,6 +23,7 @@ class HistoryWorkflow:
                 self._library.save_queue(self._documents)
             except FormaError as exc:
                 self._notice(str(exc), "error")
+        self._persist_workspace()
 
     def _record_history(self, document):
         if not self._library or not document.get("runId"):
@@ -117,7 +118,7 @@ class HistoryWorkflow:
             return
         existing = next((d for d in self._documents if d["path"] == entry.get("source")), None)
         if existing:
-            self._selected = existing["id"]
+            self.selectWorkspaceDocument(existing["id"])
             if existing["status"] in ("done", "error", "cancelled") and self._can_remove(existing):
                 existing.update(
                     status="loading",
@@ -152,12 +153,15 @@ class HistoryWorkflow:
             try:
                 self._library.remove_history(entry_id)
                 self._history = self._library.list_history()
-                if self._history_review and self._history_review["id"] == "history:" + entry_id:
-                    forgotten = self._history_review["id"]
+                forgotten = "history:" + entry_id
+                if forgotten in self._workspace_history:
+                    self.closeWorkspaceDocument(forgotten)
+                elif self._history_review and self._history_review["id"] == forgotten:
                     self._history_review = None
                     if self._review_document_id == forgotten:
-                        self._review_document_id = self._selected
-                        self._reload_review()
+                        self._select_workspace_neighbor()
+                self._workspace_navigation.pop(forgotten, None)
+                self._persist_workspace()
                 self.changed.emit()
             except FormaError as exc:
                 self._notice(str(exc), "error")

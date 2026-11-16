@@ -41,7 +41,7 @@ def test_real_review_confirm_edit_apply_and_export_controls(qapp, reviewed):
         backend.selectReviewEntry(segment.id)
         QTest.qWait(20)
         export = window.findChild(QQuickItem, "reviewExportButton")
-        assert export.isVisible() and not export.isEnabled()
+        assert not export.isVisible() and not export.isEnabled()
         click("reviewConfirmButton")
         assert backend.selectedReviewEntry["accepted"]
         click("reviewReopenButton")
@@ -49,7 +49,7 @@ def test_real_review_confirm_edit_apply_and_export_controls(qapp, reviewed):
         click("reviewEditButton")
         target = window.findChild(QQuickItem, "reviewTranslationText")
         assert backend.reviewEditing and not target.property("readOnly")
-        assert not window.findChild(QQuickItem, "reviewDocumentSelector").property("enabled")
+        assert not window.findChild(QQuickItem, "workspaceDocumentList").property("enabled")
         target.setProperty("text", "Введення теплолічильника в експлуатацію")
         QTest.qWait(10)
         assert backend.reviewDraftText == target.property("text")
@@ -68,14 +68,15 @@ def test_real_review_confirm_edit_apply_and_export_controls(qapp, reviewed):
             assert target.height() >= 140
             assert abs(apply.mapToScene(QPointF()).y() - cancel.mapToScene(QPointF()).y()) < 1
             assert cancel.mapToScene(QPointF(cancel.width(), cancel.height())).x() <= window.width() - 20
-            assert export.isVisible() and not export.isEnabled()
+            assert not export.isVisible() and not export.isEnabled()
         click("reviewApplyButton")
         assert not backend.reviewEditing and backend.reviewHasEdits
         assert target.property("readOnly")
+        assert export.isVisible() and export.isEnabled()
         # Secondary undo restores the generated text; it never writes the file.
         click("reviewMoreActionsButton")
         click("reviewDiscardEditButton")
-        assert not backend.reviewHasEdits and not export.isEnabled()
+        assert not backend.reviewHasEdits and not export.isVisible()
         click("reviewEditButton")
         target.setProperty("text", "Введення теплолічильника в експлуатацію")
         QTest.qWait(10)

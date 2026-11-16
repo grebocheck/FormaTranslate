@@ -437,6 +437,7 @@ def test_memory_dialog_drafts_project_and_delete_confirmation_survive_language_s
     window.setHeight(680)
 
     def click(name):
+        QTest.qWait(20)
         button = window.findChild(QQuickItem, name)
         assert button is not None and button.isVisible() and button.isEnabled(), name
         point = button.mapToScene(QPointF(button.width() / 2, button.height() / 2))
@@ -444,7 +445,8 @@ def test_memory_dialog_drafts_project_and_delete_confirmation_survive_language_s
         QTest.qWait(10)
 
     try:
-        window.findChild(QQuickItem, "manageMemoryButton").clicked.emit()
+        click("translationOptionsButton")
+        click("manageMemoryButton")
         QTest.qWait(30)
         name = window.findChild(QQuickItem, "memoryProjectNameField")
         name.setProperty("text", "Unsaved — {draft}")
@@ -466,6 +468,8 @@ def test_memory_dialog_drafts_project_and_delete_confirmation_survive_language_s
             assert confirmation.property("projectName") == "Energy — {name}"
             assert window.findChild(QQuickItem, "sourceLanguage").property("currentIndex") == 2
             assert window.findChild(QQuickItem, "targetLanguage").property("currentIndex") == 0
+            assert backend.workspaceOptions["sourceLanguage"] == "uk"
+            assert backend.workspaceOptions["targetLanguage"] == "en"
             assert not window.grabWindow().isNull()
         click("cancelDeleteMemoryProjectButton")
         assert backend._memory.get_project(project_id).name == "Energy — {name}"

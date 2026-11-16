@@ -2,6 +2,13 @@
 
 Versions follow semantic versioning. Changes before 1.0 may evolve as document compatibility improves.
 
+## Unreleased
+
+- Rebuild Documents and Review around one automatically saved session with a shared, persistent document sidebar. Restore the selected document, translation options and each report's fragment, search and filter across navigation and restarts.
+- Move translation options into one dialog and document/queue operations into contextual menus. Keep source and translation side by side at the minimum window size, with the fragment list available on demand.
+- Keep historical results as separate read-only session references. Opening or switching a result never queues another translation; the main action shows its pending document count and excludes completed files.
+- Preserve unapplied-edit guards, report-bound drafts, asynchronous load cancellation, PDF/OCR handoffs and live switching of all six interface languages and themes.
+
 ## 0.14.0 — 2026-11-16
 
 - Refine photo text rectangles with optional local Tesseract word anchors and fit translations to available space with adaptive fonts. Expand only into verified empty space, retain source text for unsafe placements and preserve full recognized/translated text beside the image.

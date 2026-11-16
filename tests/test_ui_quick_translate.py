@@ -88,7 +88,6 @@ def test_text_paste_edits_and_language_switching_keep_draft_and_selection(qapp, 
         for name in (
             "translationTab",
             "quickTranslationTab",
-            "reviewTab",
             "historyTab",
             "settingsButton",
             "quickTextMode",

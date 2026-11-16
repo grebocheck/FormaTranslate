@@ -1,0 +1,164 @@
+import QtQuick
+import QtQuick.Controls
+import QtQuick.Layouts
+
+RowLayout {
+    id: workspace
+    required property var shell
+    property alias sourceLanguage: translationPage.sourceLanguage
+    property alias targetLanguage: translationPage.targetLanguage
+    property alias domain: translationPage.domain
+    readonly property var activeDocument: backend.workspaceDocuments.find(function(item) { return item.id === backend.workspaceDocumentId }) || ({})
+    property string menuDocumentId: ""
+    readonly property var menuDocument: backend.workspaceDocuments.find(function(item) { return item.id === workspace.menuDocumentId }) || ({})
+    readonly property int menuQueueIndex: backend.documents.findIndex(function(item) { return item.id === workspace.menuDocumentId })
+    spacing: 16
+
+    function showFileMenu(identifier) {
+        menuDocumentId = identifier
+        fileMenu.open()
+    }
+
+    PageControls.Panel {
+        objectName: "workspaceSidebar"
+        Layout.preferredWidth: shell.width < 1080 ? 216 : 244
+        Layout.fillHeight: true
+        color: Theme.surfaceMuted
+        DropArea { anchors.fill: parent; enabled: backend.canAddDocuments && !shell.reviewLocked; onDropped: function(event) { if (event.hasUrls) backend.addFiles(event.urls) } }
+        ColumnLayout {
+            anchors.fill: parent; anchors.margins: 12; spacing: 10
+            RowLayout {
+                Layout.fillWidth: true; spacing: 4
+                PageControls.Heading { text: qsTr("Сесія документів"); Layout.fillWidth: true; elide: Text.ElideRight; font.pixelSize: 14 }
+                PageControls.Action {
+                    objectName: "addDocumentsButton"; iconName: "add"; hint: qsTr("Додати файли"); Accessible.name: hint
+                    subtle: true; implicitWidth: 32; implicitHeight: 32
+                    enabled: backend.canAddDocuments && !shell.reviewLocked; onClicked: backend.pickDocuments()
+                }
+                PageControls.Action {
+                    objectName: "workspaceSessionMenuButton"; iconName: "chevron-down"; hint: qsTr("Дії із сесією"); Accessible.name: hint
+                    subtle: true; implicitWidth: 28; implicitHeight: 32; enabled: !shell.reviewLocked
+                    onClicked: sessionMenu.open()
+                    Menu {
+                        id: sessionMenu; width: Math.min(shell.width - 40, 360)
+                        MenuItem { text: qsTr("Папка перекладів…"); objectName: "outputFolderButton"; enabled: !backend.busy; onTriggered: backend.pickOutputFolder() }
+                        MenuItem { text: qsTr("Відкрити папку перекладів"); enabled: !!backend.outputFolder; onTriggered: backend.openPath(backend.outputFolder) }
+                        MenuSeparator { }
+                        MenuItem { text: qsTr("Прибрати завершені"); objectName: "clearCompletedButton"; enabled: backend.hasCompletedDocuments; onTriggered: backend.clearCompleted() }
+                    }
+                }
+            }
+            PageControls.Caption { text: qsTr("Зберігається автоматично"); font.pixelSize: 11; Layout.fillWidth: true; wrapMode: Text.WordWrap }
+            PageControls.Divider { }
+            ListView {
+                id: documentList
+                objectName: "workspaceDocumentList"
+                Layout.fillWidth: true; Layout.fillHeight: true
+                model: backend.workspaceDocumentModel; clip: true; spacing: 4
+                enabled: !shell.reviewLocked
+                currentIndex: backend.workspaceDocuments.findIndex(function(item) { return item.id === backend.workspaceDocumentId })
+                onCurrentIndexChanged: if (currentIndex >= 0) positionViewAtIndex(currentIndex, ListView.Contain)
+                ScrollBar.vertical: PageControls.ReadingScrollBar { }
+                Keys.onUpPressed: if (currentIndex > 0) backend.selectWorkspaceDocument(backend.workspaceDocuments[currentIndex - 1].id)
+                Keys.onDownPressed: if (currentIndex + 1 < count) backend.selectWorkspaceDocument(backend.workspaceDocuments[currentIndex + 1].id)
+                delegate: ItemDelegate {
+                    id: documentRow
+                    required property var modelData
+                    objectName: "workspaceDocumentRow_" + modelData.id
+                    width: ListView.view.width - 6; height: 78
+                    highlighted: modelData.id === backend.workspaceDocumentId
+                    leftPadding: 10; rightPadding: 10; topPadding: 10; bottomPadding: 10
+                    Accessible.name: modelData.name + ", " + (modelData.statusText || "")
+                    ToolTip.visible: hovered
+                    ToolTip.delay: 700
+                    ToolTip.text: modelData.name + "\n" + (modelData.history ? modelData.output || modelData.path : modelData.path || "")
+                    onClicked: backend.selectWorkspaceDocument(modelData.id)
+                    background: Rectangle {
+                        radius: 8; color: documentRow.highlighted ? Theme.accentLight : documentRow.hovered ? Theme.hover : "transparent"
+                        border.color: documentRow.visualFocus ? Theme.accent : documentRow.highlighted ? Theme.accentLine : "transparent"
+                    }
+                    contentItem: ColumnLayout {
+                        spacing: 5
+                        RowLayout {
+                            Layout.fillWidth: true; spacing: 7
+                            Icon { name: documentRow.modelData.history ? "history" : "document"; color: documentRow.highlighted ? Theme.accent : Theme.muted; width: 16; height: 16 }
+                            PageControls.LabelText { text: documentRow.modelData.name; font.pixelSize: 12; font.weight: Font.DemiBold; Layout.fillWidth: true; elide: Text.ElideMiddle }
+                        }
+                        PageControls.Caption {
+                            Layout.fillWidth: true; font.pixelSize: 11; elide: Text.ElideRight
+                            text: documentRow.modelData.history ? shell.historyDate(documentRow.modelData.finishedAt || documentRow.modelData.startedAt) : documentRow.modelData.format + " · " + (documentRow.modelData.statusText || "")
+                            color: documentRow.modelData.status === "error" ? Theme.danger : documentRow.modelData.status === "translating" ? Theme.accent : Theme.muted
+                        }
+                        Rectangle {
+                            Layout.fillWidth: true; height: 3; radius: 2; color: Theme.accentLine
+                            visible: documentRow.modelData.status === "translating"
+                            Rectangle { width: parent.width * Math.max(0, Math.min(100, documentRow.modelData.progress || 0)) / 100; height: 3; radius: 2; color: Theme.accent }
+                        }
+                    }
+                }
+                PageControls.Caption {
+                    anchors.centerIn: parent; width: parent.width - 16; visible: documentList.count === 0
+                    text: qsTr("Документи цієї сесії з’являться тут."); horizontalAlignment: Text.AlignHCenter; wrapMode: Text.WordWrap
+                }
+            }
+            PageControls.Caption {
+                text: qsTr("Збережіть або скасуйте правку, щоб перейти до іншого документа.")
+                visible: backend.reviewEditing; Layout.fillWidth: true; wrapMode: Text.WordWrap; color: Theme.accent; font.pixelSize: 11
+            }
+            ColumnLayout {
+                visible: backend.translating || backend.recognizingScan; Layout.fillWidth: true; spacing: 6
+                PageControls.Divider { }
+                PageControls.Caption { text: backend.recognizingScan ? backend.scanMessage : backend.queueSummary; Layout.fillWidth: true; wrapMode: Text.WordWrap; maximumLineCount: 2; elide: Text.ElideRight }
+                RowLayout {
+                    visible: backend.workspaceMode === "review"; Layout.fillWidth: true
+                    PageControls.Action { text: backend.paused ? qsTr("Продовжити") : qsTr("Пауза"); iconName: backend.paused ? "play" : "pause"; subtle: true; implicitHeight: 32; Layout.fillWidth: true; enabled: backend.translating && !shell.preparingDocuments; onClicked: backend.togglePause() }
+                    PageControls.Action { text: ""; hint: qsTr("Стоп"); Accessible.name: hint; iconName: "stop"; subtle: true; implicitWidth: 32; implicitHeight: 32; onClicked: backend.cancel() }
+                }
+            }
+        }
+    }
+
+    ColumnLayout {
+        Layout.fillWidth: true; Layout.fillHeight: true; spacing: 10
+        RowLayout {
+            Layout.fillWidth: true; spacing: 12
+            ColumnLayout {
+                Layout.fillWidth: true; spacing: 4
+                PageControls.Heading { text: workspace.activeDocument.name || qsTr("Переклад документів"); Layout.fillWidth: true; font.pixelSize: 21; elide: Text.ElideMiddle }
+                PageControls.Caption {
+                    text: workspace.activeDocument.id ? (workspace.activeDocument.history ? qsTr("З історії перекладів") + " · " + shell.historyDate(workspace.activeDocument.finishedAt || workspace.activeDocument.startedAt) : workspace.activeDocument.statusText || "") : qsTr("Додайте файли, виберіть мови та почніть переклад.")
+                    Layout.fillWidth: true; elide: Text.ElideRight
+                }
+            }
+            PageControls.Action {
+                objectName: "workspaceFileActionsButton"; text: qsTr("Дії"); iconName: "chevron-down"; subtle: true; implicitHeight: 34
+                visible: !!workspace.activeDocument.id; enabled: !shell.reviewLocked
+                onClicked: workspace.showFileMenu(backend.workspaceDocumentId)
+                Menu {
+                    id: fileMenu; objectName: "workspaceFileMenu"; width: Math.min(shell.width - 40, 360)
+                    MenuItem { text: qsTr("Відкрити оригінал"); objectName: "reviewOriginalButton"; enabled: !!workspace.menuDocument.path; onTriggered: backend.openPath(workspace.menuDocument.path) }
+                    MenuItem { text: qsTr("Відкрити переклад"); objectName: "reviewOutputButton"; enabled: !!workspace.menuDocument.output && workspace.menuDocument.outputExists !== false; onTriggered: backend.openPath(workspace.menuDocument.output) }
+                    MenuItem { text: qsTr("Відкрити звіт"); objectName: "reviewReportButton"; enabled: !!workspace.menuDocument.report || !!workspace.menuDocument.diagnosticReport; onTriggered: backend.openWorkspaceReport(workspace.menuDocumentId) }
+                    MenuSeparator { visible: !workspace.menuDocument.history }
+                    MenuItem { text: qsTr("Перекласти раніше"); objectName: "moveUpButton"; visible: !workspace.menuDocument.history; enabled: !!workspace.menuDocument.canMove && shell.canMoveQueue(workspace.menuQueueIndex, -1); onTriggered: backend.moveDocument(workspace.menuDocumentId, -1) }
+                    MenuItem { text: qsTr("Перекласти пізніше"); objectName: "moveDownButton"; visible: !workspace.menuDocument.history; enabled: !!workspace.menuDocument.canMove && shell.canMoveQueue(workspace.menuQueueIndex, 1); onTriggered: backend.moveDocument(workspace.menuDocumentId, 1) }
+                    MenuSeparator { }
+                    MenuItem { text: qsTr("Прибрати із сесії"); objectName: "removeDocumentButton"; enabled: !!workspace.menuDocument.canRemove; onTriggered: backend.closeWorkspaceDocument(workspace.menuDocumentId) }
+                }
+            }
+        }
+        TabBar {
+            objectName: "workspaceModes"; Layout.fillWidth: true; implicitHeight: 40
+            enabled: !shell.reviewLocked
+            currentIndex: backend.workspaceMode === "review" ? 1 : 0
+            background: Rectangle { color: "transparent" }
+            PageControls.NavigationTab { objectName: "translationModeTab"; text: qsTr("Переклад"); iconName: "translate"; implicitHeight: 40; onClicked: backend.setWorkspaceMode("translation") }
+            PageControls.NavigationTab { objectName: "reviewTab"; text: qsTr("Перевірка"); iconName: "review"; implicitHeight: 40; onClicked: backend.setWorkspaceMode("review") }
+        }
+        StackLayout {
+            Layout.fillWidth: true; Layout.fillHeight: true; currentIndex: backend.workspaceMode === "review" ? 1 : 0
+            DocumentsPage { id: translationPage; shell: workspace.shell }
+            ReviewPage { shell: workspace.shell }
+        }
+    }
+}

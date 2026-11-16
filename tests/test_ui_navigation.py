@@ -5,6 +5,7 @@ from PySide6.QtGui import QColor
 from PySide6.QtQml import QQmlApplicationEngine
 from PySide6.QtQuick import QQuickItem
 from PySide6.QtTest import QTest
+from ui_support import click
 
 from forma.presentation.backend import Backend
 from forma.settings.config import Settings
@@ -45,8 +46,9 @@ def test_tabs_are_clickable_and_buttons_stay_legible_at_minimum_window_size(qapp
         start = window.findChild(QQuickItem, "translateButton")
         assert not start.property("enabled")
         assert contrast(start.property("foreground"), start.property("background").property("color")) >= 4.5
-        for index, name in enumerate(
-            ("translationTab", "reviewTab", "settingsButton", "historyTab")
+        for index, name in (
+            (0, "translationTab"), (4, "quickTranslationTab"),
+            (3, "historyTab"), (2, "settingsButton"),
         ):
             tab = window.findChild(QQuickItem, name)
             assert tab is not None and tab.property("iconName")
@@ -161,6 +163,8 @@ def test_review_groups_findings_searches_pairs_and_keeps_text_selectable(
             if not backend._threads:
                 break
         assert backend.reviewSummary["attention"] == 2
+        assert backend.reviewFilter == "all"
+        click(window, "reviewIssuesFilter")
         assert len(backend.reviewEntries) == 2
         assert backend.selectedReviewEntry["issueCount"] == 2
         source = window.findChild(QQuickItem, "reviewSourceText")

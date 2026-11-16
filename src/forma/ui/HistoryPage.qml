@@ -57,7 +57,12 @@ ColumnLayout {
                     PageControls.Action { text: qsTr("Папка"); iconName: "folder"; objectName: "historyFolderButton"; implicitHeight: 34; enabled: !!historyRow.modelData.output; onClicked: backend.openHistoryFolder(historyRow.modelData.id) }
                     PageControls.Action { text: qsTr("Звіт"); iconName: "review"; objectName: "historyReportButton"; implicitHeight: 34; enabled: !!historyRow.modelData.reportExists; onClicked: backend.openHistoryReport(historyRow.modelData.id) }
                     Item { Layout.fillWidth: true }
-                    PageControls.Action { text: qsTr("У чергу"); iconName: "refresh"; objectName: "historyRequeueButton"; implicitHeight: 34; enabled: backend.canAddDocuments && !!historyRow.modelData.sourceExists; onClicked: backend.requeueHistory(historyRow.modelData.id); hint: historyRow.modelData.sourceExists ? qsTr("Додати оригінал до черги з поточними налаштуваннями") : qsTr("Оригінальний файл переміщено або видалено") }
+                    PageControls.Action {
+                        text: qsTr("У чергу"); iconName: "refresh"; objectName: "historyRequeueButton"; implicitHeight: 34
+                        enabled: backend.canAddDocuments && !!historyRow.modelData.sourceExists && !shell.reviewLocked
+                        onClicked: { backend.requeueHistory(historyRow.modelData.id); backend.setWorkspaceMode("translation"); shell.page = 0 }
+                        hint: historyRow.modelData.sourceExists ? qsTr("Додати оригінал до черги з поточними налаштуваннями") : qsTr("Оригінальний файл переміщено або видалено")
+                    }
                     PageControls.Action { text: qsTr("Прибрати"); iconName: "trash"; objectName: "historyForgetButton"; subtle: true; implicitHeight: 34; enabled: !backend.historyLoading; onClicked: backend.forgetHistory(historyRow.modelData.id); hint: qsTr("Прибрати запис з історії. Файли залишаться на диску") }
                 }
             }

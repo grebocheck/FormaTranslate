@@ -5,6 +5,7 @@ from PySide6.QtCore import QCoreApplication, QEvent, QObject, QUrl
 from PySide6.QtQml import QQmlApplicationEngine
 from PySide6.QtQuick import QQuickItem
 from PySide6.QtTest import QTest
+from ui_support import click
 
 from forma.localization.catalog import CatalogTranslator
 from forma.presentation.backend import Backend
@@ -39,7 +40,8 @@ def test_rules_draft_survives_live_languages_and_saves_without_affecting_other_i
     instructions_window,
 ):
     backend, window, warnings = instructions_window
-    window.findChild(QQuickItem, "documentInstructionsButton").clicked.emit()
+    click(window, "translationOptionsButton")
+    click(window, "documentInstructionsButton")
     dialog = window.findChild(QObject, "instructionsDialog")
     editor = window.findChild(QQuickItem, "translationInstructionsEditor")
     save = window.findChild(QQuickItem, "saveInstructionsButton")
@@ -79,7 +81,8 @@ def test_rules_draft_survives_live_languages_and_saves_without_affecting_other_i
 def test_length_limit_and_failed_save_keep_draft_and_saved_rules(instructions_window, monkeypatch):
     backend, window, warnings = instructions_window
     assert backend.saveTranslationInstructions("Saved rules")
-    window.findChild(QQuickItem, "documentInstructionsButton").clicked.emit()
+    click(window, "translationOptionsButton")
+    click(window, "documentInstructionsButton")
     editor = window.findChild(QQuickItem, "translationInstructionsEditor")
     save = window.findChild(QQuickItem, "saveInstructionsButton")
     editor.setProperty("text", "x" * 8001)

@@ -158,11 +158,12 @@ def test_completed_pdf_does_not_require_source_language_for_pending_office(
         assert not window.property("needsSourceLanguage")
         assert translate.isEnabled()
 
-        # The all-complete fallback reruns every file, including the PDF.
+        # Completed files stay in the session without silently joining a new run.
         backend._documents[1]["status"] = "done"
         backend.changed.emit()
         qapp.processEvents()
-        assert window.property("needsSourceLanguage")
+        assert not window.property("needsSourceLanguage")
+        assert backend.pendingDocumentCount == 0
         assert not translate.isEnabled()
         assert not warnings, "\n".join(warnings)
     finally:

@@ -173,8 +173,9 @@ def message_literals(filenames, *, include_fragments=False):
         ("memory", ("memory/importing.py", "memory/session.py", "memory/engine.py"), (*NON_UK_LANGUAGES, "uk")),
         ("glossary", ("presentation/glossary_controller.py", "translation/failures.py"), (*NON_UK_LANGUAGES, "uk")),
         ("provider", ("settings/config.py", "providers/presets.py", "providers/protocol.py"), NON_UK_LANGUAGES),
+        ("workspace", ("persistence/session_store.py", "presentation/session_workflow.py"), (*NON_UK_LANGUAGES, "uk")),
     ],
-    ids=("quick", "ocr", "memory", "glossary", "provider"),
+    ids=("quick", "ocr", "memory", "glossary", "provider", "workspace"),
 )
 def test_python_workflow_messages_have_complete_interface_translations(boundary, filenames, languages):
     keys = message_literals(filenames, include_fragments=boundary == "quick")
@@ -198,6 +199,12 @@ def test_python_workflow_messages_have_complete_interface_translations(boundary,
             "Експорт зупинено: переклад не пройшов перевірку після трьох спроб. "
             "Перегляньте звіт про проблемні фрагменти та повторіть переклад."
         )
+    elif boundary == "workspace":
+        from forma.persistence.session_store import DOMAINS
+
+        # These stored prompt values stay canonical; their presentation labels
+        # are covered independently by the QML catalog test.
+        keys -= DOMAINS
     assert keys
     for language in languages:
         assert keys <= i18n._catalogs()[language].keys(), (

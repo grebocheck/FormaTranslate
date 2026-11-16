@@ -15,7 +15,7 @@ FormaTranslate is an open-source desktop translator for **Windows and Linux**, b
 
 The interface supports **English, Ukrainian, Polish, German, French and Spanish**, follows the system language, and can be changed in Settings. Appearance follows the system by default, with explicit Light and Dark choices available without restarting. The interface language and document translation languages are independent.
 
-![FormaTranslate desktop interface](docs/interface.png)
+![FormaTranslate document session and review with a synthetic example](docs/interface.png)
 
 ## Download and start
 
@@ -23,7 +23,9 @@ Get the ZIP for your platform from **[GitHub Releases](https://github.com/greboc
 
 1. Open **Settings** and enter your API address, model and API key. The model list can be loaded from providers that support it, or entered manually.
 2. Add DOCX, XLSX or PDF files and select the source and target languages. **Translate** prepares scanned PDFs through OCR and continues automatically; additional PDF actions also allow preparation before translation.
-3. Translate, open the output folder, and use **Review** to inspect the result.
+3. Translate, then switch the selected document to **Review**. The same document list stays visible in both modes.
+
+Documents form one automatically saved session. Switch files in the left sidebar; Forma remembers the selected document and each report's fragment, search and filter. Historical results opened for review join the list without being queued for another translation. **Parameters** contains terminology, memory, instructions and editorial options; **Actions** beside the document contains file and queue operations. The primary translation button shows how many pending documents it will process and does not silently rerun completed files.
 
 Windows has one full application ZIP, with BabelDOC, the local OCR worker, four OCR language-model sets and Tesseract included in its folders. Extract them together with the application; they are ready to load in place. An installed ABBYY can still be selected in OCR settings; [ABBYY setup](docs/ABBYY.md) explains the supported workflows.
 
@@ -62,11 +64,11 @@ Quick text and images remain in session memory, without automatic history or cac
 
 ## Custom translation instructions
 
-Save reusable terminology and style rules with **Custom instructions** in Documents or **Instructions** in Text & photos. They apply to future document, text/photo and editorial requests; changing them refreshes translation caches. See [instructions](docs/INSTRUCTIONS.md).
+Save reusable terminology and style rules with **Parameters → Custom instructions** in Documents or **Instructions** in Text & photos. They apply to future document, text/photo and editorial requests; changing them refreshes translation caches. See [instructions](docs/INSTRUCTIONS.md).
 
 ## Project translation memory
 
-For related DOCX/XLSX files, choose **Project memory** in Documents, or click **Create project…** with explicit source and target languages. The memory fills automatically; a glossary and reference import are optional. **Glossary (optional)…** lets you enter terms yourself or request suggestions from the queued documents, edit the draft and click **Apply glossary**. Suggestions use your configured provider and incur its API charges. CSV import/export is an optional transfer method. **References & glossary…** also accepts verified DOCX/report pairs. This mode uses the project's fixed shared glossary for the queue; separate automatic glossaries are disabled. Memory starts **Off**, which keeps the ordinary translation workflow.
+For related DOCX/XLSX files, open **Documents → Parameters → Project memory**, or click **Create project…** with explicit source and target languages. The memory fills automatically; a glossary and reference import are optional. **Glossary (optional)…** lets you enter terms yourself or request suggestions from the queued documents, edit the draft and click **Apply glossary**. Suggestions use your configured provider and incur its API charges. CSV import/export is an optional transfer method. **References & glossary…** also accepts verified DOCX/report pairs. This mode uses the project's fixed shared glossary for the queue; separate automatic glossaries are disabled. Memory starts **Off**, which keeps the ordinary translation workflow.
 
 Exact source/context/policy matches can reuse completed machine results. With editorial review enabled, closely related passages can use an earlier translation as a reference for a paid adaptation request. In Review, **More actions → Remember wording → Use in project** explicitly approves a preferred translation for future runs; acknowledging a finding does not. Imported references and adapted results are not approved automatically. Conflicts require a separate replacement decision, and a running queue keeps its captured memory revision. See the [translation memory guide](docs/TRANSLATION-MEMORY.md) for matching rules, reference verification, counts and limits.
 

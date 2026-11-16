@@ -29,6 +29,15 @@ from forma.translation.recovery import load_failure_report
 from forma.translation.references import plan_reference_alignment, reference_label_choice
 
 
+def _report_signature(path):
+    """Worker-only hint; fingerprints still govern every approval and export."""
+    try:
+        stat = Path(path).stat()
+        return stat.st_dev, stat.st_ino, stat.st_size, stat.st_mtime_ns, stat.st_ctime_ns
+    except (OSError, ValueError):
+        return None
+
+
 class ReviewWorkflow:
     def _review_source(self, document):
         context = self._review_context
@@ -38,23 +47,11 @@ class ReviewWorkflow:
         return document.get("path", "")
 
     def _review_document(self):
-        if self._history_review and self._history_review["id"] == self._review_document_id:
-            return self._history_review
-        return next((d for d in self._documents if d["id"] == self._review_document_id), None)
+        return self._workspace_document(self._review_document_id)
 
     def reviewDocuments(self):
-        documents = [
-            {"id": d["id"], "name": d["name"], "status": d["status"]} for d in self._documents
-        ]
-        if self._history_review:
-            documents.append(
-                {
-                    "id": self._history_review["id"],
-                    "name": self._history_review["name"] + tr(" · з історії"),
-                    "status": "done",
-                }
-            )
-        return documents
+        return [{"id": row["id"], "name": row["name"], "status": row["status"]}
+                for row in self.workspaceDocuments]
 
     def reviewDocument(self):
         document = self._review_document()
@@ -390,14 +387,9 @@ class ReviewWorkflow:
                     problems.append("Історія недоступна.")
             except FormaError as exc:
                 problems.append(str(exc))
-            self._history_review = {
-                **entry,
-                "id": "history:" + entry["id"],
-                "path": str(result.source),
-            }
-            self._review_document_id = self._history_review["id"]
             self._review_saving = False
-            self._reload_review()
+            opened = self._open_workspace_history(entry)
+            self.selectWorkspaceDocument(opened["id"])
             if problems:
                 self._notice(
                     "Копію збережено: " + str(result.output) + ". " + " ".join(problems), "warning"
@@ -416,6 +408,7 @@ class ReviewWorkflow:
         if not self._review_editing and not self._review_saving and value in ("issues", "all"):
             self._review_filter = value
             self._filter_review()
+            self._persist_workspace()
 
     def setReviewSearch(self, value):
         if self._review_editing or self._review_saving:
@@ -453,6 +446,14 @@ class ReviewWorkflow:
                 self._review_entries[min(previous_index, len(self._review_entries) - 1)]["id"]
                 if self._review_entries else ""
             )
+            if self._review_filter == "all" and not nearest:
+                self._review_selected = next(
+                    (entry["id"] for entry in self._review_entries if entry["kind"] == "segment"),
+                    self._review_selected,
+                )
+        # Typing updates the in-memory snapshot; switching views/documents or
+        # closing flushes it without a disk fsync for every character.
+        self._remember_review_navigation()
         self.changed.emit()
 
     def selectReviewEntry(self, entry_id):
@@ -460,6 +461,7 @@ class ReviewWorkflow:
             return
         if any(entry["id"] == entry_id for entry in self._review_entries):
             self._review_selected = entry_id
+            self._persist_workspace()
             self.changed.emit()
 
     def stepReviewEntry(self, delta):
@@ -476,26 +478,71 @@ class ReviewWorkflow:
             self.selectReviewEntry(self._review_entries[target]["id"])
 
     def selectReviewDocument(self, document_id):
-        if self._review_editing or self._review_saving:
+        if self._review_editing or self._review_saving or not self._workspace_document(document_id):
             return
-        if not any(d["id"] == document_id for d in self.reviewDocuments):
-            return
-        self._review_document_id = document_id
         self._review_enabled = True
-        self._review_search = ""
-        self._reload_review()
+        self.selectWorkspaceDocument(document_id)
+        self.activateReview()
+
+    def _current_review_key(self):
+        document = self._review_document()
+        return (self._review_document_id, document.get("report", ""), document.get("diagnosticReport", ""),
+                id(document["result"]) if document.get("result") else None) if document else None
 
     def activateReview(self):
         if self._review_editing or self._review_saving:
             return
         self._review_enabled = True
-        if not self._review_document() and self.reviewDocuments:
-            self._review_document_id = self.reviewDocuments[0]["id"]
-        self._reload_review()
+        # The selected workspace item remains authoritative, including pending files.
+        # Returning to this view must not reset navigation or restart an active read.
+        if self._review_document_id != self._selected:
+            self._review_document_id = self._selected
+        if self._review_request_key != self._current_review_key():
+            self._reload_review()
+        elif self._review_context is None and not self._review_summary.get("loading"):
+            document = self._review_document() or {}
+            if document.get("report") or document.get("diagnosticReport") or document.get("result"):
+                self._reload_review()
+        elif self._review_context is not None:
+            self._probe_review_report()
+
+    def _probe_review_report(self):
+        context = self._review_context
+        if self._closing or self._review_editing or self._review_saving or not context or not context.get("report"):
+            return
+        if self._review_probe_running:
+            self._review_probe_pending = True
+            return
+        self._review_probe_running = True
+        generation, document_id = self._review_generation, self._review_document_id
+        report = context["report"]
+
+        def read(emit):
+            emit("review_signature", _report_signature(report))
+
+        def receive(kind, signature):
+            if (kind != "review_signature" or self._closing or self._review_editing or self._review_saving
+                    or generation != self._review_generation or document_id != self._review_document_id
+                    or context is not self._review_context):
+                return
+            if signature != context.get("reportSignature"):
+                self._reload_review()
+
+        def finish():
+            self._review_probe_running = False
+            pending, self._review_probe_pending = self._review_probe_pending, False
+            if pending and not self._closing:
+                self._probe_review_report()
+
+        self._launch(read, handler=receive, done=finish)
 
     def _reload_review(self):
         if self._review_editing or self._review_saving:
             return
+        self._remember_review_navigation()
+        self._restore_review_navigation()
+        self._review_view_id = self._review_document_id
+        self._review_request_key = self._current_review_key()
         self._review_generation += 1
         generation = self._review_generation
         self._review_all_entries, self._review_entries, self._review_selected = [], [], ""
@@ -531,6 +578,7 @@ class ReviewWorkflow:
             state = {"reportFingerprint": "", "accepted": {}, "edits": {}}
             state_error = ""
             recovery_metadata = None
+            signature = _report_signature(report) if report else None
             if report:
                 try:
                     state = ReviewStore().load(Path(report))
@@ -544,6 +592,8 @@ class ReviewWorkflow:
                     verified = ReviewStore().load(Path(report))
                     if state["reportFingerprint"] != verified["reportFingerprint"]:
                         raise FormaError("Звіт змінився під час читання. Відкрийте його знову.")
+                if signature != _report_signature(report):
+                    raise FormaError("Звіт змінився під час читання. Відкрийте його знову.")
             else:
                 current_options = options
                 current_result = refresh_segment_checks(result, current_options)
@@ -561,6 +611,7 @@ class ReviewWorkflow:
                     "options": current_options,
                     "report": Path(report) if report else None,
                     "reportFingerprint": state["reportFingerprint"],
+                    "reportSignature": signature,
                     "recovery": recovery_metadata,
                 },
                 state=state,
@@ -590,6 +641,11 @@ class ReviewWorkflow:
                 self.reviewEditChanged.emit()
                 self._review_all_entries = payload["entries"]
                 self._review_summary = payload["summary"]
+                saved = self._review_restore
+                if saved.get("fingerprint") == payload["state"]["reportFingerprint"]:
+                    self._review_selected = saved.get("entry", "")
+                elif saved:
+                    self._review_filter, self._review_search = "all", ""
                 self._sync_review_counts()
                 self._filter_review()
             else:
@@ -610,13 +666,9 @@ class ReviewWorkflow:
         entry = self._history_entry(entry_id)
         if not entry or not entry.get("report"):
             return
-        self._history_review = {
-            **entry,
-            "id": "history:" + entry_id,
-            "path": entry.get("source", ""),
-            "status": "done",
-        }
-        self.selectReviewDocument(self._history_review["id"])
+        document = self._open_workspace_history(entry)
+        self.selectReviewDocument(document["id"])
+        self.setWorkspaceMode("review")
 
     def openReviewReport(self):
         document = self._review_document()

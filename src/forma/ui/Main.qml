@@ -34,12 +34,12 @@ ApplicationWindow {
     palette.toolTipBase: Theme.ink
     palette.toolTipText: Theme.canvas
     Binding { target: Theme; property: "preference"; value: typeof backend.uiTheme === "string" ? backend.uiTheme : "system" }
-    property alias sourceLanguage: documentsPage.sourceLanguage
-    property alias targetLanguage: documentsPage.targetLanguage
-    property alias domain: documentsPage.domain
+    property alias sourceLanguage: documentWorkspace.sourceLanguage
+    property alias targetLanguage: documentWorkspace.targetLanguage
+    property alias domain: documentWorkspace.domain
     property int page: 0
     onPageChanged: {
-        if (page === 1) backend.activateReview()
+        if (page === 0 || page === 1) backend.setWorkspaceMode(page === 1 ? "review" : "translation")
         if (page === 2) backend.refreshWorkerAvailability()
         if (page === 1 || page === 3) backend.refreshFileAvailability()
     }
@@ -69,7 +69,7 @@ ApplicationWindow {
     property var domainLabels: [qsTr("Загальна тематика"), qsTr("Технічна документація"), qsTr("Ділові документи"), qsTr("Наукові матеріали"), qsTr("Юридичні документи")]
     property var uiLanguageCodes: backend.uiLanguages.map(function(item) { return item.code })
     property var titles: [qsTr("Переклад документів"), qsTr("Перевірка документа"), qsTr("Налаштування"), qsTr("Історія перекладів"), qsTr("Переклад тексту та фото")]
-    readonly property var navigationPages: [0, 4, 1, 3, 2]
+    readonly property var navigationPages: [0, 4, 3, 2]
     readonly property bool hasCompleted: backend.hasCompletedDocuments
     readonly property int reviewEntryIndex: backend.reviewEntries.findIndex(function(entry) { return entry.id === backend.selectedReviewId })
     readonly property bool reviewLocked: backend.reviewEditing || backend.reviewSaving || backend.memoryWorking
@@ -86,7 +86,7 @@ ApplicationWindow {
     property string abbyyPromptId: ""
 
     onClosing: function(close) { close.accepted = backend.requestClose() }
-    Component.onCompleted: { loadConfig(); syncMemoryLanguages(); backend.usage.refresh() }
+    Component.onCompleted: { root.page = backend.workspaceMode === "review" ? 1 : 0; loadConfig(); syncMemoryLanguages(); backend.usage.refresh() }
     Shortcut { sequences: [StandardKey.Open]; enabled: root.page !== 4 && backend.canAddDocuments && !root.reviewLocked; onActivated: backend.pickDocuments() }
     Timer { interval: 1000; repeat: true; running: backend.translating; onTriggered: root.clockNow = Date.now() }
 
@@ -94,6 +94,10 @@ ApplicationWindow {
     Connections {
         target: backend
         function onChanged() {
+            if (root.page === 0 || root.page === 1) {
+                var workspacePage = backend.workspaceMode === "review" ? 1 : 0
+                if (root.page !== workspacePage) root.page = workspacePage
+            }
             root.syncMemoryLanguages()
             if (root.currentAbbyyHandoff.showPrompt && root.currentAbbyyHandoff.promptId && root.currentAbbyyHandoff.promptId !== root.abbyyPromptId) {
                 root.abbyyPromptId = root.currentAbbyyHandoff.promptId
@@ -168,20 +172,25 @@ ApplicationWindow {
             width: parent.width - 48; height: 42
             spacing: 4
             enabled: !root.reviewLocked
-            currentIndex: root.navigationPages.indexOf(root.page)
-            onCurrentIndexChanged: if (currentIndex >= 0 && root.page !== root.navigationPages[currentIndex]) root.page = root.navigationPages[currentIndex]
+            currentIndex: root.navigationPages.indexOf(root.page === 1 ? 0 : root.page)
+            onCurrentIndexChanged: {
+                if (currentIndex < 0) return
+                var targetPage = root.navigationPages[currentIndex]
+                if (targetPage === 0 && backend.workspaceMode === "review") targetPage = 1
+                if (root.page !== targetPage) root.page = targetPage
+            }
             background: Rectangle { color: "transparent" }
             PageControls.NavigationTab { text: qsTr("Документи"); iconName: "translate"; objectName: "translationTab" }
             PageControls.NavigationTab { text: qsTr("Текст і фото"); iconName: "image-text"; objectName: "quickTranslationTab" }
-            PageControls.NavigationTab { text: qsTr("Перевірка"); iconName: "review"; objectName: "reviewTab" }
             PageControls.NavigationTab { text: qsTr("Історія"); iconName: "history"; objectName: "historyTab" }
             PageControls.NavigationTab { text: qsTr("Налаштування"); iconName: "settings"; objectName: "settingsButton" }
         }
     }
 
     ColumnLayout {
-        anchors.fill: parent; anchors.margins: 24; spacing: 16
+        anchors.fill: parent; anchors.margins: 16; spacing: 12
         RowLayout {
+            visible: root.page > 1
             Layout.fillWidth: true; spacing: 16
             PageControls.LabelText { text: root.titles[root.page]; font.pixelSize: 26; font.weight: Font.Medium; Layout.fillWidth: true }
         }
@@ -200,11 +209,9 @@ ApplicationWindow {
             }
         }
         StackLayout {
-            currentIndex: root.page; Layout.fillWidth: true; Layout.fillHeight: true
+            currentIndex: root.page <= 1 ? 0 : root.page - 1; Layout.fillWidth: true; Layout.fillHeight: true
 
-            DocumentsPage { id: documentsPage; shell: root }
-
-            ReviewPage { id: reviewPage; shell: root }
+            DocumentWorkspace { id: documentWorkspace; shell: root }
 
             SettingsPage { id: settingsPage; shell: root }
 

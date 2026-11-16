@@ -8,6 +8,7 @@ from PySide6.QtCore import QCoreApplication, QEvent, QObject, QPointF, QUrl
 from PySide6.QtQml import QQmlApplicationEngine
 from PySide6.QtQuick import QQuickItem
 from PySide6.QtTest import QTest
+from ui_support import click
 
 import forma.presentation.glossary_controller as glossary_module
 from forma.localization.catalog import CatalogTranslator
@@ -47,7 +48,8 @@ def test_minimum_window_and_language_switch_keep_glossary_draft_focus_and_values
     window.setWidth(960)
     window.setHeight(680)
     try:
-        window.findChild(QObject, "editGlossaryButton").clicked.emit()
+        click(window, "translationOptionsButton")
+        click(window, "editGlossaryButton")
         QTest.qWait(30)
         editor = backend.glossaryEditor
         editor.addTerm()
@@ -79,7 +81,8 @@ def test_minimum_window_and_language_switch_keep_glossary_draft_focus_and_values
             assert 0 <= position.x() and position.x() + button.width() <= window.width()
             assert 0 <= position.y() and position.y() + button.height() <= window.height()
         window.findChild(QObject, "closeGlossaryButton").clicked.emit()
-        window.findChild(QObject, "editGlossaryButton").clicked.emit()
+        click(window, "translationOptionsButton")
+        click(window, "editGlossaryButton")
         QTest.qWait(20)
         assert editor.rows.rows == expected and editor.dirty
         assert not warnings, "\n".join(warnings)

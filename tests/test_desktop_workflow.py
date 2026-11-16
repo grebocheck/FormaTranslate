@@ -5,7 +5,7 @@ import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-from PySide6.QtCore import QCoreApplication, QEvent, QUrl
+from PySide6.QtCore import QCoreApplication, QEvent, QObject, QUrl
 from PySide6.QtQml import QQmlApplicationEngine
 from support import pump as pump_events
 
@@ -84,10 +84,11 @@ def test_desktop_import_translate_review_all_pages(qapp, docx_file, xlsx_file, t
     root = engine.rootObjects()[0]
     try:
         assert not root.property("translationOptionsOpen")
-        assert not root.property("previewOpen")
+        assert not root.findChild(QObject, "documentPreviewList").property("visible")
         backend.addFiles([QUrl.fromLocalFile(str(docx_file)), QUrl.fromLocalFile(str(xlsx_file))])
         pump(qapp, lambda: all(d["status"] == "ready" for d in backend.documents))
         assert backend.segments
+        assert root.findChild(QObject, "documentPreviewList").property("visible")
         backend.start("en", "uk", "Технічна документація", True, False)
         pump(qapp, lambda: not backend.busy)
         assert all(d["status"] == "done" for d in backend.documents), backend.message
@@ -111,7 +112,6 @@ def test_desktop_import_translate_review_all_pages(qapp, docx_file, xlsx_file, t
             assert not root.grabWindow().isNull()
         for setting in (
             "translationOptionsOpen",
-            "previewOpen",
             "connectionOptionsOpen",
             "pdfOptionsOpen",
         ):

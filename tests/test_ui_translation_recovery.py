@@ -78,8 +78,10 @@ def failed_translation(qapp, tmp_path, monkeypatch):
     pump(qapp, lambda: not backend._threads)
 
 
-def test_real_failure_controls_edit_validate_and_resume_without_api(qapp, failed_translation):
+def test_real_failure_controls_edit_validate_and_resume_without_api(qapp, failed_translation, monkeypatch):
     backend, _, resumed, launches = failed_translation
+    opened = []
+    monkeypatch.setattr(backend, "openPath", opened.append)
     # A malformed last response is editable against the original formatting,
     # rather than using its damaged markup as the template for every correction.
     report = Path(backend.documents[0]["diagnosticReport"]).with_suffix(".json")
@@ -105,6 +107,10 @@ def test_real_failure_controls_edit_validate_and_resume_without_api(qapp, failed
         QTest.qWait(10)
 
     try:
+        QTest.qWait(20)
+        click("workspaceFileActionsButton")
+        click("reviewReportButton")
+        assert opened == [backend.documents[0]["diagnosticReport"]]
         click("recoverTranslationButton")
         pump(qapp, lambda: not backend._threads)
         assert window.property("page") == 1
