@@ -2,7 +2,7 @@
 
 Versions follow semantic versioning. Changes before 1.0 may evolve as document compatibility improves.
 
-## Unreleased
+## 0.15.0 — 2026-11-16
 
 - Rebuild Documents and Review around one automatically saved session with a shared, persistent document sidebar. Restore the selected document, translation options and each report's fragment, search and filter across navigation and restarts.
 - Move translation options into one dialog and document/queue operations into contextual menus. Keep the translation action with the top language controls and give the document preview the remaining height.

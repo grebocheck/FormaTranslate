@@ -127,7 +127,9 @@ def create_source_bundle(
                 "*-runtime-sources.zip into the same directory as the application\n"
                 "package when rebuilding or inspecting dependencies. This restores\n"
                 "the runtime-sources paths referenced by its included inventories.\n"
-                "Linux dependency sources and Qt/PySide archives are included too.\n"
+                "MANIFEST.json lists the components in this download. If the release\n"
+                "has multiple Sources ZIPs, download all of them for the complete\n"
+                "corresponding sources, including Linux dependencies and Qt/PySide.\n"
             ))
         if temporary.stat().st_size >= MAX_ASSET_BYTES:
             raise ValueError("Source bundle exceeds the release asset size limit")

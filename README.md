@@ -15,7 +15,9 @@ FormaTranslate is an open-source desktop translator for **Windows and Linux**, b
 
 The interface supports **English, Ukrainian, Polish, German, French and Spanish**, follows the system language, and can be changed in Settings. Appearance follows the system by default, with explicit Light and Dark choices available without restarting. The interface language and document translation languages are independent.
 
-![FormaTranslate document session and paired page preview with a synthetic example](docs/interface.png)
+![FormaTranslate document session with side-by-side original and translated DOCX pages](docs/interface.png)
+
+Screenshots use synthetic documents and manually entered English–Ukrainian translations.
 
 ## Download and start
 
@@ -31,9 +33,13 @@ Drag the sidebar divider to make room for long filenames. Compact document cards
 
 **Review** shows a continuous list of source/translation pairs. Select a fragment to edit it in place, search across the document, or filter to outstanding findings. Drafts, acknowledgements and corrected-copy export keep their existing validation; switching files remains locked while an edit is open.
 
+![Continuous review with an inline translation editor and surrounding source/translation pairs](docs/review.png)
+
+*Edit a fragment while keeping the surrounding source and translation visible.*
+
 Windows has one full application ZIP, with BabelDOC, the local OCR worker, four OCR language-model sets and Tesseract included in its folders. Extract them together with the application; they are ready to load in place. An installed ABBYY can still be selected in OCR settings; [ABBYY setup](docs/ABBYY.md) explains the supported workflows.
 
-Release descriptions provide direct platform download links. A single **Sources** archive contains the developer and dependency source materials.
+Release descriptions provide direct platform download links. The **Sources** archives contain the developer and dependency source materials; they are not required to run the application.
 
 DOCX and XLSX work directly. **Direct PDF translation uses BabelDOC; scanned PDF preparation uses the local OCR helper**. Complete Windows builds include both engines and their local assets; Linux and source installations use separate workers. See [PDF setup](docs/PDF.md) and [complete Windows builds](docs/WINDOWS-RUNTIME.md). Some OpenAI-compatible providers omit features used by particular API modes; choose the mode and response format supported by yours.
 
