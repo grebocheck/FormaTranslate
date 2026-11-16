@@ -11,7 +11,7 @@
   </p>
 </div>
 
-FormaTranslate is an open-source desktop translator for **Windows and Linux**, built with Python and Qt Quick. Connect OpenAI, Google Gemini, Anthropic Claude or a compatible API, choose a model, and translate documents, text or photos. API usage follows your provider's pricing and quotas; FormaTranslate itself has no subscription.
+FormaTranslate is an open-source desktop translator for **Windows, Linux and macOS on Apple Silicon**, built with Python and Qt Quick. Connect OpenAI, Google Gemini, Anthropic Claude or a compatible API, choose a model, and translate documents, text or photos. API usage follows your provider's pricing and quotas; FormaTranslate itself has no subscription.
 
 The interface supports **English, Ukrainian, Polish, German, French and Spanish**, follows the system language, and can be changed in Settings. Appearance follows the system by default, with explicit Light and Dark choices available without restarting. The interface language and document translation languages are independent.
 
@@ -21,7 +21,13 @@ Screenshots use synthetic documents and manually entered English–Ukrainian tra
 
 ## Download and start
 
-Get the ZIP for your platform from **[GitHub Releases](https://github.com/grebocheck/FormaTranslate/releases)**. **Extract the entire archive into a folder**, then launch `Forma-windows-x86_64.exe` on Windows or `Forma-linux-x86_64` on Linux from that folder. Candidate Windows builds include `candidate` in the executable name. Keep `_internal` and all other extracted files beside the executable; moving only the executable will break the app. Python and a `.env` file are not needed. Dependencies load from the extracted folder, avoiding a large self-extraction on every startup. On Linux, make the executable runnable with `chmod +x Forma-linux-x86_64` if necessary. The current Linux binary requires **glibc 2.43 or newer** (built on Ubuntu 26.04); use the source installation on older distributions. See each release's platform validation notes; macOS is not supported yet.
+Get the ZIP for your platform from **[GitHub Releases](https://github.com/grebocheck/FormaTranslate/releases)** and **extract the entire archive**. Python and a `.env` file are not needed.
+
+- **Windows:** launch `Forma-windows-x86_64.exe` from the extracted folder. Candidate builds include `candidate` in the executable name. Keep `_internal` and all other files beside the executable when moving or updating it.
+- **Linux:** launch `Forma-linux-x86_64` from the extracted folder, keeping `_internal` and the other files together. If necessary, make it runnable with `chmod +x Forma-linux-x86_64`. The current Linux binary requires **glibc 2.43 or newer** (built on Ubuntu 26.04); use the source installation on older distributions.
+- **macOS arm64:** the current package requires **macOS 26 or newer on Apple Silicon**. Open the extracted `Forma-macos-arm64.app`, or move the complete app to Applications. Its dependencies stay inside the app bundle. It uses ad-hoc signing and is not Developer ID signed or notarized; macOS may require explicit approval before opening it. Intel Macs are not a supported binary target.
+
+Dependencies load from the extracted application rather than unpacking on every startup. See each release's platform validation notes for the checks performed on its downloads.
 
 1. Open **Settings** and enter your API address, model and API key. The model list can be loaded from providers that support it, or entered manually.
 2. Add DOCX, XLSX or PDF files and select the source and target languages. **Translate** prepares scanned PDFs through OCR and continues automatically; additional PDF actions also allow preparation before translation.
@@ -43,7 +49,7 @@ Windows has one full application ZIP, with BabelDOC, the local OCR worker, four 
 
 Release descriptions provide direct platform download links. The **Sources** archives contain the developer and dependency source materials; they are not required to run the application.
 
-DOCX and XLSX work directly. **Direct PDF translation uses BabelDOC; scanned PDF preparation uses the local OCR helper**. Complete Windows builds include both engines and their local assets; Linux and source installations use separate workers. See [PDF setup](docs/PDF.md) and [complete Windows builds](docs/WINDOWS-RUNTIME.md). Some OpenAI-compatible providers omit features used by particular API modes; choose the mode and response format supported by yours.
+DOCX and XLSX work directly. **Direct PDF translation uses BabelDOC; scanned PDF preparation uses the local OCR helper**. Complete Windows builds include both engines and their local assets; Linux, macOS and source installations use separate workers. See [PDF setup](docs/PDF.md) and [complete Windows builds](docs/WINDOWS-RUNTIME.md). Some OpenAI-compatible providers omit features used by particular API modes; choose the mode and response format supported by yours.
 
 For a model running on your own computer, choose **LM Studio (local)** or **Ollama (local)** in Settings, load the server's model list and select an installed model. These presets fill in editable connection fields and clear old model names; they make no requests until you ask. Neither server nor translation model is bundled with Forma. Follow the [local AI setup guide in Ukrainian](docs/LOCAL-AI.uk.md) for installation, authentication and a short compatibility check.
 
@@ -98,7 +104,7 @@ Open the official OpenAI billing page for your actual credit balance, or enter a
 |---|---|
 | DOCX | Translates supported visible text while retaining the OOXML package, styles, tables, rich text and protected fields. |
 | XLSX | Translates supported text cells and rich text while retaining formulas, native numeric cells and workbook structure. |
-| PDF | Translate chooses text-based PDF → BabelDOC or scan → editable OCR DOCX → Office translation. Windows includes both engines; Linux/source installations use separate workers. |
+| PDF | Translate chooses text-based PDF → BabelDOC or scan → editable OCR DOCX → Office translation. Windows includes both engines; Linux/macOS/source installations use separate workers. |
 
 With editorial review enabled for DOCX/XLSX, Forma can make one bounded additional correction pass for remaining source prose, introduced repetition, suspicious shortening and untranslated labels across different scripts. It keeps an earlier valid version if the revision fails checks or does not improve those findings. Cached machine wording can go straight to the editor; completed checks are remembered for the same candidate and settings. Human-approved project wording is preserved. Remaining findings stay visible and are never marked as approved automatically. Disabling editorial review disables this additional work.
 
@@ -153,4 +159,4 @@ Releases use semantic versioning, annotated Git tags and manual builds. There is
 
 ## License
 
-FormaTranslate's original code is licensed under the **[MIT License](LICENSE)**. Qt/PySide6 and other dependencies retain their own licenses; see [third-party notices](THIRD_PARTY_NOTICES.md). Complete Windows packages include BabelDOC, OCR and model license/source materials; Linux/source workflows use separately installed engines.
+FormaTranslate's original code is licensed under the **[MIT License](LICENSE)**. Qt/PySide6 and other dependencies retain their own licenses; see [third-party notices](THIRD_PARTY_NOTICES.md). Complete Windows packages include BabelDOC, OCR and model license/source materials; Linux/macOS/source workflows use separately installed engines.

@@ -20,6 +20,14 @@ Item {
     signal instructionsRequested()
     property bool instructionsActive: false
 
+    function setMode(mode) {
+        page.controller.setMode(mode)
+        // On macOS a mouse click need not focus its button. Move focus out of
+        // the hidden text editor so it cannot consume the photo paste shortcut.
+        if (page.imageMode) imageCard.forceActiveFocus()
+        else sourceEditor.forceActiveFocus()
+    }
+
     function zoomImage(factor) {
         var previous = imageZoom
         var centerX = imageViewport.contentX + imageViewport.width / 2
@@ -86,8 +94,8 @@ Item {
         anchors.fill: parent; spacing: 12
         RowLayout {
             Layout.fillWidth: true; spacing: 6
-            Button { objectName: "quickTextMode"; text: qsTr("Текст"); iconName: "text"; checked: !page.imageMode; subtle: true; enabled: !page.controller.busy; onClicked: page.controller.setMode("text") }
-            Button { objectName: "quickImageMode"; text: qsTr("Фото"); iconName: "image"; checked: page.imageMode; subtle: true; enabled: !page.controller.busy; onClicked: page.controller.setMode("image") }
+            Button { objectName: "quickTextMode"; text: qsTr("Текст"); iconName: "text"; checked: !page.imageMode; subtle: true; enabled: !page.controller.busy; onClicked: page.setMode("text") }
+            Button { objectName: "quickImageMode"; text: qsTr("Фото"); iconName: "image"; checked: page.imageMode; subtle: true; enabled: !page.controller.busy; onClicked: page.setMode("image") }
             Item { Layout.fillWidth: true }
             Button {
                 text: qsTr("Інструкції") + (page.instructionsActive ? " •" : "")

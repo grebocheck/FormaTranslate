@@ -1,6 +1,6 @@
 {
-  "release": "0.15.1",
-  "delivery": "Include these exact archives unchanged, under their original filenames, in the release's Sources-VERSION.zip and Sources-QtPDF-VERSION.zip alongside the application/helper and runtime/dependency source archives. The QtPDF archive is in the second bundle to keep each download below 2 GiB. Preserve every archive SHA256 in the source bundle inventories and upload both bundles with each binary release; no written-offer substitute is used.",
+  "release": "0.16.0",
+  "delivery": "Include these exact archives unchanged, under their original filenames, in the release's Sources-VERSION.zip alongside the application/helper and platform runtime/dependency source archives. When necessary, split a large component into Sources-QtPDF-VERSION.zip to keep each download below 2 GiB. Preserve every archive SHA256 in the source bundle inventories and upload every corresponding bundle with each binary release; no written-offer substitute is used.",
   "sources": [
     {
       "component": "Qt",

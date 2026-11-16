@@ -15,14 +15,22 @@ forma-ocr --input scan.pdf --output scan.ocr.docx --source-language en
 
 For a locked development environment use `uv sync --project tools/ocr --locked`.
 The helper's explicit PyTorch CPU index avoids installing CUDA dependencies.
-The desktop executable does not contain this environment or its model files.
+For this standalone worker on macOS, use **macOS 14 or newer on Apple Silicon**
+with native arm64 Python. The current Forma desktop package separately requires
+macOS 26 or newer.
+The pinned lockfile includes compatible arm64 PyTorch and torchvision wheels;
+the same installation command applies. Full model loading and scan inference
+on macOS have not been validated for this release. The desktop executable does
+not contain this environment or its model files.
 
 Source languages in this first integration: `en`, `uk`, `pl`, `de`. The source
 language must be explicit. RapidOCR resolves an ISO language profile rather than
 silently using a Chinese character set: English, Polish and German use their
 PP-OCRv6 models; Ukrainian uses the East Slavic PP-OCRv5 model. Point
 FormaTranslate's OCR executable setting at `forma-ocr` or its full installed
-path. Windows and Linux use the same command; upstream wheel/CPU support applies.
+path. Windows, Linux and macOS arm64 use the same command; upstream wheel/CPU
+support applies. Use the executable's full path in the desktop settings when
+launching through Finder if the installed tool is not discovered automatically.
 
 The worker recognizes **every** page, including pages with a partial text layer.
 It recovers reading order and native Word tables with merged cells, using source

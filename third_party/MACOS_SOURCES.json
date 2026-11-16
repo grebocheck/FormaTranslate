@@ -1,0 +1,480 @@
+{
+  "release": "0.16.0",
+  "platform": "macos-arm64",
+  "delivery": "Publish these original Python package and native-wheel source archives unchanged in Sources-0.16.0.zip. Qt/PySide6/QtPDF and CPython native-runtime sources are listed separately in SOURCES.json and MACOS_RUNTIME.json. SHA256 and original filenames are retained in the source bundle manifest. Some upstream build recipes include sources unused by the Apple Silicon wheel; those sources are supplied as well.",
+  "sources": [
+    {
+      "component": "altgraph",
+      "version": "0.17.5",
+      "archive": "altgraph-0.17.5.tar.gz",
+      "url": "https://files.pythonhosted.org/packages/7e/f8/97fdf103f38fed6792a1601dbc16cc8aac56e7459a9fff08c812d8ae177a/altgraph-0.17.5.tar.gz",
+      "sha256": "c87b395dd12fabde9c99573a9749d67da8d29ef9de0125c7f536699b4a9bc9e7",
+      "bytes": 48428,
+      "modified": false
+    },
+    {
+      "component": "anyio",
+      "version": "4.16.0",
+      "archive": "anyio-4.16.0.tar.gz",
+      "url": "https://files.pythonhosted.org/packages/a1/98/7e457a3b014976887a050561955c0b76e1e7e2d6e27b78ecef2ef80518f2/anyio-4.16.0.tar.gz",
+      "sha256": "59bb03251907983d1603d27c3087ddb1e93299ea2163adcdba37899a4fb12ffb",
+      "bytes": 310971,
+      "modified": false
+    },
+    {
+      "component": "certifi",
+      "version": "2026.10.23",
+      "archive": "certifi-2026.10.23.tar.gz",
+      "url": "https://files.pythonhosted.org/packages/fd/11/b524cbd9bbdaca58608e4cf4053fd463417549e1959fa8d3aa18319f9555/certifi-2026.10.23.tar.gz",
+      "sha256": "a9895e6e2758b371e0545e321a3a8fd1fcfd9829ada8824a936dfb16aaaf36cd",
+      "bytes": 136225,
+      "modified": false
+    },
+    {
+      "component": "h11",
+      "version": "0.16.0",
+      "archive": "h11-0.16.0.tar.gz",
+      "url": "https://files.pythonhosted.org/packages/01/ee/02a2c011bdab74c6fb3c75474d40b3052059d95df7e73351460c8588d963/h11-0.16.0.tar.gz",
+      "sha256": "4e35b956cf45792e4caa5885e69fba00bdbc6ffafbfa020300e549b208ee5ff1",
+      "bytes": 101250,
+      "modified": false
+    },
+    {
+      "component": "httpcore",
+      "version": "1.0.9",
+      "archive": "httpcore-1.0.9.tar.gz",
+      "url": "https://files.pythonhosted.org/packages/06/94/82699a10bca87a5556c9c59b5963f2d039dbd239f25bc2a63907a05a14cb/httpcore-1.0.9.tar.gz",
+      "sha256": "6e34463af53fd2ab5d807f399a9b45ea31c3dfa2276f15a2c3f00afff6e176e8",
+      "bytes": 85484,
+      "modified": false
+    },
+    {
+      "component": "httpx",
+      "version": "0.28.1",
+      "archive": "httpx-0.28.1.tar.gz",
+      "url": "https://files.pythonhosted.org/packages/b1/df/48c586a5fe32a0f01324ee087459e112ebb7224f646c0b5023f5e79e9956/httpx-0.28.1.tar.gz",
+      "sha256": "75e98c5f16b0f35b567856f597f06ff2270a374470a5c2392242528e3e3e42fc",
+      "bytes": 141406,
+      "modified": false
+    },
+    {
+      "component": "idna",
+      "version": "3.20",
+      "archive": "idna-3.20.tar.gz",
+      "url": "https://files.pythonhosted.org/packages/f5/08/8eea9d4b8302028f3abb2c0813953f7aec26d33b7a8960ed760e65ff29fa/idna-3.20.tar.gz",
+      "sha256": "a7db850025b95ded1eae8a46181a1a6c56c92c96f0e2b005d9ff8dc0210cab44",
+      "bytes": 216463,
+      "modified": false
+    },
+    {
+      "component": "iniconfig",
+      "version": "2.3.1",
+      "archive": "iniconfig-2.3.1.tar.gz",
+      "url": "https://files.pythonhosted.org/packages/01/e1/2069291243c926a2ff1cd706c7f3eeb9b62144bf60f77c9fb9ff2fb26bd3/iniconfig-2.3.1.tar.gz",
+      "sha256": "67f4b9c50da0dedf52af349e7749a80a9057a5031199791b906c3bb3ae878960",
+      "bytes": 21209,
+      "modified": false
+    },
+    {
+      "component": "jaraco.classes",
+      "version": "3.4.0",
+      "archive": "jaraco.classes-3.4.0.tar.gz",
+      "url": "https://files.pythonhosted.org/packages/06/c0/ed4a27bc5571b99e3cff68f8a9fa5b56ff7df1c2251cc715a652ddd26402/jaraco.classes-3.4.0.tar.gz",
+      "sha256": "47a024b51d0239c0dd8c8540c6c7f484be3b8fcf0b2d85c13825780d3b3f3acd",
+      "bytes": 11780,
+      "modified": false
+    },
+    {
+      "component": "jaraco.context",
+      "version": "6.1.2",
+      "archive": "jaraco_context-6.1.2.tar.gz",
+      "url": "https://files.pythonhosted.org/packages/af/50/4763cd07e722bb6285316d390a164bc7e479db9d90daa769f22578f698b4/jaraco_context-6.1.2.tar.gz",
+      "sha256": "f1a6c9d391e661cc5b8d39861ff077a7dc24dc23833ccee564b234b81c82dfe3",
+      "bytes": 16801,
+      "modified": false
+    },
+    {
+      "component": "jaraco.functools",
+      "version": "4.6.0",
+      "archive": "jaraco_functools-4.6.0.tar.gz",
+      "url": "https://files.pythonhosted.org/packages/6c/1f/c23395957d41ccf27c4e535c3d334c4051e5395b3752057ba4cbaec35c56/jaraco_functools-4.6.0.tar.gz",
+      "sha256": "880c577ec9720b3a052d5bc611fb9f2269b3d87902ef42440df443b88e443280",
+      "bytes": 20837,
+      "modified": false
+    },
+    {
+      "component": "keyring",
+      "version": "25.7.0",
+      "archive": "keyring-25.7.0.tar.gz",
+      "url": "https://files.pythonhosted.org/packages/43/4b/674af6ef2f97d56f0ab5153bf0bfa28ccb6c3ed4d1babf4305449668807b/keyring-25.7.0.tar.gz",
+      "sha256": "fe01bd85eb3f8fb3dd0405defdeac9a5b4f6f0439edbb3149577f244a2e8245b",
+      "bytes": 63516,
+      "modified": false
+    },
+    {
+      "component": "lxml",
+      "version": "6.1.3",
+      "archive": "lxml-6.1.3.tar.gz",
+      "url": "https://files.pythonhosted.org/packages/23/ad/28ecd7cb894d172f3c9c80a075eeeb2017ac62e3632cee05a5f9493547eb/lxml-6.1.3.tar.gz",
+      "sha256": "45222d94ddd511536f3b2f7d9deae3b2339b4ce0f075f1ca25703b07cad9dd21",
+      "bytes": 4211198,
+      "modified": false
+    },
+    {
+      "component": "macholib",
+      "version": "1.16.4",
+      "archive": "macholib-1.16.4.tar.gz",
+      "url": "https://files.pythonhosted.org/packages/10/2f/97589876ea967487978071c9042518d28b958d87b17dceb7cdc1d881f963/macholib-1.16.4.tar.gz",
+      "sha256": "f408c93ab2e995cd2c46e34fe328b130404be143469e41bc366c807448979362",
+      "bytes": 59427,
+      "modified": false
+    },
+    {
+      "component": "more-itertools",
+      "version": "11.2.1",
+      "archive": "more_itertools-11.2.1.tar.gz",
+      "url": "https://files.pythonhosted.org/packages/52/b8/c63995bebbb9ac9c059350e0fb8c82c2420c85aeca7d34e40aecf3df9281/more_itertools-11.2.1.tar.gz",
+      "sha256": "cbf08fd0af284dc69718b9b76a8e6203df624d70209ea511e4219d350c856f63",
+      "bytes": 154133,
+      "modified": false
+    },
+    {
+      "component": "packaging",
+      "version": "26.3",
+      "archive": "packaging-26.3.tar.gz",
+      "url": "https://files.pythonhosted.org/packages/7d/fa/3944b40b07da9ce895c0e6303a5ab7d53da063554f534556b134a54d6093/packaging-26.3.tar.gz",
+      "sha256": "94edc256424af38762eb31306eed28beb9f0efc50a8837492c9d6fd6004aed79",
+      "bytes": 313412,
+      "modified": false
+    },
+    {
+      "component": "pillow",
+      "version": "13.0.0",
+      "archive": "pillow-13.0.0.tar.gz",
+      "url": "https://files.pythonhosted.org/packages/ce/a4/9cc30690a394a8305e8be4c9036aa16d0dfddadd09079860b582f562496d/pillow-13.0.0.tar.gz",
+      "sha256": "cdcd1ba258178f7356d74170c9a81ba4eab6a5d55748bc402a5a2a6fe6be3510",
+      "bytes": 47058631,
+      "modified": false
+    },
+    {
+      "component": "platformdirs",
+      "version": "4.14.5",
+      "archive": "platformdirs-4.14.5.tar.gz",
+      "url": "https://files.pythonhosted.org/packages/d7/9a/8475be631fb33ca1466915e70fd594c42a4e84b512db650eaa14f90fe75d/platformdirs-4.14.5.tar.gz",
+      "sha256": "32e9921db7385aa8169bee4fe9501923e5715ba9fb7ea3b9c69b0d8e0639f7a1",
+      "bytes": 71464,
+      "modified": false
+    },
+    {
+      "component": "pluggy",
+      "version": "1.7.0",
+      "archive": "pluggy-1.7.0.tar.gz",
+      "url": "https://files.pythonhosted.org/packages/bf/db/7fc19e6f2dc92a966727031389fc2e08b558f0f25eb7403c1119ad4713cd/pluggy-1.7.0.tar.gz",
+      "sha256": "d1eaa46ebb595891b860ab086b4d09c8588af65ebd4361b8e8f4bb8920b90ba8",
+      "bytes": 123304,
+      "modified": false
+    },
+    {
+      "component": "Pygments",
+      "version": "2.21.0",
+      "archive": "pygments-2.21.0.tar.gz",
+      "url": "https://files.pythonhosted.org/packages/49/2e/ced460408999b33da6b31b0021b0f37d329e202d4169aeb164493778f25b/pygments-2.21.0.tar.gz",
+      "sha256": "610ca751c9bc2492b38eb9a38a7fbc93edbbb2d7182edaf34e66ae493dee5c8c",
+      "bytes": 5005329,
+      "modified": false
+    },
+    {
+      "component": "pyinstaller",
+      "version": "6.22.3",
+      "archive": "pyinstaller-6.22.3.tar.gz",
+      "url": "https://files.pythonhosted.org/packages/63/41/f90302845945abd4ed647933ff5ee7c6ac93983187be67f897b6cb613331/pyinstaller-6.22.3.tar.gz",
+      "sha256": "05eb2f5615503e72939a7224d68b4aff572c6b0438ee4a17d0a4b481f399362d",
+      "bytes": 4437180,
+      "modified": false
+    },
+    {
+      "component": "pyinstaller-hooks-contrib",
+      "version": "2026.9",
+      "archive": "pyinstaller_hooks_contrib-2026.9.tar.gz",
+      "url": "https://files.pythonhosted.org/packages/96/25/e47c6188228281372be7e9911a93931e01ec8798c02c93abd680b9b9521f/pyinstaller_hooks_contrib-2026.9.tar.gz",
+      "sha256": "2748767901acb5cecd1304652b6c7add5bffcff1d71d01207fe24a5d42942a56",
+      "bytes": 180783,
+      "modified": false
+    },
+    {
+      "component": "pypdf",
+      "version": "6.21.4",
+      "archive": "pypdf-6.21.4.tar.gz",
+      "url": "https://files.pythonhosted.org/packages/1e/e1/ec8f4d155c997c45917153a5521e60d6ee6389d68abdcbc8e44e564caffc/pypdf-6.21.4.tar.gz",
+      "sha256": "c8817e3f888d47a087872ded69812c1ef30cacb871d6e053e0c00bbaf0bc2163",
+      "bytes": 7109255,
+      "modified": false
+    },
+    {
+      "component": "pytest",
+      "version": "9.2.0",
+      "archive": "pytest-9.2.0.tar.gz",
+      "url": "https://files.pythonhosted.org/packages/79/42/bb4641652e58dedeac2ec51abc1f8cae4fee4ec63899a0999016229a0f2a/pytest-9.2.0.tar.gz",
+      "sha256": "97c4f3b1f3c7414aa36465e09b8220f1d03627993bd51b1282e193753c80557b",
+      "bytes": 1797555,
+      "modified": false
+    },
+    {
+      "component": "python-dotenv",
+      "version": "1.2.4",
+      "archive": "python_dotenv-1.2.4.tar.gz",
+      "url": "https://files.pythonhosted.org/packages/74/26/2fbeedb218a787a5eea551c7532cac4e009f83d689dd2faa0d0353473f86/python_dotenv-1.2.4.tar.gz",
+      "sha256": "f0d53e69935a851c0dcc78f3ab7aaccd8cabef0b92382b576b824212902873c0",
+      "bytes": 60824,
+      "modified": false
+    },
+    {
+      "component": "setuptools",
+      "version": "84.2.1",
+      "archive": "setuptools-84.2.1.tar.gz",
+      "url": "https://files.pythonhosted.org/packages/70/b3/c19426f783614d625699a4b247faf628ea9ab1db228674491767b417f9e1/setuptools-84.2.1.tar.gz",
+      "sha256": "3ff8b3b5492a0aa66960f4419365a86b84e013070d4313e4d4a6894f5d64d6bc",
+      "bytes": 1230289,
+      "modified": false
+    },
+    {
+      "component": "typing_extensions",
+      "version": "4.16.0",
+      "archive": "typing_extensions-4.16.0.tar.gz",
+      "url": "https://files.pythonhosted.org/packages/f6/cc/6253133b5bb138fc3306cebfbda2c520f545d36b5be2c7255cc528bb45d6/typing_extensions-4.16.0.tar.gz",
+      "sha256": "dc983d19a509c94dba722ee6abd33940f7c05a89e243c47e907eb4db6f1a43e5",
+      "bytes": 113555,
+      "modified": false
+    },
+    {
+      "component": "multibuild",
+      "version": "c893f305c6066b6d940e10d3333be8cb27fa3947",
+      "archive": "multibuild-c893f305c6066b6d940e10d3333be8cb27fa3947.tar.gz",
+      "url": "https://github.com/multi-build/multibuild/archive/c893f305c6066b6d940e10d3333be8cb27fa3947.tar.gz",
+      "recipe": "https://raw.githubusercontent.com/python-pillow/Pillow/13.0.0/.github/workflows/wheels-dependencies.sh",
+      "sha256": "e50c410a625333404ba318f109b082ff04b1edb1e18e92109e38897c9561db09",
+      "bytes": 821925,
+      "modified": false
+    },
+    {
+      "component": "zlib (lxml)",
+      "version": "1.3.2",
+      "archive": "zlib-1.3.2.tar.gz",
+      "url": "https://zlib.net/fossils/zlib-1.3.2.tar.gz",
+      "recipe": "https://raw.githubusercontent.com/lxml/lxml/lxml-6.1.3/.github/workflows/wheels.yml",
+      "sha256": "bb329a0a2cd0274d05519d61c667c062e06990d72e125ee2dfa8de64f0119d16",
+      "bytes": 1502830,
+      "modified": false
+    },
+    {
+      "component": "FreeType",
+      "version": "2.14.3",
+      "archive": "freetype-2.14.3.tar.gz",
+      "url": "https://download.savannah.gnu.org/releases/freetype/freetype-2.14.3.tar.gz",
+      "recipe": "https://raw.githubusercontent.com/multi-build/multibuild/c893f305c6066b6d940e10d3333be8cb27fa3947/library_builders.sh",
+      "sha256": "e61b31ab26358b946e767ed7eb7f4bb2e507da1cfefeb7a8861ace7fd5c899a1",
+      "bytes": 4134916,
+      "modified": false
+    },
+    {
+      "component": "GNU libiconv",
+      "version": "1.18",
+      "archive": "libiconv-1.18.tar.gz",
+      "url": "https://ftp.gnu.org/pub/gnu/libiconv/libiconv-1.18.tar.gz",
+      "recipe": "https://raw.githubusercontent.com/lxml/lxml/lxml-6.1.3/.github/workflows/wheels.yml",
+      "sha256": "3b08f5f4f9b4eb82f151a7040bfd6fe6c6fb922efe4b1659c66ea933276965e8",
+      "bytes": 5822590,
+      "modified": false
+    },
+    {
+      "component": "libxslt",
+      "version": "1.1.43",
+      "archive": "libxslt-1.1.43.tar.xz",
+      "url": "https://download.gnome.org/sources/libxslt/1.1/libxslt-1.1.43.tar.xz",
+      "recipe": "https://raw.githubusercontent.com/lxml/lxml/lxml-6.1.3/.github/workflows/wheels.yml",
+      "sha256": "5a3d6b383ca5afc235b171118e90f5ff6aa27e9fea3303065231a6d403f0183a",
+      "bytes": 1518364,
+      "modified": false
+    },
+    {
+      "component": "libjpeg-turbo",
+      "version": "3.2.0",
+      "archive": "libjpeg-turbo-3.2.0.tar.gz",
+      "url": "https://github.com/libjpeg-turbo/libjpeg-turbo/releases/download/3.2.0/libjpeg-turbo-3.2.0.tar.gz",
+      "recipe": "https://raw.githubusercontent.com/multi-build/multibuild/c893f305c6066b6d940e10d3333be8cb27fa3947/library_builders.sh",
+      "sha256": "6f30092cef9fb839779646608f4ee14ae3cbac989c47fa05e841b0841f09878e",
+      "bytes": 2537858,
+      "modified": false
+    },
+    {
+      "component": "LittleCMS",
+      "version": "2.19.1",
+      "archive": "lcms2-2.19.1.tar.gz",
+      "url": "https://downloads.sourceforge.net/project/lcms/lcms/2.19.1/lcms2-2.19.1.tar.gz",
+      "recipe": "https://raw.githubusercontent.com/multi-build/multibuild/c893f305c6066b6d940e10d3333be8cb27fa3947/library_builders.sh",
+      "sha256": "bfc54f7bab59fbc921012014a8032e4cba4abd46db47d46b76416a8c0b2815c8",
+      "bytes": 5728743,
+      "modified": false
+    },
+    {
+      "component": "libpng",
+      "version": "1.6.58",
+      "archive": "libpng-1.6.58.tar.gz",
+      "url": "https://download.sourceforge.net/libpng/libpng-1.6.58.tar.gz",
+      "recipe": "https://raw.githubusercontent.com/multi-build/multibuild/c893f305c6066b6d940e10d3333be8cb27fa3947/library_builders.sh",
+      "sha256": "8c9b05b675ca7301a458df2c2e46f26e1d41ff36b8863f8c33530bc58c2e6225",
+      "bytes": 1582074,
+      "modified": false
+    },
+    {
+      "component": "libxcb",
+      "version": "1.17.0",
+      "archive": "libxcb-1.17.0.tar.gz",
+      "url": "https://www.x.org/releases/individual/lib/libxcb-1.17.0.tar.gz",
+      "recipe": "https://raw.githubusercontent.com/python-pillow/Pillow/13.0.0/.github/workflows/wheels-dependencies.sh",
+      "sha256": "2c69287424c9e2128cb47ffe92171e10417041ec2963bceafb65cb3fcf8f0b85",
+      "bytes": 661593,
+      "modified": false
+    },
+    {
+      "component": "libXau",
+      "version": "1.0.12",
+      "archive": "libXau-1.0.12.tar.gz",
+      "url": "https://www.x.org/pub/individual/lib/libXau-1.0.12.tar.gz",
+      "recipe": "https://raw.githubusercontent.com/python-pillow/Pillow/13.0.0/.github/workflows/wheels-dependencies.sh",
+      "sha256": "2402dd938da4d0a332349ab3d3586606175e19cb32cb9fe013c19f1dc922dcee",
+      "bytes": 418722,
+      "modified": false
+    },
+    {
+      "component": "libxml2",
+      "version": "2.14.6",
+      "archive": "libxml2-2.14.6.tar.xz",
+      "url": "https://download.gnome.org/sources/libxml2/2.14/libxml2-2.14.6.tar.xz",
+      "recipe": "https://raw.githubusercontent.com/lxml/lxml/lxml-6.1.3/.github/workflows/wheels.yml",
+      "sha256": "7ce458a0affeb83f0b55f1f4f9e0e55735dbfc1a9de124ee86fb4a66b597203a",
+      "bytes": 2327580,
+      "modified": false
+    },
+    {
+      "component": "libwebp",
+      "version": "1.6.0",
+      "archive": "libwebp-1.6.0.tar.gz",
+      "url": "https://storage.googleapis.com/downloads.webmproject.org/releases/webp/libwebp-1.6.0.tar.gz",
+      "recipe": "https://raw.githubusercontent.com/python-pillow/Pillow/13.0.0/.github/workflows/wheels-dependencies.sh",
+      "sha256": "e4ab7009bf0629fd11982d4c2aa83964cf244cffba7347ecd39019a9e38c4564",
+      "bytes": 4296070,
+      "modified": false
+    },
+    {
+      "component": "Pillow full wheel build recipes",
+      "version": "13.0.0",
+      "archive": "Pillow-13.0.0.zip",
+      "url": "https://github.com/python-pillow/Pillow/archive/refs/tags/13.0.0.zip",
+      "recipe": "https://raw.githubusercontent.com/python-pillow/Pillow/13.0.0/.github/workflows/wheels-dependencies.sh",
+      "sha256": "99aad35fa52284ca1e0213927e2e8caf012289a8eef11eb6df26cbdbf94e859b",
+      "bytes": 47981013,
+      "modified": false
+    },
+    {
+      "component": "libavif",
+      "version": "1.4.2",
+      "archive": "libavif-1.4.2.tar.gz",
+      "url": "https://github.com/AOMediaCodec/libavif/archive/refs/tags/v1.4.2.tar.gz",
+      "recipe": "https://raw.githubusercontent.com/python-pillow/Pillow/13.0.0/.github/workflows/wheels-dependencies.sh",
+      "sha256": "2b645287340ba5a631d268b551dc2d72bd73ac33335962dd36dcdb6d8366921d",
+      "bytes": 14665927,
+      "modified": false
+    },
+    {
+      "component": "OpenJPEG",
+      "version": "2.5.4",
+      "archive": "openjpeg-2.5.4.tar.gz",
+      "url": "https://github.com/uclouvain/openjpeg/archive/v2.5.4.tar.gz",
+      "recipe": "https://raw.githubusercontent.com/multi-build/multibuild/c893f305c6066b6d940e10d3333be8cb27fa3947/library_builders.sh",
+      "sha256": "a695fbe19c0165f295a8531b1e4e855cd94d0875d2f88ec4b61080677e27188a",
+      "bytes": 2157028,
+      "modified": false
+    },
+    {
+      "component": "Brotli",
+      "version": "1.2.0",
+      "archive": "brotli-1.2.0.tar.gz",
+      "url": "https://github.com/google/brotli/archive/v1.2.0.tar.gz",
+      "recipe": "https://raw.githubusercontent.com/python-pillow/Pillow/13.0.0/.github/workflows/wheels-dependencies.sh",
+      "sha256": "816c96e8e8f193b40151dad7e8ff37b1221d019dbcb9c35cd3fadbfe6477dfec",
+      "bytes": 646315,
+      "modified": false
+    },
+    {
+      "component": "zlib-ng",
+      "version": "2.3.3",
+      "archive": "zlib-ng-2.3.3.tar.gz",
+      "url": "https://github.com/zlib-ng/zlib-ng/archive/refs/tags/2.3.3.tar.gz",
+      "recipe": "https://raw.githubusercontent.com/python-pillow/Pillow/13.0.0/.github/workflows/wheels-dependencies.sh",
+      "sha256": "f9c65aa9c852eb8255b636fd9f07ce1c406f061ec19a2e7d508b318ca0c907d1",
+      "bytes": 2447397,
+      "modified": false
+    },
+    {
+      "component": "libtiff",
+      "version": "4.7.2",
+      "archive": "tiff-4.7.2.tar.gz",
+      "url": "https://download.osgeo.org/libtiff/tiff-4.7.2.tar.gz",
+      "recipe": "https://raw.githubusercontent.com/python-pillow/Pillow/13.0.0/.github/workflows/wheels-dependencies.sh",
+      "sha256": "672bd7d10aee4606171afb864f3570b83340f6a33e2c186dc0512f7145ffdf6a",
+      "bytes": 4083368,
+      "modified": false
+    },
+    {
+      "component": "xz (Pillow)",
+      "version": "5.8.4",
+      "archive": "xz-5.8.4.tar.gz",
+      "url": "https://github.com/tukaani-project/xz/releases/download/v5.8.4/xz-5.8.4.tar.gz",
+      "recipe": "https://raw.githubusercontent.com/multi-build/multibuild/c893f305c6066b6d940e10d3333be8cb27fa3947/library_builders.sh",
+      "sha256": "0014c7886930454fe8bd4228665b51af55eeae560ea135c9c4cd33f55b2591d9",
+      "bytes": 2799797,
+      "modified": false
+    },
+    {
+      "component": "libyuv (Pillow libavif)",
+      "version": "644251f252a84bf8ce91ff0aca86a9b16b069ab8",
+      "archive": "libyuv-644251f252a84bf8ce91ff0aca86a9b16b069ab8.tar.gz",
+      "url": "https://chromium.googlesource.com/libyuv/libyuv/+archive/644251f252a84bf8ce91ff0aca86a9b16b069ab8.tar.gz",
+      "recipe": "libavif-1.4.2/cmake/Modules/LocalLibyuv.cmake",
+      "sha256": "a110b9482af51ffcc301ba12d20107577485cc106a12f0662bf0d840109bcd32",
+      "bytes": 598391,
+      "modified": false
+    },
+    {
+      "component": "HarfBuzz",
+      "version": "14.5.0",
+      "archive": "harfbuzz-14.5.0.tar.xz",
+      "url": "https://github.com/harfbuzz/harfbuzz/releases/download/14.5.0/harfbuzz-14.5.0.tar.xz",
+      "recipe": "https://raw.githubusercontent.com/python-pillow/Pillow/13.0.0/.github/workflows/wheels-dependencies.sh",
+      "sha256": "b7132e148358a45185c9feafd049dbaf243649d3c44414b3534d9c95d18592b9",
+      "bytes": 20262956,
+      "modified": false
+    },
+    {
+      "component": "dav1d (Pillow libavif)",
+      "version": "1.5.3",
+      "archive": "dav1d-1.5.3.tar.gz",
+      "url": "https://code.videolan.org/videolan/dav1d/-/archive/1.5.3/dav1d-1.5.3.tar.gz",
+      "recipe": "libavif-1.4.2/cmake/Modules/LocalDav1d.cmake",
+      "sha256": "cbe212b02faf8c6eed5b6d55ef8a6e363aaab83f15112e960701a9c3df813686",
+      "bytes": 1713950,
+      "modified": false
+    },
+    {
+      "component": "libaom (Pillow libavif)",
+      "version": "3.14.1",
+      "archive": "aom-v3.14.1.tar.gz",
+      "url": "https://aomedia.googlesource.com/aom/+archive/refs/tags/v3.14.1.tar.gz",
+      "recipe": "libavif-1.4.2/cmake/Modules/LocalAom.cmake",
+      "sha256": "2e3562d2771cb6a807a0d8af88081f5e034bee479d88ef4ddf272900b33b787c",
+      "bytes": 6438622,
+      "modified": false
+    }
+  ]
+}

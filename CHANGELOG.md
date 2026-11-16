@@ -2,6 +2,14 @@
 
 Versions follow semantic versioning. Changes before 1.0 may evolve as document compatibility improves.
 
+## 0.16.0 — 2026-11-16
+
+- Add a native macOS Apple Silicon application bundle distributed in a ZIP, including Python, Qt, QML, all six interface-language catalogs and dependency license materials. The current locked native libraries require macOS 26 or newer; measure and record that deployment target before signing the bundle.
+- Use the native macOS Keychain for optionally saved API credentials. Discover separately installed PDF/OCR tools and Homebrew utilities when launching from Finder.
+- Keep PDF/OCR engines separately installed on macOS; preserve the complete embedded Windows distribution and Linux portable-folder workflow.
+- Restore photo paste after switching from the text editor on macOS, where clicking a button need not transfer keyboard focus.
+- Place the document title and mode tabs in one compact workspace header.
+
 ## 0.15.1 — 2026-11-16
 
 - Keep one desktop or CLI translation active per application-data directory, releasing ownership automatically after exit or a crash. Reject stale Review writes without losing the active edit; retain the existing saved-review format.

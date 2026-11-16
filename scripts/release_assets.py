@@ -118,7 +118,7 @@ def create_source_bundle(
             bundle.writestr(_README, (
                 f"FormaTranslate {version}: corresponding source archives\n\n"
                 "This developer/source download is not required to run the application.\n"
-                "The Windows and Linux application ZIPs are the end-user downloads.\n\n"
+                "The platform application ZIPs are the end-user downloads.\n\n"
                 "Every original archive is stored under its original filename and its\n"
                 "bytes are unchanged. MANIFEST.json records size and SHA256 for each.\n"
                 "The application/worker source ZIPs contain the release's build\n"
@@ -129,7 +129,7 @@ def create_source_bundle(
                 "the runtime-sources paths referenced by its included inventories.\n"
                 "MANIFEST.json lists the components in this download. If the release\n"
                 "has multiple Sources ZIPs, download all of them for the complete\n"
-                "corresponding sources, including Linux dependencies and Qt/PySide.\n"
+                "corresponding sources, including platform dependencies and Qt/PySide.\n"
             ))
         if temporary.stat().st_size >= MAX_ASSET_BYTES:
             raise ValueError("Source bundle exceeds the release asset size limit")

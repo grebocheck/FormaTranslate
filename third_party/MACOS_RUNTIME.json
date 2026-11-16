@@ -1,0 +1,181 @@
+{
+  "description": "Native Python runtime provenance for the macOS arm64 application. No user paths, settings or data are included.",
+  "python": {
+    "version": "3.12.14",
+    "distribution": "Astral python-build-standalone",
+    "build": "20260929",
+    "target": "aarch64-apple-darwin",
+    "variant": "pgo+lto",
+    "recipe_commit": "b498734a5791d0e6786695a226fd398a41c6f7f6",
+    "metadata_source": "https://github.com/astral-sh/python-build-standalone/releases/download/20260929/cpython-3.12.14%2B20260929-aarch64-apple-darwin-pgo%2Blto-full.tar.zst",
+    "metadata_archive_sha256": "332588681afefc98045995122657a64f8e708d0fb56e683733b1f7cc42157f97",
+    "license_file": "licenses/Python-3.12.14-LICENSE.txt",
+    "patches": "The matching python-build-standalone source archive carries upstream build recipes and applied CPython/native-dependency patches."
+  },
+  "components": [
+    {
+      "component": "bzip2",
+      "version": "1.0.8",
+      "linkage": "static in libpython3.12.dylib",
+      "license": "bzip2-1.0.6",
+      "license_file": "licenses/python-build-standalone-20260929/LICENSE.bzip2.txt"
+    },
+    {
+      "component": "expat",
+      "version": "2.8.5",
+      "linkage": "static in libpython3.12.dylib",
+      "license": "MIT",
+      "license_file": "licenses/python-build-standalone-20260929/LICENSE.expat.txt"
+    },
+    {
+      "component": "libffi",
+      "version": "3.4.8",
+      "linkage": "static in libpython3.12.dylib",
+      "license": "MIT",
+      "license_file": "licenses/python-build-standalone-20260929/LICENSE.libffi.txt"
+    },
+    {
+      "component": "mpdecimal",
+      "version": "4.0.0",
+      "linkage": "static in libpython3.12.dylib",
+      "license": "BSD-2-Clause",
+      "license_file": "licenses/python-build-standalone-20260929/LICENSE.mpdecimal.txt"
+    },
+    {
+      "component": "OpenSSL",
+      "version": "3.5.9",
+      "linkage": "static in libpython3.12.dylib",
+      "license": "Apache-2.0",
+      "license_file": "licenses/python-build-standalone-20260929/LICENSE.openssl-3.txt"
+    },
+    {
+      "component": "sqlite",
+      "version": "3.53.1.0",
+      "linkage": "static in libpython3.12.dylib",
+      "license": "Public domain",
+      "license_file": "licenses/python-build-standalone-20260929/LICENSE.sqlite.txt"
+    },
+    {
+      "component": "XZ/liblzma",
+      "version": "5.8.4",
+      "linkage": "static in libpython3.12.dylib",
+      "license": "0BSD",
+      "license_file": "licenses/python-build-standalone-20260929/LICENSE.liblzma.txt"
+    },
+    {
+      "component": "libuuid",
+      "version": "1.0.3",
+      "linkage": "static in libpython3.12.dylib",
+      "license": "BSD-3-Clause",
+      "license_file": "licenses/python-build-standalone-20260929/LICENSE.libuuid.txt"
+    }
+  ],
+  "system_dependencies": {
+    "redistributed": false,
+    "libraries": [
+      "libz.1.dylib",
+      "libedit.3.dylib",
+      "libncurses.5.4.dylib",
+      "libpanel.5.4.dylib",
+      "libSystem.B.dylib"
+    ],
+    "frameworks": [
+      "CoreFoundation",
+      "SystemConfiguration"
+    ]
+  },
+  "sources": [
+    {
+      "component": "CPython",
+      "version": "3.12.14",
+      "archive": "Python-3.12.14.tar.xz",
+      "url": "https://www.python.org/ftp/python/3.12.14/Python-3.12.14.tar.xz",
+      "sha256": "5c8462af5790baf43a321a1559dbe0db06d1be4300fb85fb53c40060668e548a",
+      "bytes": 20820300,
+      "modified": false
+    },
+    {
+      "component": "bzip2",
+      "version": "1.0.8",
+      "archive": "bzip2-1.0.8.tar.gz",
+      "url": "https://sourceware.org/pub/bzip2/bzip2-1.0.8.tar.gz",
+      "sha256": "ab5a03176ee106d3f0fa90e381da478ddae405918153cca248e682cd0c4a2269",
+      "bytes": 810029,
+      "modified": false
+    },
+    {
+      "component": "expat",
+      "version": "2.8.5",
+      "archive": "expat-2.8.5.tar.xz",
+      "url": "https://github.com/libexpat/libexpat/releases/download/R_2_8_5/expat-2.8.5.tar.xz",
+      "sha256": "1e727b8933ec51a77a9a9d9afcf8e688bce45d907c13e36ab7393fe36e703182",
+      "bytes": 528380,
+      "modified": false
+    },
+    {
+      "component": "libffi",
+      "version": "3.4.8",
+      "archive": "libffi-3.4.8.tar.gz",
+      "url": "https://github.com/libffi/libffi/releases/download/v3.4.8/libffi-3.4.8.tar.gz",
+      "sha256": "bc9842a18898bfacb0ed1252c4febcc7e78fa139fd27fdc7a3e30d9d9356119b",
+      "bytes": 1397992,
+      "modified": false
+    },
+    {
+      "component": "mpdecimal",
+      "version": "4.0.0",
+      "archive": "mpdecimal-4.0.0.tar.gz",
+      "url": "https://www.bytereef.org/software/mpdecimal/releases/mpdecimal-4.0.0.tar.gz",
+      "sha256": "942445c3245b22730fd41a67a7c5c231d11cb1b9936b9c0f76334fb7d0b4468c",
+      "bytes": 315325,
+      "modified": false
+    },
+    {
+      "component": "OpenSSL",
+      "version": "3.5.9",
+      "archive": "openssl-3.5.9.tar.gz",
+      "url": "https://github.com/openssl/openssl/releases/download/openssl-3.5.9/openssl-3.5.9.tar.gz",
+      "sha256": "603f5602e2eef00d77fbd429d34dcd5822bb301757a1bc9cdb24c670f1eb859a",
+      "bytes": 53279637,
+      "modified": false
+    },
+    {
+      "component": "sqlite",
+      "version": "3.53.1.0",
+      "archive": "sqlite-autoconf-3530100.tar.gz",
+      "url": "https://www.sqlite.org/2026/sqlite-autoconf-3530100.tar.gz",
+      "sha256": "83e6b2020a034e9a7ad4a72feea59e1ad52f162e09cbd26735a3ffb98359fc4f",
+      "bytes": 3275272,
+      "modified": false
+    },
+    {
+      "component": "XZ/liblzma",
+      "version": "5.8.4",
+      "archive": "xz-5.8.4.tar.gz",
+      "url": "https://github.com/tukaani-project/xz/releases/download/v5.8.4/xz-5.8.4.tar.gz",
+      "sha256": "0014c7886930454fe8bd4228665b51af55eeae560ea135c9c4cd33f55b2591d9",
+      "bytes": 2799797,
+      "modified": false
+    },
+    {
+      "component": "libuuid",
+      "version": "1.0.3",
+      "archive": "libuuid-1.0.3.tar.gz",
+      "url": "https://sourceforge.net/projects/libuuid/files/libuuid-1.0.3.tar.gz",
+      "sha256": "46af3275291091009ad7f1b899de3d0cea0252737550e7919d17237997db5644",
+      "bytes": 318256,
+      "modified": false
+    },
+    {
+      "component": "python-build-standalone",
+      "version": "20260929",
+      "archive": "python-build-standalone-20260929.tar.gz",
+      "url": "https://codeload.github.com/astral-sh/python-build-standalone/tar.gz/refs/tags/20260929",
+      "sha256": "ae5db2c5302cfff89b32e03ba39816c4f838840c017441a9fe33aa9437b17d5b",
+      "bytes": 462325,
+      "modified": false,
+      "commit": "b498734a5791d0e6786695a226fd398a41c6f7f6",
+      "notes": "Build recipes and CPython/native dependency patches used by the upstream Python distribution."
+    }
+  ]
+}

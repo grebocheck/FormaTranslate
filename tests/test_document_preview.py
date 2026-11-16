@@ -3,7 +3,6 @@ from __future__ import annotations
 import hashlib
 import json
 import os
-import shutil
 import sys
 import threading
 import time
@@ -20,7 +19,7 @@ from PySide6.QtGui import QImage
 from forma.core.models import Cancelled, FormaError
 from forma.documents import preview
 from forma.documents.preview import PreviewSession
-from forma.documents.preview_office import prepare_docx
+from forma.documents.preview_office import find_libreoffice, prepare_docx
 
 
 def pdf(path, *, color="1 0 0", pages=2):
@@ -243,7 +242,9 @@ def test_failed_converter_keeps_no_partial_cache(tmp_path, docx_file, body, mess
 def test_converter_timeout_cancellation_and_close_reap_process(tmp_path, docx_file, operation):
     pid_file = tmp_path / "pid"
     converter = converter_script(tmp_path, f"import os,time\nfrom pathlib import Path\nPath({str(pid_file)!r}).write_text(str(os.getpid()))\ntime.sleep(30)\n")
-    instance = PreviewSession(converter=converter, cache_parent=tmp_path, conversion_timeout=.25 if operation == "timeout" else 10)
+    # Native macOS Python startup can exceed 250 ms. Leave time to publish the
+    # PID before the timeout, while still interrupting the 30-second worker.
+    instance = PreviewSession(converter=converter, cache_parent=tmp_path, conversion_timeout=1 if operation == "timeout" else 10)
     cancel = threading.Event()
     errors = []
 
@@ -323,7 +324,7 @@ def test_private_docx_copy_removes_external_loading_but_preserves_cached_text(tm
     assert hashlib.sha256(source.read_bytes()).hexdigest() == before
 
 
-@pytest.mark.skipif(not shutil.which("libreoffice"), reason="Optional installed LibreOffice")
+@pytest.mark.skipif(not find_libreoffice(), reason="Optional installed LibreOffice")
 def test_installed_libreoffice_converts_once_and_worker_receives_no_credentials(tmp_path, monkeypatch):
     source = tmp_path / "two.docx"
     document = Document()

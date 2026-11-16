@@ -10,6 +10,7 @@ import importlib.util
 import json
 import os
 import platform
+import plistlib
 import re
 import shutil
 import ssl
@@ -201,12 +202,15 @@ def build_command(
     backends = {
         "windows": "keyring.backends.Windows",
         "linux": "keyring.backends.SecretService",
+        "darwin": "keyring.backends.macOS",
     }
     if system not in backends:
-        raise SystemExit("Portable builds are currently supported on Windows and Linux.")
+        raise SystemExit("Portable builds are supported on Windows, Linux and macOS arm64.")
+    if system == "darwin" and machine != "arm64":
+        raise ValueError("macOS release builds currently support Apple Silicon arm64 only")
     if runtime_candidate and (system != "windows" or desktop_only):
         raise ValueError("Runtime candidates require a complete Windows build")
-    name = f"Forma-{system}-{machine}"
+    name = f"Forma-{'macos' if system == 'darwin' else system}-{machine}"
     if system == "windows":
         if desktop_only:
             name += "-desktop-only"
@@ -218,6 +222,8 @@ def build_command(
             if runtime_candidate:
                 name += "-candidate"
     artifact = root / "dist" / name / (name + (".exe" if system == "windows" else ""))
+    if system == "darwin":
+        artifact = root / "dist" / (name + ".app") / "Contents/MacOS" / name
     command = [
         sys.executable,
         "-m",
@@ -263,7 +269,75 @@ def build_command(
             ]
         command[-1:-1] = ["--icon", str(root / "src/forma/ui/forma.ico"), "--version-file",
                          str(root / "build/release" / name / "windows-version.txt")]
+    elif system == "darwin":
+        command[-1:-1] = [
+            "--target-architecture", "arm64",
+            "--osx-bundle-identifier", "io.github.grebocheck.FormaTranslate",
+            "--icon", str(root / "build/release" / name / "forma.icns"),
+        ]
     return command, artifact
+
+
+def macos_build_command(command: list[str], root: Path = ROOT) -> list[str]:
+    """Set native app metadata before PyInstaller signs the finished bundle."""
+    from PyInstaller.__main__ import generate_parser, run_makespec
+
+    options = vars(generate_parser().parse_args(command[3:]))
+    icon = Path(options["icon_file"][0])
+    icon.parent.mkdir(parents=True, exist_ok=True)
+    subprocess.run(["sips", "-s", "format", "icns", str(root / "src/forma/ui/forma.png"),
+                    "--out", str(icon)], check=True, capture_output=True)
+    scripts = options.pop("filenames")
+    spec = Path(run_makespec(scripts, **options))
+    source = spec.read_text(encoding="utf-8")
+    boundary = "    bundle_identifier="
+    bundle_boundary = "\napp = BUNDLE(\n"
+    if source.count(boundary) != 1 or source.count(bundle_boundary) != 1:
+        raise RuntimeError("Unexpected PyInstaller spec layout; macOS bundle metadata was not added")
+    version = release_version(root)
+    metadata = {
+        "CFBundleName": "FormaTranslate", "CFBundleDisplayName": "FormaTranslate",
+        "CFBundleShortVersionString": version, "CFBundleVersion": version,
+        "NSHighResolutionCapable": True,
+    }
+    # COLLECT has already selected and thinned the actual runtime libraries.
+    # Wheel tags can understate the deployment target of their native code.
+    source = source.replace(
+        bundle_boundary,
+        "\nfrom runpy import run_path\n"
+        f"_minimum_macos = run_path({str(Path(__file__).resolve())!r})"
+        "['macos_minimum_version'](coll.name)\napp = BUNDLE(\n",
+    )
+    plist = repr(metadata)[:-1] + ", 'LSMinimumSystemVersion': _minimum_macos}"
+    spec.write_text(source.replace(boundary, "    info_plist=" + plist + ",\n" + boundary), encoding="utf-8")
+    return [*command[:3], "--noconfirm", "--clean", "--distpath", options["distpath"],
+            "--workpath", options["workpath"], str(spec)]
+
+
+def macos_minimum_version(directory: str | Path) -> str:
+    """Measure the deployment target of the collected Apple Silicon runtime."""
+    from macholib.mach_o import LC_BUILD_VERSION, LC_VERSION_MIN_MACOSX
+    from macholib.MachO import MachO
+
+    versions = []
+    for path in Path(directory).rglob("*"):
+        if path.is_symlink() or not path.is_file():
+            continue
+        with path.open("rb") as stream:
+            if stream.read(4) not in {b"\xfe\xed\xfa\xce", b"\xce\xfa\xed\xfe", b"\xfe\xed\xfa\xcf", b"\xcf\xfa\xed\xfe", b"\xca\xfe\xba\xbe"}:
+                continue
+        for header in MachO(str(path)).headers:
+            if header.header.cputype != 0x0100000C:  # CPU_TYPE_ARM64
+                continue
+            for command, data, _ in header.commands:
+                if command.cmd == LC_BUILD_VERSION:
+                    versions.append(data.minos)
+                elif command.cmd == LC_VERSION_MIN_MACOSX:
+                    versions.append(data.version)
+    if not versions:
+        raise ValueError("No macOS arm64 deployment targets found in the collected runtime")
+    version = max(versions)
+    return f"{version >> 16}.{version >> 8 & 0xff}.{version & 0xff}"
 
 
 def runtime_build_command(command: list[str], runtime_bundle: Path) -> list[str]:
@@ -290,19 +364,45 @@ def runtime_build_command(command: list[str], runtime_bundle: Path) -> list[str]
             "--workpath", options["workpath"], str(spec)]
 
 
+def macos_app_bundle(artifact: Path) -> Path | None:
+    if (artifact.parent.name == "MacOS" and artifact.parent.parent.name == "Contents"
+            and artifact.parents[2].suffix == ".app"):
+        return artifact.parents[2]
+    return None
+
+
+def distribution_directory(artifact: Path) -> Path:
+    app = macos_app_bundle(artifact)
+    return app.parent if app is not None else artifact.parent
+
+
 def distribution_files(artifact: Path) -> dict[str, dict]:
     """Inventory the collected folder, retaining only portable in-bundle links."""
-    directory = artifact.parent.resolve()
+    app = macos_app_bundle(artifact)
+    directory = distribution_directory(artifact).resolve()
     windows = artifact.suffix.lower() == ".exe"
-    if not artifact.is_file() or not (directory / "_internal").is_dir():
-        raise ValueError("A complete portable application folder with _internal is required")
+    if app is not None:
+        if (not artifact.is_file() or not (app / "Contents/Frameworks").is_dir()
+                or not (app / "Contents/Resources").is_dir()):
+            raise ValueError("A complete macOS application bundle is required")
+        with (app / "Contents/Info.plist").open("rb") as stream:
+            metadata = plistlib.load(stream)
+        if metadata.get("CFBundleExecutable") != artifact.name:
+            raise ValueError("The macOS bundle does not identify its executable")
+        paths = [app, *sorted(app.rglob("*"))]
+        boundary = app.resolve()
+    else:
+        if not artifact.is_file() or not (directory / "_internal").is_dir():
+            raise ValueError("A complete portable application folder with _internal is required")
+        paths = sorted(directory.rglob("*"))
+        boundary = directory
     files = {}
-    for path in sorted(directory.rglob("*")):
+    for path in paths:
         name = path.relative_to(directory).as_posix()
         if path.is_symlink():
             target = os.readlink(path)
             try:
-                portable = not Path(target).is_absolute() and path.resolve(strict=True).is_relative_to(directory)
+                portable = not Path(target).is_absolute() and path.resolve(strict=True).is_relative_to(boundary)
             except (OSError, RuntimeError):
                 portable = False
             if not portable:
@@ -338,7 +438,7 @@ def _write_application(bundle: zipfile.ZipFile, artifact: Path, files: dict[str,
             bundle.writestr(info, os.fsencode(entry["symlink"]))
         else:
             # ZipFile retains the source file's Unix executable permissions.
-            bundle.write(artifact.parent / name, name)
+            bundle.write(distribution_directory(artifact) / name, name)
 
 
 def _validate_release_paths(files: dict[str, dict], extra_files: list[str]) -> None:
@@ -389,7 +489,7 @@ def package_release(
         "built_at_utc": datetime.now(UTC).isoformat(),
         "pyside6": importlib.metadata.version("PySide6"),
         "pyinstaller": importlib.metadata.version("pyinstaller"),
-        "executable": artifact.name, "bytes": artifact.stat().st_size,
+        "executable": artifact.relative_to(distribution_directory(artifact)).as_posix(), "bytes": artifact.stat().st_size,
         "sha256": digest(artifact),
         "layout": "onedir", "contents_directory": "_internal",
         "distribution_files": files,
@@ -399,6 +499,14 @@ def package_release(
         "native_windows_validation": "Required separately; a build does not certify GUI behavior",
         "validation": validation or {"runtime": "Not tested by the packaging script"},
     }
+    app = macos_app_bundle(artifact)
+    if app is not None:
+        metadata.update({"layout": "macos-app", "contents_directory": "Contents",
+                         "bundle": app.name, "signing": "ad-hoc", "notarized": False})
+        with (app / "Contents/Info.plist").open("rb") as stream:
+            minimum = plistlib.load(stream).get("LSMinimumSystemVersion")
+        metadata["minimum_macos"] = minimum or "unknown"
+        metadata.pop("native_windows_validation")
     if runtime_bundle is not None:
         runtime = validate_bundle(runtime_bundle, require_validation=not runtime_candidate)
         expected = {
@@ -502,6 +610,8 @@ def main() -> None:
                                         runtime_candidate=args.runtime_candidate)
     if runtime_bundle is not None:
         command = runtime_build_command(command, runtime_bundle)
+    elif macos_app_bundle(artifact) is not None:
+        command = macos_build_command(command)
     subprocess.run(command, cwd=ROOT, check=True)
     if not artifact.is_file():
         raise SystemExit(f"Build did not produce the expected executable: {artifact}")

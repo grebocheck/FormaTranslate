@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import importlib.metadata
 import json
+import plistlib
 import runpy
 import stat
+import struct
 import subprocess
 import sys
 import zipfile
@@ -18,6 +20,7 @@ import pytest
     [
         ("Windows", "AMD64", "Forma-windows-x86_64-desktop-only.exe", "keyring.backends.Windows"),
         ("Linux", "x86_64", "Forma-linux-x86_64", "keyring.backends.SecretService"),
+        ("Darwin", "arm64", "Forma-macos-arm64", "keyring.backends.macOS"),
     ],
 )
 def test_portable_build_bundles_native_credentials_without_user_data(
@@ -27,7 +30,12 @@ def test_portable_build_bundles_native_credentials_without_user_data(
     command, artifact = build["build_command"](
         tmp_path, system=system, machine=machine, desktop_only=system == "Windows"
     )
-    assert artifact == tmp_path / "dist" / Path(filename).stem / filename
+    if system == "Darwin":
+        assert artifact == tmp_path / "dist" / (filename + ".app") / "Contents/MacOS" / filename
+        assert command[command.index("--target-architecture") + 1] == "arm64"
+        assert command[command.index("--osx-bundle-identifier") + 1] == "io.github.grebocheck.FormaTranslate"
+    else:
+        assert artifact == tmp_path / "dist" / Path(filename).stem / filename
     assert "--onedir" in command and "--onefile" not in command
     assert command[command.index("--contents-directory") + 1] == "_internal"
     assert command[command.index("--hidden-import") + 1] == backend
@@ -66,6 +74,61 @@ def test_windows_full_build_refuses_missing_prepared_runtimes(tmp_path):
     build = runpy.run_path(str(Path(__file__).parents[1] / "scripts/build.py"))
     with pytest.raises(ValueError, match="not prepared"):
         build["build_command"](tmp_path, system="Windows", machine="AMD64")
+
+
+def test_macos_build_refuses_unvalidated_architectures(tmp_path):
+    build = runpy.run_path(str(Path(__file__).parents[1] / "scripts/build.py"))
+    with pytest.raises(ValueError, match="Apple Silicon arm64"):
+        build["build_command"](tmp_path, system="Darwin", machine="x86_64")
+
+
+def test_macos_bundle_metadata_is_set_before_signing(tmp_path, monkeypatch):
+    build = runpy.run_path(str(Path(__file__).parents[1] / "scripts/build.py"))
+    package = tmp_path / "src/forma"
+    package.mkdir(parents=True)
+    (package / "__init__.py").write_text('__version__ = "7.8.9"\n')
+    monkeypatch.setattr("PyInstaller.building.makespec.is_darwin", True)
+    monkeypatch.setattr("PyInstaller.building.makespec.is_win", False)
+    monkeypatch.setattr(subprocess, "run", lambda *a, **kw: None)
+    command, _ = build["build_command"](tmp_path, system="Darwin", machine="arm64")
+    generated = build["macos_build_command"](command, tmp_path)
+    spec = Path(generated[-1])
+    monkeypatch.setattr(runpy, "run_path", lambda _: {"macos_minimum_version": lambda _: "26.0.0"})
+    namespace = {
+        "Analysis": lambda *a, **kw: SimpleNamespace(scripts=[], pure=[], binaries=[], datas=[]),
+        "PYZ": lambda _: "python-code", "EXE": lambda *a, **kw: SimpleNamespace(options=kw),
+        "COLLECT": lambda *a, **kw: SimpleNamespace(name="collected app"),
+        "BUNDLE": lambda *a, **kw: SimpleNamespace(options=kw),
+    }
+    exec(compile(spec.read_text(), str(spec), "exec"), namespace)
+    bundle = namespace["app"].options
+    assert bundle["name"] == "Forma-macos-arm64.app"
+    assert bundle["bundle_identifier"] == "io.github.grebocheck.FormaTranslate"
+    assert bundle["info_plist"]["CFBundleVersion"] == "7.8.9"
+    assert bundle["info_plist"]["CFBundleShortVersionString"] == "7.8.9"
+    assert bundle["info_plist"]["CFBundleDisplayName"] == "FormaTranslate"
+    assert bundle["info_plist"]["LSMinimumSystemVersion"] == "26.0.0"
+    assert namespace["exe"].options["target_arch"] == "arm64"
+
+
+def test_macos_minimum_uses_highest_arm64_runtime_target(tmp_path):
+    pytest.importorskip("macholib")
+    build = runpy.run_path(str(Path(__file__).parents[1] / "scripts/build.py"))
+
+    def binary(name, version, *, cpu=0x0100000C, legacy=False):
+        # Minimal thin Mach-O dylib with a real deployment-target load command.
+        target = version[0] << 16 | version[1] << 8 | version[2]
+        command = (struct.pack("<IIII", 0x24, 16, target, target) if legacy
+                   else struct.pack("<IIIIII", 0x32, 24, 1, target, target, 0))
+        header = struct.pack("<IiiIIIII", 0xFEEDFACF, cpu, 0, 6, 1, len(command), 0, 0)
+        (tmp_path / name).write_bytes(header + command)
+
+    binary("python.dylib", (11, 0, 0), legacy=True)
+    binary("QtCore", (14, 4, 0))
+    binary("PySide6.abi3.so", (26, 0, 0))
+    binary("other-architecture.dylib", (99, 0, 0), cpu=0x01000007)
+    (tmp_path / "license.txt").write_text("This is not a native binary")
+    assert build["macos_minimum_version"](tmp_path) == "26.0.0"
 
 
 def test_windows_release_packaging_requires_embedded_workers(tmp_path, monkeypatch):
@@ -112,7 +175,7 @@ def test_worker_dlls_enter_spec_after_analysis_without_changing_desktop_dependen
     monkeypatch.setattr("PyInstaller.building.datastruct.Tree", tree)
     namespace = {"Analysis": analysis, "PYZ": lambda _: "python-code",
                  "EXE": lambda *a, **kw: SimpleNamespace(args=a, options=kw),
-                 "COLLECT": lambda *a, **kw: a}
+                 "COLLECT": lambda *a, **kw: a, "BUNDLE": lambda *a, **kw: a}
     exec(compile(spec.read_text(), str(spec), "exec"), namespace)
     frozen = namespace["a"]
     assert frozen.binaries == [desktop_binary]
@@ -324,6 +387,58 @@ def test_release_delivers_matching_runtime_sources(tmp_path, monkeypatch, separa
         with pytest.raises(RuntimeError, match="missing or changed"):
             package_release(tmp_path, artifact, payload, runtime_bundle=runtime, runtime_candidate=True)
         assert build["digest"](package) == accepted_package
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="POSIX portable ZIP links and executable modes")
+def test_macos_zip_preserves_whole_app_bundle_and_framework_links(tmp_path):
+    build = runpy.run_path(str(Path(__file__).parents[1] / "scripts/build.py"))
+    for name in ("src/forma/__init__.py", "scripts/build.py", "pyproject.toml", "uv.lock"):
+        path = tmp_path / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text('__version__ = "7.8.9"' if name.endswith("__init__.py") else "fixture")
+    app = tmp_path / "dist/Forma-macos-arm64.app"
+    artifact = app / "Contents/MacOS/Forma-macos-arm64"
+    artifact.parent.mkdir(parents=True)
+    artifact.write_bytes(b"native arm64 launcher")
+    artifact.chmod(0o755)
+    resources = app / "Contents/Resources"
+    resources.mkdir()
+    library = app / "Contents/Frameworks/QtCore.framework/Versions/A/QtCore"
+    library.parent.mkdir(parents=True)
+    library.write_bytes(b"native framework")
+    current = library.parent.parent / "Current"
+    current.symlink_to("A", target_is_directory=True)
+    link = library.parents[2] / "QtCore"
+    link.symlink_to("Versions/Current/QtCore")
+    (app / "Contents/Info.plist").write_bytes(plistlib.dumps({
+        "CFBundleExecutable": artifact.name, "LSMinimumSystemVersion": "26.0.0",
+    }))
+    # Other build outputs beside the .app must never enter this package.
+    (app.parent / "private-build-output").write_bytes(b"unrelated")
+    payload = tmp_path / "legal"
+    payload.mkdir()
+    (payload / "LICENSE.txt").write_text("fixture license")
+    package = build["package_release"](tmp_path, artifact, payload)
+    executable = artifact.relative_to(app.parent).as_posix()
+    framework = link.relative_to(app.parent).as_posix()
+    with zipfile.ZipFile(package) as archive:
+        metadata = json.loads(archive.read("RELEASE.json"))
+        assert package.name == "FormaTranslate-7.8.9-macos-arm64.zip"
+        assert metadata["layout"] == "macos-app" and metadata["bundle"] == app.name
+        assert metadata["executable"] == executable
+        assert metadata["signing"] == "ad-hoc" and metadata["notarized"] is False
+        assert metadata["runtime_mode"] == "external-tools"
+        assert metadata["minimum_macos"] == "26.0.0"
+        assert archive.getinfo(executable).external_attr >> 16 & 0o111 == 0o111
+        assert stat.S_ISLNK(archive.getinfo(framework).external_attr >> 16)
+        assert archive.read(framework) == b"Versions/Current/QtCore"
+        assert archive.read(executable) == artifact.read_bytes()
+        assert "LICENSE.txt" in archive.namelist()
+        assert "private-build-output" not in archive.namelist()
+    link.unlink()
+    link.symlink_to("../../../../private-build-output")
+    with pytest.raises(ValueError, match="Non-portable or broken"):
+        build["package_release"](tmp_path, artifact, payload)
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="POSIX portable ZIP links and executable modes")

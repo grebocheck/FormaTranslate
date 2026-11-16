@@ -18,6 +18,8 @@ def find_libreoffice() -> str:
         if found := shutil.which(name):
             return found
     candidates = [Path("/Applications/LibreOffice.app/Contents/MacOS/soffice")]
+    if sys.platform == "darwin":
+        candidates.append(Path.home() / "Applications/LibreOffice.app/Contents/MacOS/soffice")
     if sys.platform == "win32":
         for key in ("PROGRAMFILES", "PROGRAMFILES(X86)", "LOCALAPPDATA"):
             if folder := os.environ.get(key):

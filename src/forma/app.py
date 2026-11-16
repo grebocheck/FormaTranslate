@@ -34,6 +34,18 @@ from forma.persistence.instance import application_lock
 from forma.presentation.backend import Backend
 from forma.settings.config import load_preferences
 
+_MACOS_TOOL_DIRECTORIES = ("/opt/homebrew/bin", "/usr/local/bin")
+
+
+def _configure_tool_path() -> None:
+    # Finder launches apps without the shell's Homebrew PATH. Preserve the
+    # user's existing precedence and expose optional local OCR tools to both
+    # discovery and the separately installed workers that inherit this PATH.
+    if sys.platform == "darwin":
+        directories = os.environ.get("PATH", os.defpath).split(os.pathsep)
+        directories.extend(path for path in _MACOS_TOOL_DIRECTORIES if path not in directories)
+        os.environ["PATH"] = os.pathsep.join(directories)
+
 
 def _preview_image_status(window):
     """QML images decode asynchronously after the preview worker has finished."""
@@ -86,6 +98,7 @@ def _startup_error(message: str) -> int:
 
 
 def _run_application(files: list[str] | None, screenshot: str | None) -> int:
+    _configure_tool_path()
     os.environ.setdefault("QT_QUICK_CONTROLS_STYLE", "Basic")
     QQuickStyle.setStyle("Basic")
     app = QApplication(sys.argv[:1])

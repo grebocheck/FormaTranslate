@@ -11,9 +11,12 @@ run FormaTranslate. Reverse engineering to debug those modifications is not
 prohibited. No signing key is needed. See `BUILDING.md` in the release package
 (or `docs/BUILDING.md` in the source tree) for rebuilding and replacing libraries.
 Qt libraries are dynamically loaded from the portable application's `_internal`
-directory. Keep that dependency tree alongside the root executable. Compatible
-replacement libraries can be supplied in that tree, or included by rebuilding
-with the procedure above; test the resulting application on the target system.
+directory on Windows/Linux, and from inside the `.app` bundle on macOS. Keep
+the complete dependency tree or app bundle together. Compatible replacement
+libraries can be supplied there, or included by rebuilding with the procedure
+above; test the resulting application on the target system. Rebuild the macOS
+app to apply fresh ad-hoc signatures after replacing native libraries; no
+Developer ID signing key is required for this rebuild.
 
 ## Corresponding source
 
@@ -36,7 +39,7 @@ source modifications are applied by FormaTranslate.
 | CPython | Python Software Foundation License and the notices in the accompanying Python license file. |
 | HTTPX, HTTP Core, h11 | BSD-3-Clause or MIT, as specified in their included licenses. |
 | AnyIO, platformdirs, keyring and its helpers | MIT, with individual copyright notices in `licenses/`. |
-| lxml | BSD-3-Clause; includes separately licensed libxml2/libxslt and their notices. |
+| lxml | BSD-3-Clause; includes separately licensed libxml2/libxslt and their notices. The macOS wheel also links GNU libiconv under LGPL-2.1; its full license is in `third_party/licenses/libiconv-1.18-COPYING.LIB`. |
 | pypdf, python-dotenv | BSD-3-Clause. |
 | Pillow, when collected through pypdf's optional image support | MIT-CMU, with the complete bundled-library notices in `licenses/pillow/LICENSE`. The FreeType License option is selected for FreeType; portions of this software are based on the work of the FreeType Project (https://www.freetype.org/). |
 | pytest, Pygments, when optional imports are collected by build hooks | MIT and BSD-2-Clause respectively; individual notices are included in `licenses/`. |
@@ -56,6 +59,21 @@ third-party components in the retained Qt modules; their individual terms still
 apply. The dependency inventory can include packages installed as PySide wheel
 dependencies whose optional binaries are excluded from the application folder.
 
+The macOS package's CPython runtime comes from Astral's
+python-build-standalone. Its build provenance, statically linked native
+components and matching source archives are recorded in
+`third_party/MACOS_RUNTIME.json`. The release's source bundles include the
+original CPython sources, matching python-build-standalone recipes/patches and
+native dependency sources. Their license texts accompany the application under
+`third_party/licenses/python-build-standalone-20260929/`. macOS system libraries
+remain provided by the operating system and are not copied into the app.
+
+The Python package and native-wheel source archives for macOS are listed in
+`third_party/MACOS_SOURCES.json`, including the exact lxml and Pillow wheel
+build recipes and their native dependency sources. These original archives
+accompany the application in the release's Sources bundle. Rebuild lxml with
+the supplied source/build files to replace its statically linked libiconv.
+
 FormaTranslate's QML packaging deliberately excludes unused Qt Charts, Graphs,
 Data Visualization, Quick 3D, Virtual Keyboard, Quick Timeline, Location and
 WebEngine modules. Build-time Qt tools and source-only material may have other
@@ -66,13 +84,13 @@ browser is not included. DOCX previews use a separately installed LibreOffice
 in a private temporary profile. FormaTranslate does not redistribute LibreOffice.
 
 BabelDOC and its dependencies retain their own licenses. Complete Windows
-builds include a separate worker and its offline assets; Linux/source workflows
+builds include a separate worker and its offline assets; Linux/macOS/source workflows
 use a separately installed worker. Windows runtime notices and inventories
 are included under `_internal/legal/runtimes` and shipped under `runtimes/` in the release ZIP, with matching code source archives in the
 release ZIP's `runtime-sources` directory, or in the matching companion `*-runtime-sources.zip` named and hashed in `RELEASE.json`. Both application and companion archives must be delivered together when using that mode. See [Windows runtime packaging](docs/WINDOWS-RUNTIME.md).
 
 The `tools/ocr` helper runs as a separate process. Complete Windows builds
-include its executable, models and Tesseract in the portable folder; Linux/source installations use a
+include its executable, models and Tesseract in the portable folder; Linux/macOS/source installations use a
 separately installed helper. Its Docling, RapidOCR, PyTorch, ONNX Runtime, models and all
 transitive dependencies retain their individual code/model licenses and notices.
 The helper also uses python-docx (MIT), lxml (BSD-3-Clause) and pypdfium2

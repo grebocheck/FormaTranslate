@@ -1,6 +1,7 @@
 from pathlib import Path
 
 from PySide6.QtCore import QCoreApplication, QEvent, QMetaObject, QObject, QPointF, Qt, QUrl
+from PySide6.QtGui import QKeySequence
 from PySide6.QtQml import QQmlApplicationEngine
 from PySide6.QtQuick import QQuickItem
 from PySide6.QtTest import QTest
@@ -127,7 +128,7 @@ def test_long_review_draft_uses_common_scroll_and_retains_editor(qapp, reviewed)
         draft = "\n".join(f"Technical sentence {number} with terminology." for number in range(60))
         target.setProperty("text", draft)
         target.forceActiveFocus()
-        QTest.keyClick(window, Qt.Key_End, Qt.ControlModifier)
+        QTest.keySequence(window, QKeySequence(QKeySequence.StandardKey.MoveToEndOfDocument))
         QTest.qWait(30)
         assert target.height() >= target.property("contentHeight")
         assert target.height() > viewport.height() * 2
