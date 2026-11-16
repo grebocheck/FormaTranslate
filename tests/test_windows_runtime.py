@@ -197,6 +197,7 @@ def test_staging_constructs_manifest_but_never_claims_native_operability(runtime
 
 
 def test_embedded_workers_take_precedence_and_use_only_their_local_assets(tmp_path, monkeypatch):
+    monkeypatch.setattr(sys, "platform", "win32")
     portable = tmp_path / "Forma portable"
     internal = portable / "_internal"
     root = internal / "runtimes"

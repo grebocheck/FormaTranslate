@@ -1,11 +1,21 @@
 """Seed BabelDOC's public asset cache from its verified offline package before CLI startup."""
 
 import multiprocessing
+import os
 import sys
 from pathlib import Path
 
 
 def main():
+    if cache_directory := os.environ.get("FORMA_BABELDOC_CACHE_DIR", "").strip():
+        # Keep build/offline validation caches explicit without redirecting the
+        # user's home directory or copying an existing personal asset cache.
+        import babeldoc.const as constants
+
+        constants.CACHE_FOLDER = Path(cache_directory).expanduser().resolve()
+        constants.TIKTOKEN_CACHE_FOLDER = constants.CACHE_FOLDER / "tiktoken"
+        constants.TIKTOKEN_CACHE_FOLDER.mkdir(parents=True, exist_ok=True)
+        os.environ["TIKTOKEN_CACHE_DIR"] = str(constants.TIKTOKEN_CACHE_FOLDER)
     from babeldoc.assets.assets import restore_offline_assets_package
 
     packages = list((Path(sys.executable).resolve().parent / "assets").glob("offline_assets_*.zip"))

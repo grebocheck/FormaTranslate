@@ -1,7 +1,7 @@
 {
-  "release": "0.16.0",
+  "release": "0.16.1",
   "platform": "macos-arm64",
-  "delivery": "Publish these original Python package and native-wheel source archives unchanged in Sources-0.16.0.zip. Qt/PySide6/QtPDF and CPython native-runtime sources are listed separately in SOURCES.json and MACOS_RUNTIME.json. SHA256 and original filenames are retained in the source bundle manifest. Some upstream build recipes include sources unused by the Apple Silicon wheel; those sources are supplied as well.",
+  "delivery": "Publish these original Python package and native-wheel source archives unchanged in Sources-0.16.1.zip. Qt/PySide6/QtPDF and CPython native-runtime sources are listed separately in SOURCES.json and MACOS_RUNTIME.json. SHA256 and original filenames are retained in the source bundle manifest. Some upstream build recipes include sources unused by the Apple Silicon wheel; those sources are supplied as well.",
   "sources": [
     {
       "component": "altgraph",

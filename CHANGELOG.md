@@ -2,6 +2,12 @@
 
 Versions follow semantic versioning. Changes before 1.0 may evolve as document compatibility improves.
 
+## 0.16.1 — 2026-11-16
+
+- Deliver macOS arm64 as a complete application with isolated OCR and BabelDOC workers, local layout/table/recognition models and Tesseract language data. PDF/OCR processing no longer requires a separate Python, worker or model installation.
+- Discover native embedded workers from the app bundle, preserve their independent libraries and bind reusable OCR preparation to the bundled worker/model inventory.
+- Include the workers' dependency licenses, original corresponding sources and native offline validation with the release materials.
+
 ## 0.16.0 — 2026-11-16
 
 - Add a native macOS Apple Silicon application bundle distributed in a ZIP, including Python, Qt, QML, all six interface-language catalogs and dependency license materials. The current locked native libraries require macOS 26 or newer; measure and record that deployment target before signing the bundle.

@@ -25,7 +25,7 @@ from statistics import median
 from PySide6.QtCore import QBuffer, QIODevice, QRect, Qt
 from PySide6.QtGui import QFont, QFontMetrics, QImage, QPainter
 
-from forma.documents.bundled_runtime import runtime_root, start_worker
+from forma.documents.bundled_runtime import executable_path, runtime_root, start_worker
 
 _LANGUAGES = {"en": "eng", "uk": "ukr", "pl": "pol", "de": "deu", "fr": "fra", "es": "spa"}
 _MAX_TSV_BYTES = 2 * 1024 * 1024
@@ -81,7 +81,7 @@ def _configuration() -> tuple[str, dict[str, str]]:
             environment.pop("LD_LIBRARY_PATH", None)
     root = runtime_root()
     if root is not None:
-        executable = root / "tesseract/tesseract.exe"
+        executable = executable_path(root, "tesseract")
         if executable.is_file():
             environment["TESSDATA_PREFIX"] = str(root / "tesseract/tessdata")
             return str(executable), environment

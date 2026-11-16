@@ -32,6 +32,14 @@ _runtime_tools = importlib.util.module_from_spec(_runtime_spec)
 _runtime_spec.loader.exec_module(_runtime_tools)
 digest = _runtime_tools.digest
 validate_bundle = _runtime_tools.validate_bundle
+_macos_spec = importlib.util.spec_from_file_location(
+    "_forma_macos_runtime", Path(__file__).with_name("macos_runtime.py")
+)
+if _macos_spec is None or _macos_spec.loader is None:
+    raise RuntimeError("Missing macOS runtime packaging helper")
+_macos_tools = importlib.util.module_from_spec(_macos_spec)
+_macos_spec.loader.exec_module(_macos_tools)
+validate_macos_bundle = _macos_tools.validate_bundle
 
 ROOT = Path(__file__).resolve().parents[1]
 EXCLUDED_QT = (
@@ -118,7 +126,8 @@ def prepare_release_materials(
             shutil.copy2(source, destination)
     shutil.copytree(root / "third_party", payload / "third_party")
     if runtime_bundle is not None:
-        validate_bundle(runtime_bundle, require_validation=not runtime_candidate)
+        validator = validate_macos_bundle if macos_app_bundle(artifact) is not None else validate_bundle
+        validator(runtime_bundle, require_validation=not runtime_candidate)
         shutil.copytree(runtime_bundle / "legal", payload / "runtimes")
         shutil.copy2(runtime_bundle / "BUNDLE.json", payload / "runtimes/BUNDLE.json")
         if (runtime_bundle / "VALIDATION.json").is_file():
@@ -210,6 +219,11 @@ def build_command(
         raise ValueError("macOS release builds currently support Apple Silicon arm64 only")
     if runtime_candidate and (system != "windows" or desktop_only):
         raise ValueError("Runtime candidates require a complete Windows build")
+    if system == "darwin":
+        if desktop_only:
+            raise ValueError("macOS application builds require the complete embedded runtime bundle")
+        runtime_bundle = Path(runtime_bundle or root / "build/macos-runtime").expanduser().resolve()
+        validate_macos_bundle(runtime_bundle)
     name = f"Forma-{'macos' if system == 'darwin' else system}-{machine}"
     if system == "windows":
         if desktop_only:
@@ -376,6 +390,37 @@ def distribution_directory(artifact: Path) -> Path:
     return app.parent if app is not None else artifact.parent
 
 
+def install_macos_runtime(artifact: Path, runtime_bundle: Path) -> None:
+    """Copy workers after desktop freezing, preserving their independent dylibs/signatures."""
+    app = macos_app_bundle(artifact)
+    if app is None:
+        raise ValueError("A native macOS app bundle is required")
+    validate_macos_bundle(runtime_bundle)
+    resources = app / "Contents/Resources"
+    destination = resources / "runtimes"
+    link = app / "Contents/Frameworks/runtimes"
+    if destination.exists() or link.exists() or link.is_symlink():
+        raise ValueError("The macOS app already contains a runtime payload")
+    shutil.copytree(runtime_bundle / "runtime", destination, symlinks=True)
+    link.symlink_to("../Resources/runtimes", target_is_directory=True)
+    manifests = resources / "runtimes-meta"
+    manifests.mkdir()
+    for name in ("BUNDLE.json", "VALIDATION.json"):
+        shutil.copy2(runtime_bundle / name, manifests / name)
+    plist_path = app / "Contents/Info.plist"
+    with plist_path.open("rb") as stream:
+        plist = plistlib.load(stream)
+    plist["LSMinimumSystemVersion"] = macos_minimum_version(app)
+    with plist_path.open("wb") as stream:
+        plistlib.dump(plist, stream)
+    # Resource contents are sealed by the outer signature. Never use --deep
+    # here: independently frozen workers retain their own binary signatures.
+    subprocess.run(["codesign", "--force", "--sign", "-", str(app)], check=True,
+                   capture_output=True)
+    subprocess.run(["codesign", "--verify", "--deep", "--strict", str(app)], check=True,
+                   capture_output=True)
+
+
 def distribution_files(artifact: Path) -> dict[str, dict]:
     """Inventory the collected folder, retaining only portable in-bundle links."""
     app = macos_app_bundle(artifact)
@@ -410,6 +455,8 @@ def distribution_files(artifact: Path) -> dict[str, dict]:
             files[name] = {"symlink": target}
         elif path.is_file():
             files[name] = {"bytes": path.stat().st_size, "sha256": digest(path)}
+            if app is not None:
+                files[name]["mode"] = stat.S_IMODE(path.stat().st_mode)
         elif path.is_dir():
             # Wine/Windows and POSIX audit hosts expose different synthetic
             # directory permissions for the same Windows application tree.
@@ -464,6 +511,10 @@ def package_release(
     target = artifact.stem.removeprefix("Forma-")
     if target.startswith("windows-") and "desktop-only" not in target and runtime_bundle is None:
         raise ValueError("Windows release packages require the complete embedded runtime bundle")
+    if target.startswith("macos-") and runtime_bundle is None:
+        raise ValueError("macOS release packages require the complete embedded runtime bundle")
+    if target.startswith("macos-") and runtime_candidate:
+        raise ValueError("macOS releases require native validation of the complete runtime bundle")
     if separate_runtime_sources and runtime_bundle is None:
         raise ValueError("Separate runtime sources require an embedded runtime bundle")
     files = distribution_files(artifact)
@@ -508,16 +559,19 @@ def package_release(
         metadata["minimum_macos"] = minimum or "unknown"
         metadata.pop("native_windows_validation")
     if runtime_bundle is not None:
-        runtime = validate_bundle(runtime_bundle, require_validation=not runtime_candidate)
+        validator = validate_macos_bundle if app is not None else validate_bundle
+        runtime = validator(runtime_bundle, require_validation=not runtime_candidate)
+        prefix = app.name + "/Contents/Resources/runtimes/" if app is not None else "_internal/runtimes/"
         expected = {
-            "_internal/runtimes/" + path.removeprefix("runtime/"): entry
+            prefix + path.removeprefix("runtime/"): entry
             for path, entry in runtime["files"].items() if path.startswith("runtime/")
         }
         collected_runtime = {name: entry for name, entry in files.items()
-                             if name.startswith("_internal/runtimes/") and not entry.get("directory")}
+                             if name.startswith(prefix) and (app is not None or not entry.get("directory"))}
         if collected_runtime != expected:
             raise RuntimeError("The application folder has missing or changed prepared runtime payload files, or unexpected additions")
-        manifest = artifact.parent / "_internal/runtimes-meta/BUNDLE.json"
+        manifest = ((app / "Contents/Resources/runtimes-meta/BUNDLE.json") if app is not None
+                    else artifact.parent / "_internal/runtimes-meta/BUNDLE.json")
         if not manifest.is_file() or manifest.read_bytes() != (runtime_bundle / "BUNDLE.json").read_bytes():
             raise RuntimeError("The application folder is missing the matching runtime manifest")
         metadata["runtime_mode"] = "complete-embedded-candidate" if runtime_candidate else "complete-embedded"
@@ -563,7 +617,7 @@ def package_release(
                     if path.is_file() and "__pycache__" not in path.parts]
     source_files += [root / "scripts/build.py", root / "pyproject.toml", root / "uv.lock"]
     source_files += list((root / "scripts/pyinstaller_hooks").glob("*.py"))
-    source_files += [root / "scripts" / name for name in ("windows_runtime.py", "ocr_entry.py", "babeldoc_entry.py")
+    source_files += [root / "scripts" / name for name in ("windows_runtime.py", "macos_runtime.py", "build_macos_opencv.py", "ocr_entry.py", "babeldoc_entry.py")
                        if (root / "scripts" / name).is_file()]
     if runtime_bundle is not None:
         source_files += list((root / "tools/ocr/src").rglob("*.py"))
@@ -593,7 +647,7 @@ def package_release(
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--runtime-bundle", type=Path, help="Prepared complete Windows runtime bundle")
+    parser.add_argument("--runtime-bundle", type=Path, help="Prepared complete Windows/macOS runtime bundle")
     parser.add_argument("--desktop-only", action="store_true", help="Development Windows build without embedded OCR/PDF tools")
     parser.add_argument("--runtime-candidate", action="store_true", help="Windows candidate pending native offline validation; never publication-ready")
     parser.add_argument("--separate-runtime-sources", action="store_true", help="Deliver matching worker source archives in a companion ZIP, which must accompany the release")
@@ -601,20 +655,24 @@ def main() -> None:
     runtime_bundle = None
     if platform.system().lower() == "windows" and not args.desktop_only:
         runtime_bundle = args.runtime_bundle or ROOT / "build/windows-runtime"
+    elif platform.system().lower() == "darwin":
+        runtime_bundle = args.runtime_bundle or ROOT / "build/macos-runtime"
     if args.separate_runtime_sources and runtime_bundle is None:
-        parser.error("--separate-runtime-sources requires a complete Windows runtime bundle")
+        parser.error("--separate-runtime-sources requires a complete embedded runtime bundle")
     command, artifact = build_command(runtime_bundle=runtime_bundle, desktop_only=args.desktop_only,
                                       runtime_candidate=args.runtime_candidate)
     (ROOT / "build" / "specs").mkdir(parents=True, exist_ok=True)
     payload = prepare_release_materials(ROOT, artifact, runtime_bundle=runtime_bundle,
                                         runtime_candidate=args.runtime_candidate)
-    if runtime_bundle is not None:
-        command = runtime_build_command(command, runtime_bundle)
-    elif macos_app_bundle(artifact) is not None:
+    if macos_app_bundle(artifact) is not None:
         command = macos_build_command(command)
+    elif runtime_bundle is not None:
+        command = runtime_build_command(command, runtime_bundle)
     subprocess.run(command, cwd=ROOT, check=True)
     if not artifact.is_file():
         raise SystemExit(f"Build did not produce the expected executable: {artifact}")
+    if macos_app_bundle(artifact) is not None:
+        install_macos_runtime(artifact, runtime_bundle)
     print(f"Built portable application: {artifact.parent}")
     package = package_release(ROOT, artifact, payload, runtime_bundle=runtime_bundle,
                               runtime_candidate=args.runtime_candidate,

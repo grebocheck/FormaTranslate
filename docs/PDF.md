@@ -2,7 +2,7 @@
 
 Add PDFs to Documents, select the source and target languages and click **Translate**. Forma chooses the route for each file: text-based PDFs use BabelDOC; scans and documents with a majority of image-only pages are prepared as DOCX through the selected OCR workflow, then translated automatically. OCR runs locally and does not use your translation API or key. The following translation uses your configured provider.
 
-The Windows package embeds OCR, its models, Tesseract and BabelDOC with offline assets. An installed ABBYY remains an optional OCR choice. The separate installation and first-run downloads below apply to Linux/macOS/source installations or explicitly configured external engines. The macOS app does not bundle these engines, Python environments or model caches. Install compatible native arm64 workers separately and set their full executable paths in Settings when launching the app from Finder, where the terminal's PATH may not be available. See [Windows runtime packaging](WINDOWS-RUNTIME.md) for the build contract and native verification requirements.
+The Windows and macOS packages embed OCR, its models, Tesseract and BabelDOC with offline assets. Scanned-document preparation runs locally without downloading models on first use. The following translation uses your configured API. An installed ABBYY remains an optional OCR choice on Windows. The separate installation and first-run downloads below apply to Linux/source installations or explicitly configured external engines. See [Windows runtime packaging](WINDOWS-RUNTIME.md) and [macOS runtime packaging](MACOS-RUNTIME.md) for the build contracts and native verification requirements.
 
 ## Installed ABBYY
 
@@ -28,13 +28,13 @@ Under **Additional PDF actions**, select **Recognize with OCR before translation
 
 ## Scanned PDF → editable DOCX
 
-Install the optional OCR helper from a source checkout, separately from the application. The release's **Sources** archive includes the OCR helper source ZIP: extract Sources, then that inner archive, and run the same command from the directory containing `tools/ocr`.
+Windows and macOS users can use the bundled helper immediately. For a Linux/source installation or an explicit external override, install the OCR helper from a source checkout. The release's **Sources** archive includes the helper source: extract Sources, then the application source archive, and run the following command from the directory containing `tools/ocr`.
 
 ```sh
 uv tool install --python 3.12 --torch-backend cpu ./tools/ocr
 ```
 
-The helper uses Docling for document structure and TableFormer table reconstruction, with RapidOCR for local text recognition. For a separate installation, the first run downloads public model files; later runs use the local model cache. Complete Windows builds instead provide these local models. The CPU installation option avoids downloading CUDA dependencies. Install on the target platform. The **standalone OCR worker's macOS arm64 dependencies require macOS 14 or newer and native arm64 Python**: the pinned dependency lockfile includes compatible PyTorch and torchvision wheels. The desktop app itself requires macOS 26 or newer. The same worker installation command applies; set the full installed `forma-ocr` path in Settings → PDF/OCR if needed. Full OCR model loading and scanned-document inference on macOS have not been validated for this release; dependency resolution alone does not establish that workflow.
+The helper uses Docling for document structure and TableFormer table reconstruction, with RapidOCR for local text recognition. For a separate installation, the first run downloads public model files; later runs use the local model cache. Complete Windows and macOS builds instead provide these local models. The CPU installation option avoids downloading CUDA dependencies. Install on the target platform. The standalone worker's macOS arm64 dependencies require macOS 14 or newer and native arm64 Python; the desktop app requires macOS 26 or newer. Set an external helper's full executable path in Settings → PDF/OCR only when overriding the bundled worker.
 
 For better recognition of uncertain prose, also install [Tesseract](https://tesseract-ocr.github.io/tessdoc/Installation.html) and the source-language data (`eng`, `ukr`, `pol` or `deu`), and put its executable in PATH. When available, the helper retries low-confidence prose crops locally and accepts only a sufficiently confident candidate. Tables retain RapidOCR recognition and TableFormer geometry. This second engine is optional; without it, uncertain text remains highlighted for manual correction. Recognition confidence is a review signal, not an accuracy percentage.
 
@@ -73,7 +73,7 @@ For comparison, [ABBYY FineReader Engine](https://help.abbyy.com/en-us/finereade
 
 ## Direct text-based PDF translation
 
-FormaTranslate uses an isolated [BabelDOC](https://github.com/funstory-ai/BabelDOC) worker. The integration is tested with **BabelDOC 0.7.1**. The Windows package includes it and its offline assets. Linux/macOS/source installations use the separate command-line installation below, subject to the engine's platform requirements.
+FormaTranslate uses an isolated [BabelDOC](https://github.com/funstory-ai/BabelDOC) worker. The integration is tested with **BabelDOC 0.7.1**. Windows and macOS packages include it and its offline assets. Linux/source installations use the separate command-line installation below, subject to the engine's platform requirements.
 
 ```sh
 uv tool install --python 3.12 BabelDOC==0.7.1

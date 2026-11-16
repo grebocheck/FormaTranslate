@@ -24,9 +24,10 @@ import pytest
     ],
 )
 def test_portable_build_bundles_native_credentials_without_user_data(
-    tmp_path, system, machine, filename, backend
+    tmp_path, monkeypatch, system, machine, filename, backend
 ):
     build = runpy.run_path(str(Path(__file__).parents[1] / "scripts/build.py"))
+    monkeypatch.setitem(build["build_command"].__globals__, "validate_macos_bundle", lambda *a, **kw: {})
     command, artifact = build["build_command"](
         tmp_path, system=system, machine=machine, desktop_only=system == "Windows"
     )
@@ -84,6 +85,7 @@ def test_macos_build_refuses_unvalidated_architectures(tmp_path):
 
 def test_macos_bundle_metadata_is_set_before_signing(tmp_path, monkeypatch):
     build = runpy.run_path(str(Path(__file__).parents[1] / "scripts/build.py"))
+    monkeypatch.setitem(build["build_command"].__globals__, "validate_macos_bundle", lambda *a, **kw: {})
     package = tmp_path / "src/forma"
     package.mkdir(parents=True)
     (package / "__init__.py").write_text('__version__ = "7.8.9"\n')
@@ -390,7 +392,7 @@ def test_release_delivers_matching_runtime_sources(tmp_path, monkeypatch, separa
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="POSIX portable ZIP links and executable modes")
-def test_macos_zip_preserves_whole_app_bundle_and_framework_links(tmp_path):
+def test_macos_zip_preserves_whole_app_bundle_and_framework_links(tmp_path, monkeypatch):
     build = runpy.run_path(str(Path(__file__).parents[1] / "scripts/build.py"))
     for name in ("src/forma/__init__.py", "scripts/build.py", "pyproject.toml", "uv.lock"):
         path = tmp_path / name
@@ -418,7 +420,18 @@ def test_macos_zip_preserves_whole_app_bundle_and_framework_links(tmp_path):
     payload = tmp_path / "legal"
     payload.mkdir()
     (payload / "LICENSE.txt").write_text("fixture license")
-    package = build["package_release"](tmp_path, artifact, payload)
+    runtime = tmp_path / "runtime"
+    runtime.mkdir()
+    (runtime / "BUNDLE.json").write_text("{}")
+    manifest = resources / "runtimes-meta/BUNDLE.json"
+    manifest.parent.mkdir()
+    manifest.write_text("{}")
+    monkeypatch.setitem(build["package_release"].__globals__, "validate_macos_bundle", lambda *a, **kw: {"files": {}, "runtime_sha256": "fixture"})
+    for name in ("pyproject.toml", "uv.lock", "LICENSE"):
+        path = tmp_path / "tools/ocr" / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("fixture")
+    package = build["package_release"](tmp_path, artifact, payload, runtime_bundle=runtime)
     executable = artifact.relative_to(app.parent).as_posix()
     framework = link.relative_to(app.parent).as_posix()
     with zipfile.ZipFile(package) as archive:
@@ -427,7 +440,7 @@ def test_macos_zip_preserves_whole_app_bundle_and_framework_links(tmp_path):
         assert metadata["layout"] == "macos-app" and metadata["bundle"] == app.name
         assert metadata["executable"] == executable
         assert metadata["signing"] == "ad-hoc" and metadata["notarized"] is False
-        assert metadata["runtime_mode"] == "external-tools"
+        assert metadata["runtime_mode"] == "complete-embedded"
         assert metadata["minimum_macos"] == "26.0.0"
         assert archive.getinfo(executable).external_attr >> 16 & 0o111 == 0o111
         assert stat.S_ISLNK(archive.getinfo(framework).external_attr >> 16)
@@ -438,7 +451,7 @@ def test_macos_zip_preserves_whole_app_bundle_and_framework_links(tmp_path):
     link.unlink()
     link.symlink_to("../../../../private-build-output")
     with pytest.raises(ValueError, match="Non-portable or broken"):
-        build["package_release"](tmp_path, artifact, payload)
+        build["package_release"](tmp_path, artifact, payload, runtime_bundle=runtime)
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="POSIX portable ZIP links and executable modes")

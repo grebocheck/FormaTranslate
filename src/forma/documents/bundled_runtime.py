@@ -9,7 +9,15 @@ import threading
 from pathlib import Path
 
 _SPAWN_LOCK = threading.Lock()
-_EXECUTABLES = {"ocr": "ocr/forma-ocr.exe", "babeldoc": "babeldoc/babeldoc.exe"}
+_EXECUTABLES = {"ocr": "ocr/forma-ocr", "babeldoc": "babeldoc/babeldoc",
+                "tesseract": "tesseract/tesseract"}
+
+
+def executable_path(root: Path, component: str) -> Path | None:
+    relative = _EXECUTABLES.get(component)
+    if relative is None:
+        return None
+    return root / (relative + (".exe" if sys.platform == "win32" else ""))
 
 
 def runtime_root() -> Path | None:
@@ -25,7 +33,7 @@ def find_bundled(component: str) -> str:
     root = runtime_root()
     if root is None or component not in _EXECUTABLES:
         return ""
-    candidate = root / _EXECUTABLES[component]
+    candidate = executable_path(root, component)
     return str(candidate) if candidate.is_file() else ""
 
 
@@ -35,11 +43,11 @@ def worker_environment(executable: str, environment: dict[str, str]) -> dict[str
     if root is None:
         return result
     if Path(executable).resolve() not in {
-        (root / relative).resolve() for relative in _EXECUTABLES.values()
+        executable_path(root, component).resolve() for component in _EXECUTABLES
     }:
         return result
     result["PYINSTALLER_RESET_ENVIRONMENT"] = "1"
-    if Path(executable).resolve() == (root / _EXECUTABLES["ocr"]).resolve():
+    if Path(executable).resolve() == executable_path(root, "ocr").resolve():
         result.update({
             "DOCLING_ARTIFACTS_PATH": str(root / "docling-models"),
             "HF_HUB_OFFLINE": "1",

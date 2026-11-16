@@ -3,8 +3,9 @@
 This separate Python environment converts scanned and hybrid PDFs to editable
 DOCX before FormaTranslate's ordinary Office translation. Docling handles layout
 and TableFormer table recovery; RapidOCR recognizes text through local ONNX
-models. It does not call a translation API or upload pages. Model files download
-on first use and remain in the libraries' local caches.
+models. It does not call a translation API or upload pages. Source installations
+download model files on first use; complete Windows and macOS packages already
+contain the required local models.
 
 From the repository root:
 
@@ -19,9 +20,9 @@ For this standalone worker on macOS, use **macOS 14 or newer on Apple Silicon**
 with native arm64 Python. The current Forma desktop package separately requires
 macOS 26 or newer.
 The pinned lockfile includes compatible arm64 PyTorch and torchvision wheels;
-the same installation command applies. Full model loading and scan inference
-on macOS have not been validated for this release. The desktop executable does
-not contain this environment or its model files.
+the same installation command applies. The complete macOS and Windows application packages include an isolated frozen
+copy of the worker and its local models. End users do not need this separate
+installation; the commands here also support source/development installations.
 
 Source languages in this first integration: `en`, `uk`, `pl`, `de`. The source
 language must be explicit. RapidOCR resolves an ISO language profile rather than
@@ -79,5 +80,6 @@ model diagnostics go to stderr. Keep the DOCX, manifest and diagnostics private.
 The worker's original code follows the repository's MIT license. Docling,
 RapidOCR, ONNX Runtime, PyTorch, PDFium and their dependencies and model weights
 retain their own licenses and notices. Consult those materials before
-redistributing a worker environment. This optional worker is not bundled into
-FormaTranslate's desktop executable.
+redistributing a worker environment. The worker remains isolated from the desktop process. Complete Windows and
+macOS packages ship its frozen runtime, models and Tesseract together with
+FormaTranslate.

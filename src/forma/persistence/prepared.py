@@ -230,7 +230,7 @@ def worker_identity(executable: str, provider: str, settings, control) -> str:
             raise _IncompleteIdentity
         bundled = runtime_root()
         if bundled and executable_path.is_relative_to(bundled.resolve()):
-            inventory = bundled.parent / "runtimes-meta" / "BUNDLE.json"
+            inventory = bundled.resolve().parent / "runtimes-meta" / "BUNDLE.json"
             if not inventory.is_file() or inventory.stat().st_size > 16 * 1024 * 1024:
                 raise _IncompleteIdentity
             identity = {

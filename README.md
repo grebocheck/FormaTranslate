@@ -45,11 +45,11 @@ Drag the sidebar divider to make room for long filenames. Compact document cards
 
 *Edit a fragment while keeping the surrounding source and translation visible.*
 
-Windows has one full application ZIP, with BabelDOC, the local OCR worker, four OCR language-model sets and Tesseract included in its folders. Extract them together with the application; they are ready to load in place. An installed ABBYY can still be selected in OCR settings; [ABBYY setup](docs/ABBYY.md) explains the supported workflows.
+Windows and macOS each have one full application ZIP, with BabelDOC, the local OCR worker, four OCR language-model sets and Tesseract included. Extract the complete folder or `.app`; OCR and PDF engines are ready to use without installing Python, Homebrew or downloading models on first use. An installed ABBYY can still be selected on Windows; [ABBYY setup](docs/ABBYY.md) explains the supported workflows.
 
 Release descriptions provide direct platform download links. The **Sources** archives contain the developer and dependency source materials; they are not required to run the application.
 
-DOCX and XLSX work directly. **Direct PDF translation uses BabelDOC; scanned PDF preparation uses the local OCR helper**. Complete Windows builds include both engines and their local assets; Linux, macOS and source installations use separate workers. See [PDF setup](docs/PDF.md) and [complete Windows builds](docs/WINDOWS-RUNTIME.md). Some OpenAI-compatible providers omit features used by particular API modes; choose the mode and response format supported by yours.
+DOCX and XLSX work directly. **Direct PDF translation uses BabelDOC; scanned PDF preparation uses the local OCR helper**. Complete Windows and macOS builds include both engines and their local assets; Linux and source installations use separate workers. See [PDF setup](docs/PDF.md), [complete Windows builds](docs/WINDOWS-RUNTIME.md) and [complete macOS builds](docs/MACOS-RUNTIME.md). Some OpenAI-compatible providers omit features used by particular API modes; choose the mode and response format supported by yours.
 
 For a model running on your own computer, choose **LM Studio (local)** or **Ollama (local)** in Settings, load the server's model list and select an installed model. These presets fill in editable connection fields and clear old model names; they make no requests until you ask. Neither server nor translation model is bundled with Forma. Follow the [local AI setup guide in Ukrainian](docs/LOCAL-AI.uk.md) for installation, authentication and a short compatibility check.
 
@@ -104,7 +104,7 @@ Open the official OpenAI billing page for your actual credit balance, or enter a
 |---|---|
 | DOCX | Translates supported visible text while retaining the OOXML package, styles, tables, rich text and protected fields. |
 | XLSX | Translates supported text cells and rich text while retaining formulas, native numeric cells and workbook structure. |
-| PDF | Translate chooses text-based PDF → BabelDOC or scan → editable OCR DOCX → Office translation. Windows includes both engines; Linux/macOS/source installations use separate workers. |
+| PDF | Translate chooses text-based PDF → BabelDOC or scan → editable OCR DOCX → Office translation. Windows and macOS include both engines; Linux/source installations use separate workers. |
 
 With editorial review enabled for DOCX/XLSX, Forma can make one bounded additional correction pass for remaining source prose, introduced repetition, suspicious shortening and untranslated labels across different scripts. It keeps an earlier valid version if the revision fails checks or does not improve those findings. Cached machine wording can go straight to the editor; completed checks are remembered for the same candidate and settings. Human-approved project wording is preserved. Remaining findings stay visible and are never marked as approved automatically. Disabling editorial review disables this additional work.
 
@@ -159,4 +159,4 @@ Releases use semantic versioning, annotated Git tags and manual builds. There is
 
 ## License
 
-FormaTranslate's original code is licensed under the **[MIT License](LICENSE)**. Qt/PySide6 and other dependencies retain their own licenses; see [third-party notices](THIRD_PARTY_NOTICES.md). Complete Windows packages include BabelDOC, OCR and model license/source materials; Linux/macOS/source workflows use separately installed engines.
+FormaTranslate's original code is licensed under the **[MIT License](LICENSE)**. Qt/PySide6 and other dependencies retain their own licenses; see [third-party notices](THIRD_PARTY_NOTICES.md). Complete Windows and macOS packages include BabelDOC, OCR and model license/source materials; Linux/source workflows use separately installed engines.

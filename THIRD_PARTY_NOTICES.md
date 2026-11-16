@@ -83,19 +83,25 @@ Local document previews include Qt PDF and its PDFium renderer; the Qt WebEngine
 browser is not included. DOCX previews use a separately installed LibreOffice
 in a private temporary profile. FormaTranslate does not redistribute LibreOffice.
 
-BabelDOC and its dependencies retain their own licenses. Complete Windows
-builds include a separate worker and its offline assets; Linux/macOS/source workflows
+BabelDOC and its dependencies retain their own licenses. Complete Windows and macOS
+builds include a separate worker and its offline assets; Linux/source workflows
 use a separately installed worker. Windows runtime notices and inventories
 are included under `_internal/legal/runtimes` and shipped under `runtimes/` in the release ZIP, with matching code source archives in the
 release ZIP's `runtime-sources` directory, or in the matching companion `*-runtime-sources.zip` named and hashed in `RELEASE.json`. Both application and companion archives must be delivered together when using that mode. See [Windows runtime packaging](docs/WINDOWS-RUNTIME.md).
 
-The `tools/ocr` helper runs as a separate process. Complete Windows builds
-include its executable, models and Tesseract in the portable folder; Linux/macOS/source installations use a
+The macOS worker notices and inventories accompany the app under
+`Contents/Resources/legal/runtimes` and `runtimes/` in the release ZIP. Its
+matching original source archives are included in the release's Sources bundles;
+see [macOS runtime packaging](docs/MACOS-RUNTIME.md). The workers retain their
+independent native libraries, licenses and offline asset packages.
+
+The `tools/ocr` helper runs as a separate process. Complete Windows and macOS builds
+include its executable, models and Tesseract in the portable folder or app bundle; Linux/source installations use a
 separately installed helper. Its Docling, RapidOCR, PyTorch, ONNX Runtime, models and all
 transitive dependencies retain their individual code/model licenses and notices.
 The helper also uses python-docx (MIT), lxml (BSD-3-Clause) and pypdfium2
 (Apache-2.0 or BSD-3-Clause, with PDFium's BSD-style and third-party notices).
-The Windows runtime inventory includes their individual code/model notices
+The Windows and macOS runtime inventories include their individual code/model notices
 and corresponding-source materials. If an OCR runtime or model package is distributed separately, include its
 dependency licenses and any corresponding-source obligations in that package.
 

@@ -78,9 +78,11 @@ def test_local_ocr_cancellation_terminates_process():
     assert time.monotonic() - start < 3
 
 
-def test_ocr_discovery_prefers_bundled_runtime_and_does_not_forward_api_secrets(tmp_path, monkeypatch):
+@pytest.mark.parametrize("platform,suffix", [("win32", ".exe"), ("darwin", "")])
+def test_ocr_discovery_prefers_bundled_runtime_and_does_not_forward_api_secrets(tmp_path, monkeypatch, platform, suffix):
+    monkeypatch.setattr(sys, "platform", platform)
     root = tmp_path / "runtimes"
-    binary = root / "tesseract/tesseract.exe"
+    binary = root / ("tesseract/tesseract" + suffix)
     binary.parent.mkdir(parents=True)
     binary.touch()
     monkeypatch.setattr(image_geometry, "runtime_root", lambda: root)

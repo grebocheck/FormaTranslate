@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 import subprocess
 import sys
+from pathlib import Path
 
 import pytest
 
@@ -58,3 +59,44 @@ def test_macos_finds_libreoffice_installed_for_current_user(tmp_path, monkeypatc
     is_file = preview_office.Path.is_file
     monkeypatch.setattr(preview_office.Path, "is_file", lambda path: path == executable and is_file(path))
     assert preview_office.find_libreoffice() == str(executable)
+
+
+def test_frozen_macos_discovers_all_embedded_workers_without_shell_tools(tmp_path, monkeypatch):
+    from forma.documents import bundled_runtime
+    from forma.documents.ocr import find_scan_converter
+    from forma.documents.pdf import find_babeldoc
+    from forma.persistence.prepared import worker_identity
+    from forma.providers.client import JobControl
+    from forma.settings.config import Settings
+
+    contents = tmp_path / "Forma.app/Contents"
+    resources = contents / "Resources"
+    framework = contents / "Frameworks"
+    framework.mkdir(parents=True)
+    runtimes = resources / "runtimes"
+    (framework / "runtimes").symlink_to("../Resources/runtimes", target_is_directory=True)
+    for relative in ("ocr/forma-ocr", "babeldoc/babeldoc", "tesseract/tesseract"):
+        binary = runtimes / relative
+        binary.parent.mkdir(parents=True, exist_ok=True)
+        binary.write_text("synthetic native executable")
+        binary.chmod(0o755)
+    inventory = resources / "runtimes-meta/BUNDLE.json"
+    inventory.parent.mkdir()
+    inventory.write_text('{"snapshot":"worker and models"}')
+    monkeypatch.setattr(sys, "platform", "darwin")
+    monkeypatch.setattr(sys, "frozen", True, raising=False)
+    monkeypatch.setattr(sys, "executable", str(contents / "MacOS/Forma-macos-arm64"))
+    monkeypatch.setattr(sys, "_MEIPASS", str(framework), raising=False)
+    monkeypatch.setenv("PATH", "")
+    assert Path(find_scan_converter()).resolve() == runtimes / "ocr/forma-ocr"
+    assert Path(find_babeldoc()).resolve() == runtimes / "babeldoc/babeldoc"
+    executable, environment = _configuration()
+    assert Path(executable).resolve() == runtimes / "tesseract/tesseract"
+    assert environment["TESSDATA_PREFIX"].endswith("runtimes/tesseract/tessdata")
+    environment = bundled_runtime.worker_environment(find_scan_converter(), {})
+    assert environment["HF_HUB_OFFLINE"] == "1"
+    assert Path(environment["DOCLING_ARTIFACTS_PATH"]).resolve() == runtimes / "docling-models"
+    identity = worker_identity(find_scan_converter(), "forma", Settings(), JobControl())
+    assert worker_identity(find_scan_converter(), "forma", Settings(), JobControl()) == identity
+    inventory.write_text('{"snapshot":"updated models"}')
+    assert worker_identity(find_scan_converter(), "forma", Settings(), JobControl()) != identity
