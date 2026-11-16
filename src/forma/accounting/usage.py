@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import re
 import sqlite3
 import threading
@@ -228,6 +229,14 @@ class UsageLedger:
 
     @contextmanager
     def connect(self):
+        # SQLite otherwise creates the metadata ledger with the process umask.
+        # Repair older ledgers before opening them, without changing their data.
+        descriptor = os.open(self.path, os.O_CREAT | os.O_RDWR, 0o600)
+        try:
+            if os.name != "nt":
+                os.fchmod(descriptor, 0o600)
+        finally:
+            os.close(descriptor)
         with closing(sqlite3.connect(self.path, timeout=0.5)) as db:
             db.row_factory = sqlite3.Row
             if db.execute("PRAGMA user_version").fetchone()[0] != 3:

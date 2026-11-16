@@ -6,6 +6,7 @@ import os
 import stat
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+from threading import Barrier
 
 import pytest
 
@@ -58,16 +59,20 @@ def test_restart_preserves_decisions_and_unicode_markup_drafts_without_touching_
     baseline = store.load(report)
     assert baseline == {
         "reportFingerprint": hashlib.sha256(original).hexdigest(),
+        "stateFingerprint": hashlib.sha256(b"").hexdigest(),
         "accepted": {},
         "edits": {},
     }
     assert list(store.path.iterdir()) == []
     accepted = {"document:images": ENTRY_FINGERPRINT}
     edits = {"segment:1": '<r0>Насос &amp; фільтр</r0><k1/><r2>Manual draft ✨</r2>', "empty": ""}
-    store.save(report, accepted, edits, expected_fingerprint=baseline["reportFingerprint"])
+    token = store.save(
+        report, accepted, edits, expected_fingerprint=baseline["reportFingerprint"],
+        expected_state_fingerprint=baseline["stateFingerprint"],
+    )
     assert report.read_bytes() == original
     restored = ReviewStore(store.path).load(report)
-    assert restored == {**baseline, "accepted": accepted, "edits": edits}
+    assert restored == {**baseline, "stateFingerprint": token, "accepted": accepted, "edits": edits}
     restored["edits"]["segment:1"] = "Uncommitted edit"
     assert store.load(report)["edits"] == edits
 
@@ -99,10 +104,10 @@ def test_changed_report_invalidates_state_without_rewriting_it_and_rejects_stale
         store.save(report, {}, {"segment:1": "Stale edit"}, expected_fingerprint=original_fingerprint)
     assert path.read_bytes() == previous
     assert report.read_bytes() == current_report
-    store.save(
+    token = store.save(
         report, {}, {"segment:2": "Current edit"}, expected_fingerprint=loaded["reportFingerprint"]
     )
-    assert store.load(report) == {**loaded, "edits": {"segment:2": "Current edit"}}
+    assert store.load(report) == {**loaded, "stateFingerprint": token, "edits": {"segment:2": "Current edit"}}
 
 
 def test_report_changed_while_snapshot_is_written_prevents_commit(store, report, monkeypatch):
@@ -329,6 +334,61 @@ def test_invalid_expected_fingerprint_does_not_change_snapshot(store, report):
     assert path.read_bytes() == previous
 
 
+def test_stale_review_snapshot_cannot_replace_another_edit(store, report):
+    other = ReviewStore(store.path)
+    first, stale = store.load(report), other.load(report)
+    token = store.save(
+        report, {}, {"segment-a": "First editor's draft"},
+        expected_fingerprint=first["reportFingerprint"],
+        expected_state_fingerprint=first["stateFingerprint"],
+    )
+    previous = snapshot(store).read_bytes()
+    with pytest.raises(FormaError, match="Збережена перевірка змінилася"):
+        other.save(
+            report, {}, {"segment-b": "Second editor's stale draft"},
+            expected_fingerprint=stale["reportFingerprint"],
+            expected_state_fingerprint=stale["stateFingerprint"],
+        )
+    assert snapshot(store).read_bytes() == previous
+    refreshed = other.load(report)
+    assert refreshed["stateFingerprint"] == token
+    edits = {**refreshed["edits"], "segment-b": "Second editor's draft after reopening"}
+    other.save(report, {}, edits, expected_state_fingerprint=token)
+    assert store.load(report)["edits"] == edits
+
+
+def test_concurrent_writers_cannot_both_commit_the_same_review_snapshot(store, report):
+    baseline = store.load(report)
+    ready = Barrier(8)
+
+    def save_one(index):
+        contender = ReviewStore(store.path)
+        ready.wait(timeout=5)
+        try:
+            contender.save(
+                report, {}, {"segment": f"Draft {index}"},
+                expected_fingerprint=baseline["reportFingerprint"],
+                expected_state_fingerprint=baseline["stateFingerprint"],
+            )
+            return index
+        except FormaError as exc:
+            assert "Збережена перевірка змінилася" in str(exc)
+            return None
+
+    with ThreadPoolExecutor(max_workers=8) as executor:
+        winners = [index for index in executor.map(save_one, range(8)) if index is not None]
+    assert len(winners) == 1
+    assert store.load(report)["edits"] == {"segment": f"Draft {winners[0]}"}
+
+
+def test_invalid_state_fingerprint_does_not_change_snapshot(store, report):
+    seed(store, report)
+    previous = snapshot(store).read_bytes()
+    with pytest.raises(FormaError):
+        store.save(report, {}, {}, expected_state_fingerprint="invalid-token")
+    assert snapshot(store).read_bytes() == previous
+
+
 def test_concurrent_distinct_reports_do_not_lose_snapshots(store, tmp_path):
     reports = []
     for index in range(24):
@@ -358,6 +418,6 @@ def test_concurrent_distinct_reports_do_not_lose_snapshots(store, tmp_path):
 def test_empty_snapshot_explicitly_removes_all_decisions_and_drafts(store, report):
     fingerprint = seed(store, report)
     original = report.read_bytes()
-    store.save(report, {}, {}, expected_fingerprint=fingerprint)
-    assert store.load(report) == {"reportFingerprint": fingerprint, "accepted": {}, "edits": {}}
+    token = store.save(report, {}, {}, expected_fingerprint=fingerprint)
+    assert store.load(report) == {"reportFingerprint": fingerprint, "stateFingerprint": token, "accepted": {}, "edits": {}}
     assert report.read_bytes() == original

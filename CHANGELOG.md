@@ -2,6 +2,13 @@
 
 Versions follow semantic versioning. Changes before 1.0 may evolve as document compatibility improves.
 
+## 0.15.1 — 2026-11-16
+
+- Keep one desktop or CLI translation active per application-data directory, releasing ownership automatically after exit or a crash. Reject stale Review writes without losing the active edit; retain the existing saved-review format.
+- Restore large filtered Review lists in batches while preserving row identities, selection and editor state.
+- Stop the PDF worker's process tree on cancellation, cap temporary diagnostics at 32 MiB and detect 30 minutes without activity while respecting pauses and in-flight API requests.
+- Create the usage database with private POSIX permissions and repair older database permissions without changing recorded data. Translate new messages in all six interface languages.
+
 ## 0.15.0 — 2026-11-16
 
 - Rebuild Documents and Review around one automatically saved session with a shared, persistent document sidebar. Restore the selected document, translation options and each report's fragment, search and filter across navigation and restarts.

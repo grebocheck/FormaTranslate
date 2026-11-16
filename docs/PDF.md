@@ -86,6 +86,8 @@ Choose an explicit source language and the `chat`, `gemini` or `anthropic` API m
 
 Progress includes layout analysis, terminology, paragraph translation, fonts and export. Local layout analysis may take time even when many API requests can run in parallel. Fatal API errors and incomplete responses stop export instead of silently producing unchanged text. Heuristic output checks do not replace a bilingual review.
 
+Stopping direct PDF translation also stops its worker tree. Temporary worker diagnostics are capped at 32 MiB. A worker with no output or API activity for 30 minutes is stopped with a retry message; pauses and requests waiting for provider pacing or responses do not consume that inactivity period. These limits preserve the ordinary BabelDOC cache for an explicit retry.
+
 The direct BabelDOC route requires a text-based PDF. Scans and documents with a majority of image-only pages automatically take the OCR route; a small text fragment on one page does not make a multipage scan directly translatable. Individual image pages in otherwise text-based PDFs still produce a warning and may need standalone OCR preparation. The Office editorial pass and manual review-copy export apply to the OCR DOCX route, but do not apply to direct PDF output. Check tables, columns, fonts, math and page breaks in a PDF viewer.
 
 Project memory can remain enabled for a mixed queue. Direct PDFs use the captured project glossary without paragraph-memory reuse, while OCR DOCX and ordinary Office documents use the captured project memory. The selected project is not switched off.

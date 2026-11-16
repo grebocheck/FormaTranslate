@@ -17,6 +17,7 @@ import unicodedata
 from pathlib import Path
 
 from forma.core.models import FormaError
+from forma.persistence.locking import file_lock
 from forma.settings.config import data_directory
 
 MAX_REPORT_BYTES = 64 * 1024 * 1024
@@ -30,6 +31,8 @@ _SAVE_ERROR = (
     "Не вдалося зберегти перевірку. Перевірте доступ до звіту та сховища перевірок."
 )
 _CHANGED_ERROR = "Звіт змінився. Відкрийте перевірку знову перед збереженням змін."
+_STATE_CHANGED_ERROR = "Збережена перевірка змінилася. Відкрийте її знову перед збереженням змін."
+_ABSENT_FINGERPRINT = hashlib.sha256(b"").hexdigest()
 
 
 def _valid_fingerprint(value) -> bool:
@@ -93,7 +96,9 @@ class ReviewStore:
 
     ``path`` is a storage directory, not a JSON filename. Pass the fingerprint
     returned by ``load`` to ``save(expected_fingerprint=...)`` so an edit cannot
-    silently attach to a report that changed after the user opened it.
+    silently attach to a report that changed after the user opened it. Pass its
+    ``stateFingerprint`` as ``expected_state_fingerprint`` to reject stale drafts
+    from another window or process. Successful saves return the new state token.
     """
 
     def __init__(self, path: Path | None = None):
@@ -131,7 +136,12 @@ class ReviewStore:
         ):
             raise ValueError
         accepted, edits = _maps(data["accepted"], data["edits"])
-        return {"reportFingerprint": data["reportFingerprint"], "accepted": accepted, "edits": edits}
+        return {
+            "reportFingerprint": data["reportFingerprint"],
+            "stateFingerprint": hashlib.sha256(raw).hexdigest(),
+            "accepted": accepted,
+            "edits": edits,
+        }
 
     def load(self, report: Path) -> dict:
         """Return current fingerprint and decisions, empty when absent or stale."""
@@ -141,7 +151,12 @@ class ReviewStore:
             fingerprint = _report_fingerprint(canonical)
             if state is not None and state["reportFingerprint"] == fingerprint:
                 return state
-            return {"reportFingerprint": fingerprint, "accepted": {}, "edits": {}}
+            return {
+                "reportFingerprint": fingerprint,
+                "stateFingerprint": state["stateFingerprint"] if state else _ABSENT_FINGERPRINT,
+                "accepted": {},
+                "edits": {},
+            }
         except (OSError, ValueError, TypeError, UnicodeError, RecursionError, RuntimeError):
             raise FormaError(_READ_ERROR) from None
 
@@ -152,18 +167,20 @@ class ReviewStore:
         edits: dict[str, str],
         *,
         expected_fingerprint: str | None = None,
-    ) -> None:
+        expected_state_fingerprint: str | None = None,
+    ) -> str:
         """Save a complete snapshot, preserving corrupt state for recovery."""
         temporary = None
         try:
             accepted, edits = _maps(accepted, edits)
             if expected_fingerprint is not None and not _valid_fingerprint(expected_fingerprint):
                 raise ValueError
+            if expected_state_fingerprint is not None and not _valid_fingerprint(expected_state_fingerprint):
+                raise ValueError
             canonical, state_path = self._paths(report)
             fingerprint = _report_fingerprint(canonical)
             if expected_fingerprint is not None and fingerprint != expected_fingerprint:
                 raise FormaError(_CHANGED_ERROR)
-            self._read_state(state_path)  # A damaged snapshot must never be silently replaced.
             data = json.dumps(
                 {
                     "version": 1,
@@ -176,15 +193,23 @@ class ReviewStore:
             ).encode("utf-8")
             if len(data) > MAX_STATE_BYTES:
                 raise ValueError
-            fd, name = tempfile.mkstemp(prefix=".review-", suffix=".tmp", dir=self.path)
-            temporary = Path(name)
-            with os.fdopen(fd, "wb") as stream:
-                stream.write(data)
-                stream.flush()
-                os.fsync(stream.fileno())
-            if _report_fingerprint(canonical) != fingerprint:
-                raise FormaError(_CHANGED_ERROR)
-            os.replace(temporary, state_path)
+            # Hold the OS lock across the check and atomic replacement. A hash
+            # check alone lets simultaneous stale writers both pass the check.
+            with file_lock(state_path.with_suffix(".lock"), timeout=2.0):
+                state = self._read_state(state_path)  # Preserve corrupt snapshots for recovery.
+                current = state["stateFingerprint"] if state else _ABSENT_FINGERPRINT
+                if expected_state_fingerprint is not None and current != expected_state_fingerprint:
+                    raise FormaError(_STATE_CHANGED_ERROR)
+                fd, name = tempfile.mkstemp(prefix=".review-", suffix=".tmp", dir=self.path)
+                temporary = Path(name)
+                with os.fdopen(fd, "wb") as stream:
+                    stream.write(data)
+                    stream.flush()
+                    os.fsync(stream.fileno())
+                if _report_fingerprint(canonical) != fingerprint:
+                    raise FormaError(_CHANGED_ERROR)
+                os.replace(temporary, state_path)
+            return hashlib.sha256(data).hexdigest()
         except (OSError, ValueError, TypeError, UnicodeError, RecursionError, RuntimeError):
             raise FormaError(_SAVE_ERROR) from None
         finally:

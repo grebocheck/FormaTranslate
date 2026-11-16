@@ -136,11 +136,14 @@ class ReviewWorkflow:
 
     def _save_review_state(self, accepted, edits):
         context = self._review_context
-        if not context or not context.get("reportFingerprint"):
+        if not context or not context.get("reportFingerprint") or not context.get("stateFingerprint"):
             raise FormaError("Не вдалося зберегти перевірку: звіт недоступний або змінений.")
-        ReviewStore().save(
-            context["report"], accepted, edits, expected_fingerprint=context["reportFingerprint"]
+        token = ReviewStore().save(
+            context["report"], accepted, edits,
+            expected_fingerprint=context["reportFingerprint"],
+            expected_state_fingerprint=context["stateFingerprint"],
         )
+        context["stateFingerprint"] = token
         self._review_accepted, self._review_edits = accepted, edits
 
     def _rebuild_review(self):
@@ -343,7 +346,9 @@ class ReviewWorkflow:
                 }
                 state = ReviewStore().load(result.report)
                 ReviewStore().save(
-                    result.report, transferred, {}, expected_fingerprint=state["reportFingerprint"]
+                    result.report, transferred, {},
+                    expected_fingerprint=state["reportFingerprint"],
+                    expected_state_fingerprint=state["stateFingerprint"],
                 )
                 # Applied corrections now live in the new copy. Keep acknowledgements
                 # of unchanged entries on the original; never approve changed old text.
@@ -352,11 +357,12 @@ class ReviewWorkflow:
                     for entry_id, fingerprint in accepted.items()
                     if entry_id not in edits
                 }
-                ReviewStore().save(
+                context["stateFingerprint"] = ReviewStore().save(
                     context["report"],
                     remaining,
                     {},
                     expected_fingerprint=context["reportFingerprint"],
+                    expected_state_fingerprint=context["stateFingerprint"],
                 )
             except FormaError as exc:
                 problems.append(str(exc))
@@ -575,7 +581,7 @@ class ReviewWorkflow:
         )
 
         def read(emit):
-            state = {"reportFingerprint": "", "accepted": {}, "edits": {}}
+            state = {"reportFingerprint": "", "stateFingerprint": "", "accepted": {}, "edits": {}}
             state_error = ""
             recovery_metadata = None
             signature = _report_signature(report) if report else None
@@ -592,6 +598,8 @@ class ReviewWorkflow:
                     verified = ReviewStore().load(Path(report))
                     if state["reportFingerprint"] != verified["reportFingerprint"]:
                         raise FormaError("Звіт змінився під час читання. Відкрийте його знову.")
+                    if state["stateFingerprint"] != verified["stateFingerprint"]:
+                        raise FormaError("Збережена перевірка змінилася. Відкрийте її знову перед збереженням змін.")
                 if signature != _report_signature(report):
                     raise FormaError("Звіт змінився під час читання. Відкрийте його знову.")
             else:
@@ -611,6 +619,7 @@ class ReviewWorkflow:
                     "options": current_options,
                     "report": Path(report) if report else None,
                     "reportFingerprint": state["reportFingerprint"],
+                    "stateFingerprint": state["stateFingerprint"],
                     "reportSignature": signature,
                     "recovery": recovery_metadata,
                 },

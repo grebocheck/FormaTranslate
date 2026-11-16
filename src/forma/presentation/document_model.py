@@ -41,26 +41,56 @@ class DocumentListModel(QAbstractListModel):
             self.endRemoveRows()
             return
         wanted = {row["id"] for row in rows}
-        for index in range(len(self._rows) - 1, -1, -1):
-            if self._rows[index]["id"] not in wanted:
-                self.beginRemoveRows(QModelIndex(), index, index)
-                del self._rows[index]
-                self.endRemoveRows()
+        index = len(self._rows) - 1
+        while index >= 0:
+            if self._rows[index]["id"] in wanted:
+                index -= 1
+                continue
+            end = index
+            while index >= 0 and self._rows[index]["id"] not in wanted:
+                index -= 1
+            self.beginRemoveRows(QModelIndex(), index + 1, end)
+            del self._rows[index + 1:end + 1]
+            self.endRemoveRows()
         self._reindex()
-        for index, row in enumerate(rows):
-            current = self._positions.get(row["id"])
-            if current is None:
-                self.beginInsertRows(QModelIndex(), index, index)
-                self._rows.insert(index, row)
-                self._reindex()
-                self.endInsertRows()
-            else:
-                if current != index:
-                    self.beginMoveRows(QModelIndex(), current, current, QModelIndex(), index)
-                    self._rows.insert(index, self._rows.pop(current))
-                    self._reindex()
-                    self.endMoveRows()
-                self.update_row(row)
+
+        # Reorder only surviving rows. Filtering normally keeps their relative
+        # order, so restoring a large result needs no per-row index rebuilds.
+        retained = [row for row in rows if row["id"] in self._positions]
+        index = 0
+        while index < len(retained):
+            current = self._positions[retained[index]["id"]]
+            if current == index:
+                index += 1
+                continue
+            length = 1
+            while (current + length < len(self._rows)
+                   and index + length < len(retained)
+                   and self._rows[current + length]["id"] == retained[index + length]["id"]):
+                length += 1
+            self.beginMoveRows(QModelIndex(), current, current + length - 1, QModelIndex(), index)
+            moved = self._rows[current:current + length]
+            del self._rows[current:current + length]
+            self._rows[index:index] = moved
+            self._reindex()
+            self.endMoveRows()
+            index += length
+
+        retained_ids = set(self._positions)
+        index = 0
+        while index < len(rows):
+            if rows[index]["id"] in retained_ids:
+                index += 1
+                continue
+            start = index
+            while index < len(rows) and rows[index]["id"] not in retained_ids:
+                index += 1
+            self.beginInsertRows(QModelIndex(), start, index - 1)
+            self._rows[start:start] = rows[start:index]
+            self.endInsertRows()
+        self._reindex()
+        for row in rows:
+            self.update_row(row)
 
     def update_row(self, row):
         position = self._positions.get(row["id"])

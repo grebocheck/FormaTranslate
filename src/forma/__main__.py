@@ -111,29 +111,31 @@ def main() -> int:
             write_comparison(result, args.report)
             print(json.dumps(result, ensure_ascii=False, indent=2))
         elif args.command == "translate":
+            from forma.persistence.instance import application_lock
             from forma.settings.config import Settings
             from forma.translation.engine import TranslationEngine
 
             if args.memory_project and args.glossary:
                 raise FormaError("У режимі пам’яті використовується спільний глосарій проєкту. Змініть його у вікні пам’яті проєкту.")
             glossary = _read_glossary(args.glossary) if args.glossary else {}
-            settings = Settings.load(args.env).with_overrides(parallel_documents=1)
-            options = Options(
-                args.source,
-                args.target,
-                args.domain,
-                not args.no_review,
-                not args.no_auto_glossary,
-                glossary,
-                instructions=settings.translation_instructions,
-                memory_project_id=args.memory_project or "",
-            )
-            result = TranslationEngine(settings).translate(
-                args.file,
-                args.output,
-                options,
-                lambda percent, message: print(f"{percent:3d}% {message}", file=sys.stderr),
-            )
+            with application_lock():
+                settings = Settings.load(args.env).with_overrides(parallel_documents=1)
+                options = Options(
+                    args.source,
+                    args.target,
+                    args.domain,
+                    not args.no_review,
+                    not args.no_auto_glossary,
+                    glossary,
+                    instructions=settings.translation_instructions,
+                    memory_project_id=args.memory_project or "",
+                )
+                result = TranslationEngine(settings).translate(
+                    args.file,
+                    args.output,
+                    options,
+                    lambda percent, message: print(f"{percent:3d}% {message}", file=sys.stderr),
+                )
             print(result.output)
         return 0
     except (FormaError, OSError, ValueError) as exc:

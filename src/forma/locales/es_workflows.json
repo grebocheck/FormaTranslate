@@ -69,5 +69,11 @@
   "Позначення «%1» для всіх заголовків цього додатка": "Usar «%1» en todos los encabezados de este anexo",
   "Виберіть заголовок додатка з однозначним позначенням у перекладі.": "Seleccione un encabezado de anexo con una identificación inequívoca en la traducción.",
   "Це позначення вже використано для іншого додатка. Спочатку задайте різні позначення.": "Esta identificación ya se usa para otro anexo. Asigne primero identificaciones distintas.",
-  "Не всі заголовки цього додатка мають однозначне позначення. Спочатку відредагуйте їх вручну.": "Algunos encabezados de este anexo tienen identificaciones ambiguas. Edítelos manualmente primero."
+  "Не всі заголовки цього додатка мають однозначне позначення. Спочатку відредагуйте їх вручну.": "Algunos encabezados de este anexo tienen identificaciones ambiguas. Edítelos manualmente primero.",
+  "Інший екземпляр Forma вже використовує ці дані. Завершіть його перед повторним запуском.": "Otra instancia de Forma ya está usando estos datos. Ciérrela antes de iniciar de nuevo.",
+  "Не вдалося заблокувати каталог даних Forma. Перевірте права доступу та повторіть спробу.": "No se pudo bloquear la carpeta de datos de Forma. Compruebe los permisos de acceso e inténtelo de nuevo.",
+  "Збережена перевірка змінилася. Відкрийте її знову перед збереженням змін.": "La revisión guardada ha cambiado. Vuelva a abrirla antes de guardar sus cambios.",
+  "PDF-рушій не повідомляє про активність понад 30 хвилин. Перевірте рушій і повторіть переклад.": "El motor PDF no ha comunicado actividad durante más de 30 minutos. Compruebe el motor y vuelva a intentar la traducción.",
+  "BabelDOC створив забагато діагностики. Перевірте рушій і повторіть переклад.": "BabelDOC generó demasiados datos de diagnóstico. Compruebe el motor y vuelva a intentar la traducción.",
+  "Не вдалося записати діагностику PDF. Перевірте доступ до тимчасової папки та вільне місце.": "No se pudo escribir el diagnóstico PDF. Compruebe el acceso a la carpeta temporal y el espacio libre en disco."
 }

@@ -69,5 +69,11 @@
   "Позначення «%1» для всіх заголовків цього додатка": "Use “%1” for all headings of this appendix",
   "Виберіть заголовок додатка з однозначним позначенням у перекладі.": "Select an appendix heading with an unambiguous label in the translation.",
   "Це позначення вже використано для іншого додатка. Спочатку задайте різні позначення.": "This label is already used for another appendix. Assign distinct labels first.",
-  "Не всі заголовки цього додатка мають однозначне позначення. Спочатку відредагуйте їх вручну.": "Some headings of this appendix have ambiguous labels. Edit them manually first."
+  "Не всі заголовки цього додатка мають однозначне позначення. Спочатку відредагуйте їх вручну.": "Some headings of this appendix have ambiguous labels. Edit them manually first.",
+  "Інший екземпляр Forma вже використовує ці дані. Завершіть його перед повторним запуском.": "Another instance of Forma is already using these data. Close it before starting again.",
+  "Не вдалося заблокувати каталог даних Forma. Перевірте права доступу та повторіть спробу.": "Could not lock the Forma data folder. Check access permissions and try again.",
+  "Збережена перевірка змінилася. Відкрийте її знову перед збереженням змін.": "The saved review has changed. Reopen it before saving your changes.",
+  "PDF-рушій не повідомляє про активність понад 30 хвилин. Перевірте рушій і повторіть переклад.": "The PDF engine has reported no activity for over 30 minutes. Check the engine and retry the translation.",
+  "BabelDOC створив забагато діагностики. Перевірте рушій і повторіть переклад.": "BabelDOC produced too much diagnostic output. Check the engine and retry the translation.",
+  "Не вдалося записати діагностику PDF. Перевірте доступ до тимчасової папки та вільне місце.": "Could not write PDF diagnostics. Check access to the temporary folder and available disk space."
 }

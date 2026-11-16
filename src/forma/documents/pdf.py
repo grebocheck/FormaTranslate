@@ -20,10 +20,14 @@ from forma.documents.bundled_runtime import find_bundled, start_worker, worker_e
 from forma.documents.pdf_api import PDFAPI
 from forma.documents.pdf_inspection import inspect_page
 from forma.documents.pdf_progress import PDFProgress
+from forma.documents.worker_process import BoundedWorkerLog, start_worker_tree, stop_worker_tree
 from forma.persistence.files import atomic_bytes, atomic_json, available_output
 from forma.providers.client import JobControl
 from forma.settings.config import Settings, data_directory
 from forma.translation.instructions import translation_prompt
+
+MAX_LOG_BYTES = 32 * 1024 * 1024
+INACTIVITY_SECONDS = 30 * 60
 
 
 def find_babeldoc(configured: str = "") -> str:
@@ -124,7 +128,7 @@ def _run_babeldoc(arguments, logfile, settings, control, progress, workers, api=
     # Reserve the entire external engine's worker allowance atomically. Other
     # documents share the same JobControl and cannot exceed the queue's budget.
     progress(5, "PDF · Очікуємо вільні запити для обробки документа")
-    with control.request_slots(workers), logfile.open("wb", buffering=0) as log:
+    with control.request_slots(workers), BoundedWorkerLog(logfile, MAX_LOG_BYTES) as log:
         # Rich suppresses live frames when redirected to a regular file. These
         # documented overrides affect only this subprocess; logs stay private.
         environment = {
@@ -140,9 +144,10 @@ def _run_babeldoc(arguments, logfile, settings, control, progress, workers, api=
         }
         monitor = PDFProgress(progress)
         try:
-            process = start_worker(
+            process = start_worker_tree(
+                start_worker,
                 arguments,
-                stdout=log,
+                stdout=log.output,
                 stderr=subprocess.STDOUT,
                 env=worker_environment(arguments[0], environment),
                 creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0,
@@ -151,15 +156,32 @@ def _run_babeldoc(arguments, logfile, settings, control, progress, workers, api=
             raise FormaError("Не вдалося запустити PDF-рушій. Перевірте шлях до BabelDOC.") from exc
         try:
             with logfile.open("rb") as events:
+                last_activity = time.monotonic()
+                previous_calls = 0
                 while process.poll() is None:
                     if api:
                         api.check_error()
-                    monitor.feed(events.read(65536))
+                    chunk = events.read(65536)
+                    now = time.monotonic()
+                    calls, pending = api.activity() if api else (0, 0)
+                    # Pausing gates new API requests, not this monitoring loop.
+                    # Paid responses keep their timeout; queued requests may be
+                    # honoring a provider cooldown longer than our idle limit.
+                    if chunk or control.paused.is_set() or pending or calls != previous_calls:
+                        last_activity = now
+                    previous_calls = calls
+                    _check_worker_log(log)
+                    if now - last_activity > INACTIVITY_SECONDS:
+                        raise FormaError("PDF-рушій не повідомляє про активність понад 30 хвилин. Перевірте рушій і повторіть переклад.")
+                    monitor.feed(chunk)
                     monitor.tick()
                     if control.cancelled.wait(0.2):
                         raise Cancelled("Переклад PDF зупинено. Внутрішній кеш BabelDOC збережено.")
                     # The bridge pauses new upstream requests; let in-flight
                     # responses finish while keeping process cancellation live.
+                stop_worker_tree(process)
+                log.finish()
+                _check_worker_log(log)
                 while chunk := events.read(65536):
                     monitor.feed(chunk)
                 monitor.feed(b"", final=True)
@@ -178,13 +200,14 @@ def _run_babeldoc(arguments, logfile, settings, control, progress, workers, api=
                     f"та ресурси рушія (babeldoc --warmup). Діагностика: {diagnostic_path}"
                 )
         finally:
-            if process.poll() is None:
-                process.terminate()
-                try:
-                    process.wait(timeout=5)
-                except subprocess.TimeoutExpired:
-                    process.kill()
-                    process.wait()
+            stop_worker_tree(process)
+
+
+def _check_worker_log(log):
+    if log.exceeded.is_set():
+        raise FormaError("BabelDOC створив забагато діагностики. Перевірте рушій і повторіть переклад.")
+    if log.failed.is_set():
+        raise FormaError("Не вдалося записати діагностику PDF. Перевірте доступ до тимчасової папки та вільне місце.")
 
 
 def translate_pdf(

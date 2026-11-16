@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 import sys
 import time
+from contextlib import ExitStack
 from pathlib import Path
 
 from PySide6.QtCore import (
@@ -18,12 +19,20 @@ from PySide6.QtCore import (
 from PySide6.QtGui import QFont, QFontDatabase, QIcon
 from PySide6.QtQml import QQmlApplicationEngine
 from PySide6.QtQuickControls2 import QQuickStyle
-from PySide6.QtWidgets import QApplication
+from PySide6.QtWidgets import QApplication, QMessageBox
 
 from forma import __version__
+from forma.core.models import FormaError
 from forma.core.resources import resource_path
-from forma.localization.catalog import CatalogTranslator, current_language
+from forma.localization.catalog import (
+    CatalogTranslator,
+    current_language,
+    set_language,
+    translate_ui_message,
+)
+from forma.persistence.instance import application_lock
 from forma.presentation.backend import Backend
+from forma.settings.config import load_preferences
 
 
 def _preview_image_status(window):
@@ -59,6 +68,24 @@ def install_qt_translations(app: QApplication) -> QTranslator | None:
 
 
 def main(files: list[str] | None = None, screenshot: str | None = None) -> int:
+    with ExitStack() as lifetime:
+        try:
+            lifetime.enter_context(application_lock())
+        except FormaError as exc:
+            return _startup_error(str(exc))
+        return _run_application(files, screenshot)
+
+
+def _startup_error(message: str) -> int:
+    # A second instance must not construct Backend or load credentials/state.
+    app = QApplication.instance() or QApplication(sys.argv[:1])
+    set_language(os.environ.get("FORMA_UI_LANGUAGE") or load_preferences().get("ui_language", "system"))
+    app.setWindowIcon(QIcon(str(resource_path("ui", "forma.svg"))))
+    QMessageBox.warning(None, "FormaTranslate", translate_ui_message(message))
+    return 1
+
+
+def _run_application(files: list[str] | None, screenshot: str | None) -> int:
     os.environ.setdefault("QT_QUICK_CONTROLS_STYLE", "Basic")
     QQuickStyle.setStyle("Basic")
     app = QApplication(sys.argv[:1])

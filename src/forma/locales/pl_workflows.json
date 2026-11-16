@@ -69,5 +69,11 @@
   "Позначення «%1» для всіх заголовків цього додатка": "Użyj „%1” we wszystkich nagłówkach tego załącznika",
   "Виберіть заголовок додатка з однозначним позначенням у перекладі.": "Wybierz nagłówek załącznika z jednoznacznym oznaczeniem w tłumaczeniu.",
   "Це позначення вже використано для іншого додатка. Спочатку задайте різні позначення.": "To oznaczenie jest już używane dla innego załącznika. Najpierw nadaj różne oznaczenia.",
-  "Не всі заголовки цього додатка мають однозначне позначення. Спочатку відредагуйте їх вручну.": "Niektóre nagłówki tego załącznika mają niejednoznaczne oznaczenia. Najpierw edytuj je ręcznie."
+  "Не всі заголовки цього додатка мають однозначне позначення. Спочатку відредагуйте їх вручну.": "Niektóre nagłówki tego załącznika mają niejednoznaczne oznaczenia. Najpierw edytuj je ręcznie.",
+  "Інший екземпляр Forma вже використовує ці дані. Завершіть його перед повторним запуском.": "Inna instancja Forma korzysta już z tych danych. Zamknij ją przed ponownym uruchomieniem.",
+  "Не вдалося заблокувати каталог даних Forma. Перевірте права доступу та повторіть спробу.": "Nie udało się zablokować folderu danych Forma. Sprawdź uprawnienia dostępu i spróbuj ponownie.",
+  "Збережена перевірка змінилася. Відкрийте її знову перед збереженням змін.": "Zapisana weryfikacja uległa zmianie. Otwórz ją ponownie przed zapisaniem zmian.",
+  "PDF-рушій не повідомляє про активність понад 30 хвилин. Перевірте рушій і повторіть переклад.": "Silnik PDF nie zgłosił aktywności od ponad 30 minut. Sprawdź silnik i ponów tłumaczenie.",
+  "BabelDOC створив забагато діагностики. Перевірте рушій і повторіть переклад.": "BabelDOC wygenerował zbyt wiele danych diagnostycznych. Sprawdź silnik i ponów tłumaczenie.",
+  "Не вдалося записати діагностику PDF. Перевірте доступ до тимчасової папки та вільне місце.": "Nie udało się zapisać diagnostyki PDF. Sprawdź dostęp do folderu tymczasowego i wolne miejsce na dysku."
 }

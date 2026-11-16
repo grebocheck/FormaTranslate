@@ -69,5 +69,11 @@
   "Позначення «%1» для всіх заголовків цього додатка": "Utiliser « %1 » pour tous les titres de cette annexe",
   "Виберіть заголовок додатка з однозначним позначенням у перекладі.": "Sélectionnez un titre d’annexe dont le repère est sans ambiguïté dans la traduction.",
   "Це позначення вже використано для іншого додатка. Спочатку задайте різні позначення.": "Ce repère est déjà utilisé pour une autre annexe. Attribuez d’abord des repères distincts.",
-  "Не всі заголовки цього додатка мають однозначне позначення. Спочатку відредагуйте їх вручну.": "Certains titres de cette annexe ont des repères ambigus. Modifiez-les d’abord manuellement."
+  "Не всі заголовки цього додатка мають однозначне позначення. Спочатку відредагуйте їх вручну.": "Certains titres de cette annexe ont des repères ambigus. Modifiez-les d’abord manuellement.",
+  "Інший екземпляр Forma вже використовує ці дані. Завершіть його перед повторним запуском.": "Une autre instance de Forma utilise déjà ces données. Fermez-la avant de relancer l’application.",
+  "Не вдалося заблокувати каталог даних Forma. Перевірте права доступу та повторіть спробу.": "Impossible de verrouiller le dossier de données de Forma. Vérifiez les droits d’accès et réessayez.",
+  "Збережена перевірка змінилася. Відкрийте її знову перед збереженням змін.": "La révision enregistrée a changé. Rouvrez-la avant d’enregistrer vos modifications.",
+  "PDF-рушій не повідомляє про активність понад 30 хвилин. Перевірте рушій і повторіть переклад.": "Le moteur PDF n’a signalé aucune activité depuis plus de 30 minutes. Vérifiez le moteur et relancez la traduction.",
+  "BabelDOC створив забагато діагностики. Перевірте рушій і повторіть переклад.": "BabelDOC a produit trop de données de diagnostic. Vérifiez le moteur et relancez la traduction.",
+  "Не вдалося записати діагностику PDF. Перевірте доступ до тимчасової папки та вільне місце.": "Impossible d’écrire le diagnostic PDF. Vérifiez l’accès au dossier temporaire et l’espace disque disponible."
 }

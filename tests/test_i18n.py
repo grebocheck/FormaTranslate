@@ -175,8 +175,9 @@ def message_literals(filenames, *, include_fragments=False):
         ("provider", ("settings/config.py", "providers/presets.py", "providers/protocol.py"), NON_UK_LANGUAGES),
         ("workspace", ("persistence/session_store.py", "presentation/session_workflow.py"), (*NON_UK_LANGUAGES, "uk")),
         ("preview", ("documents/preview.py", "documents/preview_office.py", "documents/preview_worker.py", "presentation/preview_controller.py"), (*NON_UK_LANGUAGES, "uk")),
+        ("stability", ("persistence/instance.py",), (*NON_UK_LANGUAGES, "uk")),
     ],
-    ids=("quick", "ocr", "memory", "glossary", "provider", "workspace", "preview"),
+    ids=("quick", "ocr", "memory", "glossary", "provider", "workspace", "preview", "stability"),
 )
 def test_python_workflow_messages_have_complete_interface_translations(boundary, filenames, languages):
     keys = message_literals(filenames, include_fragments=boundary == "quick")
@@ -206,6 +207,10 @@ def test_python_workflow_messages_have_complete_interface_translations(boundary,
         # These stored prompt values stay canonical; their presentation labels
         # are covered independently by the QML catalog test.
         keys -= DOMAINS
+    elif boundary == "stability":
+        from forma.persistence.review_store import _STATE_CHANGED_ERROR
+
+        keys.add(_STATE_CHANGED_ERROR)
     assert keys
     for language in languages:
         assert keys <= i18n._catalogs()[language].keys(), (

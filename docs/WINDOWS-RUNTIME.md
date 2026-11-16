@@ -111,7 +111,7 @@ Before the complete build, test the exact staged runtime on **native Windows** w
 
 - Tesseract `--list-langs` and a TSV recognition using the bundled language data/config.
 - The staged OCR executable on public synthetic scanned PDFs in **all four languages**, verifying every output DOCX and page coverage.
-- The staged BabelDOC executable with `--warmup`, then the app's synthetic PDF integration through a **local fake API**, checking fonts, layout/export and cancellation. No paid translation request is needed.
+- The staged BabelDOC executable with `--warmup`, then the app's synthetic PDF integration through a **local fake API**, checking fonts, layout/export and cancellation. Verify that cancellation closes the worker tree, including a child that outlives its immediate parent; exercise the suspended-start Job Object path on native Windows. No paid translation request is needed.
 - Finally, extract the complete application ZIP on a clean native machine without installed Python/OCR/BabelDOC and launch its root EXE. Keep `_internal` and all worker/model folders intact. Verify bundled discovery, settings, live UI languages, Office translation with a fake provider and OCR/PDF processing. Repeat startup to confirm dependencies run from that extracted folder.
 
 For example, the runtime-only commands use `build/windows-runtime/runtime/ocr/forma-ocr.exe --input PUBLIC_SCAN.pdf --output NEW_OUTPUT.docx --source-language uk` and `build/windows-runtime/runtime/babeldoc/babeldoc.exe --warmup`. Use a new output for each language. The helper needs no API key. A Linux unit test or a successful PE-header check cannot replace these runs.

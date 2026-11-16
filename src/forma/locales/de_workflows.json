@@ -69,5 +69,11 @@
   "Позначення «%1» для всіх заголовків цього додатка": "„%1“ für alle Überschriften dieses Anhangs verwenden",
   "Виберіть заголовок додатка з однозначним позначенням у перекладі.": "Wählen Sie eine Anhangsüberschrift mit einer eindeutigen Kennzeichnung in der Übersetzung.",
   "Це позначення вже використано для іншого додатка. Спочатку задайте різні позначення.": "Diese Kennzeichnung wird bereits für einen anderen Anhang verwendet. Vergeben Sie zuerst unterschiedliche Kennzeichnungen.",
-  "Не всі заголовки цього додатка мають однозначне позначення. Спочатку відредагуйте їх вручну.": "Einige Überschriften dieses Anhangs sind nicht eindeutig gekennzeichnet. Bearbeiten Sie sie zuerst manuell."
+  "Не всі заголовки цього додатка мають однозначне позначення. Спочатку відредагуйте їх вручну.": "Einige Überschriften dieses Anhangs sind nicht eindeutig gekennzeichnet. Bearbeiten Sie sie zuerst manuell.",
+  "Інший екземпляр Forma вже використовує ці дані. Завершіть його перед повторним запуском.": "Eine andere Instanz von Forma verwendet diese Daten bereits. Schließen Sie sie vor einem erneuten Start.",
+  "Не вдалося заблокувати каталог даних Forma. Перевірте права доступу та повторіть спробу.": "Der Forma-Datenordner konnte nicht gesperrt werden. Prüfen Sie die Zugriffsrechte und versuchen Sie es erneut.",
+  "Збережена перевірка змінилася. Відкрийте її знову перед збереженням змін.": "Die gespeicherte Prüfung wurde geändert. Öffnen Sie sie erneut, bevor Sie Ihre Änderungen speichern.",
+  "PDF-рушій не повідомляє про активність понад 30 хвилин. Перевірте рушій і повторіть переклад.": "Die PDF-Engine hat seit über 30 Minuten keine Aktivität gemeldet. Prüfen Sie die Engine und wiederholen Sie die Übersetzung.",
+  "BabelDOC створив забагато діагностики. Перевірте рушій і повторіть переклад.": "BabelDOC hat zu viele Diagnosedaten erzeugt. Prüfen Sie die Engine und wiederholen Sie die Übersetzung.",
+  "Не вдалося записати діагностику PDF. Перевірте доступ до тимчасової папки та вільне місце.": "Die PDF-Diagnose konnte nicht geschrieben werden. Prüfen Sie den Zugriff auf den temporären Ordner und den freien Speicherplatz."
 }

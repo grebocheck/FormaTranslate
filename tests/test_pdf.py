@@ -48,7 +48,11 @@ def test_pdf_adapter_keeps_key_out_of_arguments(pdf_file, tmp_path, monkeypatch)
         def poll(self):
             return 0
 
-    monkeypatch.setattr("forma.documents.pdf.subprocess.Popen", Process)
+    monkeypatch.setattr(
+        "forma.documents.pdf.start_worker_tree",
+        lambda _start, arguments, **kwargs: Process(arguments, **kwargs),
+    )
+    monkeypatch.setattr("forma.documents.pdf.stop_worker_tree", lambda process: None)
     result = translate_pdf(
         pdf_file,
         tmp_path / "out",
@@ -136,7 +140,11 @@ def _fake_engine_output(monkeypatch, candidate):
         def poll(self):
             return 0
 
-    monkeypatch.setattr("forma.documents.pdf.subprocess.Popen", Process)
+    monkeypatch.setattr(
+        "forma.documents.pdf.start_worker_tree",
+        lambda _start, arguments, **kwargs: Process(arguments, **kwargs),
+    )
+    monkeypatch.setattr("forma.documents.pdf.stop_worker_tree", lambda process: None)
 
 
 def _pdf_with_pages(path, texts):
@@ -387,7 +395,11 @@ def test_pdf_streams_live_progress_and_reserves_its_worker_allowance(
                 return None
             return 0
 
-    monkeypatch.setattr("forma.documents.pdf.subprocess.Popen", Process)
+    monkeypatch.setattr(
+        "forma.documents.pdf.start_worker_tree",
+        lambda _start, arguments, **kwargs: Process(arguments, **kwargs),
+    )
+    monkeypatch.setattr("forma.documents.pdf.stop_worker_tree", lambda process: None)
     result = translate_pdf(
         pdf_file,
         tmp_path / "out",
@@ -424,7 +436,11 @@ def test_pdf_cancellation_terminates_process_and_releases_slots(pdf_file, tmp_pa
         def wait(self, **kwargs):
             return self.returncode
 
-    monkeypatch.setattr("forma.documents.pdf.subprocess.Popen", Process)
+    monkeypatch.setattr(
+        "forma.documents.pdf.start_worker_tree",
+        lambda _start, arguments, **kwargs: Process(arguments, **kwargs),
+    )
+    monkeypatch.setattr("forma.documents.pdf.stop_worker_tree", lambda process: process.terminate())
     with pytest.raises(Cancelled):
         translate_pdf(
             pdf_file,

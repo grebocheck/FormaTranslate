@@ -144,3 +144,33 @@ def test_changed_report_rejects_approval_and_save_without_overwriting_state(revi
     backend.updateReviewDraft("Введення теплолічильника в експлуатацію")
     assert not backend.applyReviewEdit()
     assert "змінився" in backend.reviewEditError
+
+
+def test_concurrent_review_change_preserves_saved_state_and_active_draft(reviewed, qapp):
+    backend, result, segment = reviewed
+    store = ReviewStore()
+    external = store.load(result.report)
+    edits = {segment.id: "<r0>Збережений іншим редактором переклад</r0>"}
+    store.save(
+        result.report, {}, edits,
+        expected_fingerprint=external["reportFingerprint"],
+        expected_state_fingerprint=external["stateFingerprint"],
+    )
+    backend.confirmReviewEntry()
+    assert "Збережена перевірка змінилася" in backend.reviewActionError
+    assert not backend.selectedReviewEntry["accepted"]
+    backend.beginReviewEdit()
+    draft = "Введення теплолічильника в експлуатацію"
+    backend.updateReviewDraft(draft)
+    assert not backend.applyReviewEdit()
+    assert "Збережена перевірка змінилася" in backend.reviewEditError
+    assert backend.reviewEditing and backend.reviewDraftText == draft
+    assert store.load(result.report)["edits"] == edits
+    backend.cancelReviewEdit()
+    backend._reload_review()
+    pump(qapp, lambda: not backend._threads)
+    backend.selectReviewEntry(segment.id)
+    backend.beginReviewEdit()
+    backend.updateReviewDraft(draft)
+    assert backend.applyReviewEdit(), backend.reviewEditError
+    assert store.load(result.report)["edits"][segment.id] == "<r0>" + draft + "</r0>"

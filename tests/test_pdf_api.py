@@ -343,7 +343,11 @@ def test_incomplete_pdf_response_cannot_export_even_if_engine_writes_file(
         def poll(self):
             return 0
 
-    monkeypatch.setattr("forma.documents.pdf.subprocess.Popen", Process)
+    monkeypatch.setattr(
+        "forma.documents.pdf.start_worker_tree",
+        lambda _start, arguments, **kwargs: Process(arguments, **kwargs),
+    )
+    monkeypatch.setattr("forma.documents.pdf.stop_worker_tree", lambda process: None)
     with pytest.raises(FormaError, match="відмовив" if refused else "обірвалася"):
         translate_pdf(
             pdf_file,
@@ -584,18 +588,23 @@ def test_gemini_pdf_bridge_stops_after_terminal_project_quota(upstream):
 
 
 def test_pdf_bridge_cancels_long_pacing_wait_without_sending(upstream):
+    upstream.status = 429
+    upstream.response_headers = {"Retry-After": "3600"}
     with ThreadPoolExecutor(max_workers=1) as pool:
-        with PDFAPI(config(upstream, requests_per_minute=1), 1) as bridge:
-            assert post(bridge).status_code == 200
+        with PDFAPI(config(upstream), 1) as bridge:
+            assert post(bridge).status_code == 429
             future = pool.submit(post, bridge)
             # The second local request enters the rate gate without spending
-            # another upstream request, then shutdown cancels its async wait.
+            # another upstream request. Its hour-long Retry-After must count as
+            # activity for the runner even though no upstream call has started.
             deadline = time.monotonic() + 2
-            while not bridge.tasks and time.monotonic() < deadline:
+            while bridge.activity() != (1, 1) and time.monotonic() < deadline:
                 time.sleep(0.01)
-            assert bridge.tasks
+            assert bridge.activity() == (1, 1)
+            assert bridge.active == 0
             start = time.monotonic()
         assert time.monotonic() - start < 2
+        assert bridge.activity() == (1, 0)
         with pytest.raises(httpx.HTTPError):
             future.result(timeout=2)
         assert len(upstream.requests) == 1
@@ -656,7 +665,11 @@ def test_pdf_native_mode_reaches_babeldoc_without_exposing_key(
         def poll(self):
             return 0
 
-    monkeypatch.setattr("forma.documents.pdf.subprocess.Popen", Process)
+    monkeypatch.setattr(
+        "forma.documents.pdf.start_worker_tree",
+        lambda _start, arguments, **kwargs: Process(arguments, **kwargs),
+    )
+    monkeypatch.setattr("forma.documents.pdf.stop_worker_tree", lambda process: None)
     result = translate_pdf(
         pdf_file,
         tmp_path / "out",

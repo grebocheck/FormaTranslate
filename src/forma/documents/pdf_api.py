@@ -344,7 +344,8 @@ class PDFAPI:
         if self.closing:
             raise asyncio.CancelledError
         task = asyncio.current_task()
-        self.tasks.add(task)
+        with self.lock:
+            self.tasks.add(task)
         try:
             async with self.semaphore:
                 if not await self._wait_for_request():
@@ -460,7 +461,8 @@ class PDFAPI:
                         self.statuses[str(status)] += 1
                 return status, data, headers
         finally:
-            self.tasks.discard(task)
+            with self.lock:
+                self.tasks.discard(task)
 
     def _record_attempt(self, data=None, *, status=0):
         # HTTP handlers and the asyncio loop live in separate threads. Bind the
@@ -514,6 +516,11 @@ class PDFAPI:
                 "output_tokens": self.output_tokens,
             }
 
+    def activity(self):
+        """Include queued/cooldown requests so the runner honors intentional waits."""
+        with self.lock:
+            return self.calls, len(self.tasks)
+
     def check_error(self):
         with self.lock:
             message = self.fatal_error
@@ -521,7 +528,8 @@ class PDFAPI:
             raise FormaError(message)
 
     async def _shutdown(self):
-        pending = list(self.tasks)
+        with self.lock:
+            pending = list(self.tasks)
         for task in pending:
             task.cancel()
         if pending:

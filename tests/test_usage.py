@@ -1,6 +1,8 @@
 import hashlib
 import json
+import os
 import sqlite3
+import stat
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
@@ -37,6 +39,22 @@ def response(incoming=1000, cached=200, outgoing=100, **extra):
         },
         **extra,
     }
+
+
+@pytest.mark.skipif(os.name == "nt", reason="POSIX permission bits")
+def test_ledger_is_private_with_permissive_umask_and_repairs_older_permissions(tmp_path):
+    ledger = UsageLedger(tmp_path / "usage.sqlite3")
+    previous_umask = os.umask(0o022)
+    try:
+        ledger.record(settings(), response())
+    finally:
+        os.umask(previous_umask)
+    assert stat.S_IMODE(ledger.path.stat().st_mode) == 0o600
+    before = ledger.path.read_bytes()
+    ledger.path.chmod(0o644)
+    assert ledger.summary(settings())["today"]["requests"] == 1
+    assert stat.S_IMODE(ledger.path.stat().st_mode) == 0o600
+    assert ledger.path.read_bytes() == before
 
 
 def test_prices_count_cache_and_reasoning_once_and_preserve_recorded_tariff():
