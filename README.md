@@ -15,7 +15,7 @@ FormaTranslate is an open-source desktop translator for **Windows and Linux**, b
 
 The interface supports **English, Ukrainian, Polish, German, French and Spanish**, follows the system language, and can be changed in Settings. Appearance follows the system by default, with explicit Light and Dark choices available without restarting. The interface language and document translation languages are independent.
 
-![FormaTranslate document session and review with a synthetic example](docs/interface.png)
+![FormaTranslate document session and paired page preview with a synthetic example](docs/interface.png)
 
 ## Download and start
 
@@ -26,6 +26,8 @@ Get the ZIP for your platform from **[GitHub Releases](https://github.com/greboc
 3. Translate, then switch the selected document to **Review**. The same document list stays visible in both modes.
 
 Documents form one automatically saved session. Switch files in the left sidebar; Forma remembers the selected document and each report's fragment, search and filter. Historical results opened for review join the list without being queued for another translation. **Parameters** contains terminology, memory, instructions and editorial options; **Actions** beside the document contains file and queue operations. The primary translation button shows how many pending documents it will process and does not silently rerun completed files.
+
+Drag the sidebar divider to make room for long filenames. PDF and DOCX support **Original**, **Translation** and **Side by side** page previews with zoom and synchronized navigation. PDF viewing is built in. DOCX viewing requires a separately installed **LibreOffice**; its pagination and fonts may differ from Word. Previewing stays local and makes no translation API calls. Temporary preview copies are removed when the application closes; source and translated files remain unchanged.
 
 Windows has one full application ZIP, with BabelDOC, the local OCR worker, four OCR language-model sets and Tesseract included in its folders. Extract them together with the application; they are ready to load in place. An installed ABBYY can still be selected in OCR settings; [ABBYY setup](docs/ABBYY.md) explains the supported workflows.
 

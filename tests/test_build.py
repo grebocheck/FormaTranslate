@@ -39,6 +39,7 @@ def test_portable_build_bundles_native_credentials_without_user_data(
                         f"{tmp_path / 'build/release' / name / 'legal'}:legal"]
     assert not any(".env" in value for value in command)
     assert "PySide6.QtWidgets" not in command  # Never exclude native file dialogs.
+    assert "PySide6.QtPdf" not in command  # Local page workers need the PDF renderer.
     assert "--additional-hooks-dir" in command
     for module in ("QtCharts", "QtGraphs", "QtQuick3D", "QtVirtualKeyboard"):
         assert "PySide6." + module in command
@@ -149,6 +150,7 @@ def test_release_collects_standalone_python_stdlib_license(tmp_path, monkeypatch
     (tmp_path / "third_party/SOURCES.json").write_text(json.dumps({"sources": [
         {"component": "Qt", "version": "6.12.0"},
         {"component": "PySide6", "version": "6.12.0"},
+        {"component": "QtPDF", "version": "6.140.0"},
     ]}))
     stdlib = tmp_path / "standalone/lib/python3.12"
     stdlib.mkdir(parents=True)
@@ -156,9 +158,23 @@ def test_release_collects_standalone_python_stdlib_license(tmp_path, monkeypatch
     monkeypatch.setattr(sys, "base_prefix", str(tmp_path / "standalone"))
     monkeypatch.setattr("sysconfig.get_path", lambda _: str(stdlib))
     monkeypatch.setattr("importlib.metadata.version", lambda _: "6.12.0")
+    monkeypatch.setattr("PySide6.QtWebEngineCore.qWebEngineVersion", lambda: "6.140.0")
     monkeypatch.setitem(prepare.__globals__, "_dependency_names", lambda _: [])
     payload = prepare(tmp_path, tmp_path / "dist/Forma-linux-x86_64")
     assert (payload / "licenses/Python/LICENSE.txt").read_text() == "Exact standalone Python license"
+
+
+def test_release_refuses_missing_independent_pdf_sources(tmp_path, monkeypatch):
+    build = runpy.run_path(str(Path(__file__).parents[1] / "scripts/build.py"))
+    (tmp_path / "third_party").mkdir()
+    (tmp_path / "third_party/SOURCES.json").write_text(json.dumps({"sources": [
+        {"component": "Qt", "version": "6.12.0"},
+        {"component": "PySide6", "version": "6.12.0"},
+    ]}))
+    monkeypatch.setattr("importlib.metadata.version", lambda _: "6.12.0")
+    monkeypatch.setattr("PySide6.QtWebEngineCore.qWebEngineVersion", lambda: "6.140.0")
+    with pytest.raises(ValueError, match="Qt PDF source archive"):
+        build["prepare_release_materials"](tmp_path, tmp_path / "dist/Forma-linux-x86_64")
 
 
 def test_qml_hook_keeps_controls_and_excludes_unrelated_products(tmp_path, monkeypatch):

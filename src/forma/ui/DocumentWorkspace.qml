@@ -12,7 +12,19 @@ RowLayout {
     property string menuDocumentId: ""
     readonly property var menuDocument: backend.workspaceDocuments.find(function(item) { return item.id === workspace.menuDocumentId }) || ({})
     readonly property int menuQueueIndex: backend.documents.findIndex(function(item) { return item.id === workspace.menuDocumentId })
-    spacing: 16
+    readonly property int sidebarMinimum: 240
+    readonly property int sidebarMaximum: Math.max(sidebarMinimum, Math.min(440, Math.floor(width - 648)))
+    property int draggedSidebarWidth: -1
+    readonly property int sidebarWidth: boundedSidebarWidth(draggedSidebarWidth >= 0 ? draggedSidebarWidth : backend.workspaceView.sidebarWidth)
+    spacing: 0
+
+    function boundedSidebarWidth(value) {
+        return Math.max(sidebarMinimum, Math.min(sidebarMaximum, Math.round(value)))
+    }
+
+    function resizeSidebar(value) {
+        backend.setWorkspaceView({sidebarWidth: boundedSidebarWidth(value)})
+    }
 
     function showFileMenu(identifier) {
         menuDocumentId = identifier
@@ -21,7 +33,9 @@ RowLayout {
 
     PageControls.Panel {
         objectName: "workspaceSidebar"
-        Layout.preferredWidth: shell.width < 1080 ? 216 : 244
+        Layout.preferredWidth: workspace.sidebarWidth
+        Layout.minimumWidth: workspace.sidebarWidth
+        Layout.maximumWidth: workspace.sidebarWidth
         Layout.fillHeight: true
         color: Theme.surfaceMuted
         DropArea { anchors.fill: parent; enabled: backend.canAddDocuments && !shell.reviewLocked; onDropped: function(event) { if (event.hasUrls) backend.addFiles(event.urls) } }
@@ -65,7 +79,7 @@ RowLayout {
                     id: documentRow
                     required property var modelData
                     objectName: "workspaceDocumentRow_" + modelData.id
-                    width: ListView.view.width - 6; height: 78
+                    width: ListView.view.width - 6; height: 86
                     highlighted: modelData.id === backend.workspaceDocumentId
                     leftPadding: 10; rightPadding: 10; topPadding: 10; bottomPadding: 10
                     Accessible.name: modelData.name + ", " + (modelData.statusText || "")
@@ -81,8 +95,13 @@ RowLayout {
                         spacing: 5
                         RowLayout {
                             Layout.fillWidth: true; spacing: 7
-                            Icon { name: documentRow.modelData.history ? "history" : "document"; color: documentRow.highlighted ? Theme.accent : Theme.muted; width: 16; height: 16 }
-                            PageControls.LabelText { text: documentRow.modelData.name; font.pixelSize: 12; font.weight: Font.DemiBold; Layout.fillWidth: true; elide: Text.ElideMiddle }
+                            Icon { name: documentRow.modelData.history ? "history" : "document"; color: documentRow.highlighted ? Theme.accent : Theme.muted; width: 16; height: 16; Layout.alignment: Qt.AlignTop; Layout.topMargin: 2 }
+                            PageControls.LabelText {
+                                objectName: "workspaceDocumentName_" + documentRow.modelData.id
+                                text: documentRow.modelData.name; font.pixelSize: 12; font.weight: Font.DemiBold
+                                Layout.fillWidth: true; Layout.minimumWidth: 0
+                                wrapMode: Text.WrapAnywhere; maximumLineCount: 2; elide: Text.ElideRight
+                            }
                         }
                         PageControls.Caption {
                             Layout.fillWidth: true; font.pixelSize: 11; elide: Text.ElideRight
@@ -118,7 +137,52 @@ RowLayout {
         }
     }
 
+    Item {
+        id: sidebarDivider; objectName: "workspaceSidebarDivider"
+        readonly property string resizeHint: qsTr("Перетягніть роздільник або змініть ширину стрілками ліворуч і праворуч.")
+        Layout.preferredWidth: 16; Layout.minimumWidth: 16; Layout.maximumWidth: 16
+        Layout.fillHeight: true; activeFocusOnTab: true
+        Accessible.role: Accessible.Separator
+        Accessible.name: qsTr("Ширина панелі документів")
+        Accessible.description: resizeHint
+        Keys.onLeftPressed: workspace.resizeSidebar(workspace.sidebarWidth - 10)
+        Keys.onRightPressed: workspace.resizeSidebar(workspace.sidebarWidth + 10)
+        Keys.onPressed: function(event) {
+            if (event.key === Qt.Key_Home || event.key === Qt.Key_End) {
+                workspace.resizeSidebar(event.key === Qt.Key_Home ? workspace.sidebarMinimum : workspace.sidebarMaximum)
+                event.accepted = true
+            }
+        }
+        ToolTip.visible: resizePointer.containsMouse || activeFocus
+        ToolTip.delay: 700
+        ToolTip.text: resizeHint
+        Rectangle {
+            anchors.centerIn: parent; height: parent.height - 24
+            width: sidebarDivider.activeFocus || resizePointer.containsMouse ? 2 : 1
+            radius: 1; color: sidebarDivider.activeFocus || resizePointer.containsMouse ? Theme.accent : Theme.line
+        }
+        MouseArea {
+            id: resizePointer; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.SplitHCursor
+            property real startPosition: 0
+            property int startWidth: 0
+            onPressed: function(mouse) {
+                sidebarDivider.forceActiveFocus()
+                startPosition = mapToItem(workspace, mouse.x, mouse.y).x
+                startWidth = workspace.sidebarWidth
+            }
+            onPositionChanged: function(mouse) {
+                if (pressed) workspace.draggedSidebarWidth = workspace.boundedSidebarWidth(startWidth + mapToItem(workspace, mouse.x, mouse.y).x - startPosition)
+            }
+            onReleased: {
+                if (workspace.draggedSidebarWidth >= 0) workspace.resizeSidebar(workspace.draggedSidebarWidth)
+                workspace.draggedSidebarWidth = -1
+            }
+            onCanceled: workspace.draggedSidebarWidth = -1
+        }
+    }
+
     ColumnLayout {
+        objectName: "workspaceContent"
         Layout.fillWidth: true; Layout.fillHeight: true; spacing: 10
         RowLayout {
             Layout.fillWidth: true; spacing: 12

@@ -6,11 +6,17 @@ import os
 import pytest
 
 from forma.core.models import FormaError
-from forma.persistence.session_store import DEFAULT_OPTIONS, MAX_DOCUMENTS, SessionStore
+from forma.persistence.session_store import (
+    DEFAULT_OPTIONS,
+    DEFAULT_VIEW,
+    MAX_DOCUMENTS,
+    SessionStore,
+)
 
 
 def state():
-    return {"version": 1, "selected": "history:one", "mode": "review", "history": ["one"], "options": dict(DEFAULT_OPTIONS),
+    return {"version": 1, "selected": "history:one", "mode": "review", "history": ["one"],
+            "options": dict(DEFAULT_OPTIONS), "view": dict(DEFAULT_VIEW),
             "navigation": {"history:one": {"filter": "all", "search": "тиск", "entry": "paragraph:2",
                                           "reportKey": "a" * 64, "fingerprint": "b" * 64}}}
 
@@ -21,7 +27,7 @@ def test_session_navigation_round_trip_is_private_and_has_no_document_copies(tmp
     assert store.load()["mode"] == "translation"
     store.save(state())
     assert SessionStore(path).load() == state()
-    assert set(json.loads(path.read_text())) == {"version", "selected", "mode", "history", "navigation", "options"}
+    assert set(json.loads(path.read_text())) == {"version", "selected", "mode", "history", "navigation", "options", "view"}
     if os.name != "nt":
         assert path.stat().st_mode & 0o777 == 0o600
 
@@ -50,4 +56,34 @@ def test_session_rejects_extra_content_and_unbounded_navigation_without_erase(tm
     large["navigation"] = {str(index): dict(large["navigation"]["history:one"]) for index in range(MAX_DOCUMENTS + 1)}
     with pytest.raises(FormaError):
         store.save(large)
+    assert store.path.read_bytes() == before
+
+
+def test_older_session_loads_default_view_without_losing_options_or_navigation(tmp_path):
+    store = SessionStore(tmp_path / "workspace.json")
+    old = state()
+    old.pop("view")
+    old["options"].update(sourceLanguage="uk", targetLanguage="de", review=False)
+    store.path.write_text(json.dumps(old))
+    loaded = store.load()
+    assert loaded == {**old, "view": DEFAULT_VIEW}
+    assert json.loads(store.path.read_text()) == old
+    loaded["view"] = {"sidebarWidth": 410, "previewMode": "paired"}
+    store.save(loaded)
+    assert store.load() == loaded
+
+
+@pytest.mark.parametrize("view", [
+    {"sidebarWidth": 239}, {"sidebarWidth": 441}, {"sidebarWidth": True},
+    {"sidebarWidth": 320.5}, {"sidebarWidth": "320"}, {"previewMode": "unknown"},
+    {"previewMode": ["original"]}, {"documentText": "private"}, None,
+])
+def test_invalid_view_never_overwrites_saved_session(tmp_path, view):
+    store = SessionStore(tmp_path / "workspace.json")
+    store.save(state())
+    before = store.path.read_bytes()
+    invalid = state()
+    invalid["view"] = view
+    with pytest.raises(FormaError):
+        store.save(invalid)
     assert store.path.read_bytes() == before

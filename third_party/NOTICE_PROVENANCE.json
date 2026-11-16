@@ -68,5 +68,293 @@
     "file": "licenses/OpenSSL-3.5.8-README.md",
     "url": "https://raw.githubusercontent.com/openssl/openssl/openssl-3.5.8/README.md",
     "sha256": "f68c351048c11bd8499b9d6ef8b283386d4544cc556fd2679a2ff2b1c50a378b"
+  },
+  {
+    "file": "licenses/Qt/qtwebengine/LICENSE.Chromium",
+    "url": "https://download.qt.io/official_releases/qtwebengine/6.140/6.140.0/src/qtwebengine-everywhere-src-6.140.0.tar.xz",
+    "sha256": "f34787ef0342c614b667186a6ec2f5d6b9d650e30142a2788a589a89743e88e9",
+    "archive": "qtwebengine-everywhere-src-6.140.0.tar.xz",
+    "archive_sha256": "82352854a1d01dfe6abeefaf023554e4722c1d7df48ba3ce0078f6c0a9c7e1a3",
+    "archive_member": "qtwebengine-everywhere-src-6.140.0/LICENSE.Chromium"
+  },
+  {
+    "file": "licenses/Qt/qtwebengine/LICENSE.md",
+    "url": "https://download.qt.io/official_releases/qtwebengine/6.140/6.140.0/src/qtwebengine-everywhere-src-6.140.0.tar.xz",
+    "sha256": "1c7d336c4420766ea98482fc1adf886433c222c1a55fddba10de3ba3c2fb4295",
+    "archive": "qtwebengine-everywhere-src-6.140.0.tar.xz",
+    "archive_sha256": "82352854a1d01dfe6abeefaf023554e4722c1d7df48ba3ce0078f6c0a9c7e1a3",
+    "archive_member": "qtwebengine-everywhere-src-6.140.0/LICENSE.md"
+  },
+  {
+    "file": "licenses/Qt/qtwebengine/LICENSES/Apache-2.0.txt",
+    "url": "https://download.qt.io/official_releases/qtwebengine/6.140/6.140.0/src/qtwebengine-everywhere-src-6.140.0.tar.xz",
+    "sha256": "e3ba223bb1423f0aad8c3dfce0fe3148db48926d41e6fbc3afbbf5ff9e1c89cb",
+    "archive": "qtwebengine-everywhere-src-6.140.0.tar.xz",
+    "archive_sha256": "82352854a1d01dfe6abeefaf023554e4722c1d7df48ba3ce0078f6c0a9c7e1a3",
+    "archive_member": "qtwebengine-everywhere-src-6.140.0/LICENSES/Apache-2.0.txt"
+  },
+  {
+    "file": "licenses/Qt/qtwebengine/LICENSES/BSD-3-Clause.txt",
+    "url": "https://download.qt.io/official_releases/qtwebengine/6.140/6.140.0/src/qtwebengine-everywhere-src-6.140.0.tar.xz",
+    "sha256": "9f0490f18656c6f2435bd14f603ef0c96434d1825615363dce43abb42ed1dcce",
+    "archive": "qtwebengine-everywhere-src-6.140.0.tar.xz",
+    "archive_sha256": "82352854a1d01dfe6abeefaf023554e4722c1d7df48ba3ce0078f6c0a9c7e1a3",
+    "archive_member": "qtwebengine-everywhere-src-6.140.0/LICENSES/BSD-3-Clause.txt"
+  },
+  {
+    "file": "licenses/Qt/qtwebengine/LICENSES/GPL-2.0-only.txt",
+    "url": "https://download.qt.io/official_releases/qtwebengine/6.140/6.140.0/src/qtwebengine-everywhere-src-6.140.0.tar.xz",
+    "sha256": "8177f97513213526df2cf6184d8ff986c675afb514d4e68a404010521b880643",
+    "archive": "qtwebengine-everywhere-src-6.140.0.tar.xz",
+    "archive_sha256": "82352854a1d01dfe6abeefaf023554e4722c1d7df48ba3ce0078f6c0a9c7e1a3",
+    "archive_member": "qtwebengine-everywhere-src-6.140.0/LICENSES/GPL-2.0-only.txt"
+  },
+  {
+    "file": "licenses/Qt/qtwebengine/LICENSES/GPL-3.0-only.txt",
+    "url": "https://download.qt.io/official_releases/qtwebengine/6.140/6.140.0/src/qtwebengine-everywhere-src-6.140.0.tar.xz",
+    "sha256": "8ceb4b9ee5adedde47b31e975c1d90c73ad27b6b165a1dcd80c7c545eb65b903",
+    "archive": "qtwebengine-everywhere-src-6.140.0.tar.xz",
+    "archive_sha256": "82352854a1d01dfe6abeefaf023554e4722c1d7df48ba3ce0078f6c0a9c7e1a3",
+    "archive_member": "qtwebengine-everywhere-src-6.140.0/LICENSES/GPL-3.0-only.txt"
+  },
+  {
+    "file": "licenses/Qt/qtwebengine/LICENSES/LGPL-3.0-only.txt",
+    "url": "https://download.qt.io/official_releases/qtwebengine/6.140/6.140.0/src/qtwebengine-everywhere-src-6.140.0.tar.xz",
+    "sha256": "da7eabb7bafdf7d3ae5e9f223aa5bdc1eece45ac569dc21b3b037520b4464768",
+    "archive": "qtwebengine-everywhere-src-6.140.0.tar.xz",
+    "archive_sha256": "82352854a1d01dfe6abeefaf023554e4722c1d7df48ba3ce0078f6c0a9c7e1a3",
+    "archive_member": "qtwebengine-everywhere-src-6.140.0/LICENSES/LGPL-3.0-only.txt"
+  },
+  {
+    "file": "licenses/Qt/qtwebengine/LICENSES/MIT.txt",
+    "url": "https://download.qt.io/official_releases/qtwebengine/6.140/6.140.0/src/qtwebengine-everywhere-src-6.140.0.tar.xz",
+    "sha256": "d040359701c01996a017d5c515678929cd1b0625e64cb86db44025fbb6cdf1fc",
+    "archive": "qtwebengine-everywhere-src-6.140.0.tar.xz",
+    "archive_sha256": "82352854a1d01dfe6abeefaf023554e4722c1d7df48ba3ce0078f6c0a9c7e1a3",
+    "archive_member": "qtwebengine-everywhere-src-6.140.0/LICENSES/MIT.txt"
+  },
+  {
+    "file": "licenses/Qt/qtwebengine/src/3rdparty/chromium/LICENSE",
+    "url": "https://download.qt.io/official_releases/qtwebengine/6.140/6.140.0/src/qtwebengine-everywhere-src-6.140.0.tar.xz",
+    "sha256": "368cca1106be99d39ecd32a38d8305585d802a475effb66380b91ffc9bcf709b",
+    "archive": "qtwebengine-everywhere-src-6.140.0.tar.xz",
+    "archive_sha256": "82352854a1d01dfe6abeefaf023554e4722c1d7df48ba3ce0078f6c0a9c7e1a3",
+    "archive_member": "qtwebengine-everywhere-src-6.140.0/src/3rdparty/chromium/LICENSE"
+  },
+  {
+    "file": "licenses/Qt/qtwebengine/src/3rdparty/chromium/third_party/abseil-cpp/AUTHORS",
+    "url": "https://download.qt.io/official_releases/qtwebengine/6.140/6.140.0/src/qtwebengine-everywhere-src-6.140.0.tar.xz",
+    "sha256": "1fd39030c119b4c97014f59e0ad0ed65f23475bbdf55a52740f31eb82b34b4ee",
+    "archive": "qtwebengine-everywhere-src-6.140.0.tar.xz",
+    "archive_sha256": "82352854a1d01dfe6abeefaf023554e4722c1d7df48ba3ce0078f6c0a9c7e1a3",
+    "archive_member": "qtwebengine-everywhere-src-6.140.0/src/3rdparty/chromium/third_party/abseil-cpp/AUTHORS"
+  },
+  {
+    "file": "licenses/Qt/qtwebengine/src/3rdparty/chromium/third_party/abseil-cpp/LICENSE",
+    "url": "https://download.qt.io/official_releases/qtwebengine/6.140/6.140.0/src/qtwebengine-everywhere-src-6.140.0.tar.xz",
+    "sha256": "c79a7fea0e3cac04cd43f20e7b648e5a0ff8fa5344e644b0ee09ca1162b62747",
+    "archive": "qtwebengine-everywhere-src-6.140.0.tar.xz",
+    "archive_sha256": "82352854a1d01dfe6abeefaf023554e4722c1d7df48ba3ce0078f6c0a9c7e1a3",
+    "archive_member": "qtwebengine-everywhere-src-6.140.0/src/3rdparty/chromium/third_party/abseil-cpp/LICENSE"
+  },
+  {
+    "file": "licenses/Qt/qtwebengine/src/3rdparty/chromium/third_party/abseil-cpp/README.chromium",
+    "url": "https://download.qt.io/official_releases/qtwebengine/6.140/6.140.0/src/qtwebengine-everywhere-src-6.140.0.tar.xz",
+    "sha256": "945a5fb40588730eb478cd175ada396db1013c0ad8d31d4fa746668b5e53df09",
+    "archive": "qtwebengine-everywhere-src-6.140.0.tar.xz",
+    "archive_sha256": "82352854a1d01dfe6abeefaf023554e4722c1d7df48ba3ce0078f6c0a9c7e1a3",
+    "archive_member": "qtwebengine-everywhere-src-6.140.0/src/3rdparty/chromium/third_party/abseil-cpp/README.chromium"
+  },
+  {
+    "file": "licenses/Qt/qtwebengine/src/3rdparty/chromium/third_party/fast_float/README.chromium",
+    "url": "https://download.qt.io/official_releases/qtwebengine/6.140/6.140.0/src/qtwebengine-everywhere-src-6.140.0.tar.xz",
+    "sha256": "75547b8bbc94cf897b9e63a050ab531de39c29e0b0e86203ca58d06979dfe29a",
+    "archive": "qtwebengine-everywhere-src-6.140.0.tar.xz",
+    "archive_sha256": "82352854a1d01dfe6abeefaf023554e4722c1d7df48ba3ce0078f6c0a9c7e1a3",
+    "archive_member": "qtwebengine-everywhere-src-6.140.0/src/3rdparty/chromium/third_party/fast_float/README.chromium"
+  },
+  {
+    "file": "licenses/Qt/qtwebengine/src/3rdparty/chromium/third_party/fast_float/src/AUTHORS",
+    "url": "https://download.qt.io/official_releases/qtwebengine/6.140/6.140.0/src/qtwebengine-everywhere-src-6.140.0.tar.xz",
+    "sha256": "ed249424bce4e318fa190dd6d8becf60cfc37287132ad3f89e16e0f28d878dcf",
+    "archive": "qtwebengine-everywhere-src-6.140.0.tar.xz",
+    "archive_sha256": "82352854a1d01dfe6abeefaf023554e4722c1d7df48ba3ce0078f6c0a9c7e1a3",
+    "archive_member": "qtwebengine-everywhere-src-6.140.0/src/3rdparty/chromium/third_party/fast_float/src/AUTHORS"
+  },
+  {
+    "file": "licenses/Qt/qtwebengine/src/3rdparty/chromium/third_party/fast_float/src/LICENSE-MIT",
+    "url": "https://download.qt.io/official_releases/qtwebengine/6.140/6.140.0/src/qtwebengine-everywhere-src-6.140.0.tar.xz",
+    "sha256": "e562f3f974ced7e69dd1db77b820b36bcf8f30377f1aa105723fba449c53c4e6",
+    "archive": "qtwebengine-everywhere-src-6.140.0.tar.xz",
+    "archive_sha256": "82352854a1d01dfe6abeefaf023554e4722c1d7df48ba3ce0078f6c0a9c7e1a3",
+    "archive_member": "qtwebengine-everywhere-src-6.140.0/src/3rdparty/chromium/third_party/fast_float/src/LICENSE-MIT"
+  },
+  {
+    "file": "licenses/Qt/qtwebengine/src/3rdparty/chromium/third_party/freetype/README.chromium",
+    "url": "https://download.qt.io/official_releases/qtwebengine/6.140/6.140.0/src/qtwebengine-everywhere-src-6.140.0.tar.xz",
+    "sha256": "963a83995afac6b176c9fca3428fd5950e0d2f8c648743b2948efd27125707cf",
+    "archive": "qtwebengine-everywhere-src-6.140.0.tar.xz",
+    "archive_sha256": "82352854a1d01dfe6abeefaf023554e4722c1d7df48ba3ce0078f6c0a9c7e1a3",
+    "archive_member": "qtwebengine-everywhere-src-6.140.0/src/3rdparty/chromium/third_party/freetype/README.chromium"
+  },
+  {
+    "file": "licenses/Qt/qtwebengine/src/3rdparty/chromium/third_party/freetype/src/LICENSE.TXT",
+    "url": "https://download.qt.io/official_releases/qtwebengine/6.140/6.140.0/src/qtwebengine-everywhere-src-6.140.0.tar.xz",
+    "sha256": "bd36c8b474855fa294c2ec5c184544478ef3720aad37d65a6296a4f264fd2d3b",
+    "archive": "qtwebengine-everywhere-src-6.140.0.tar.xz",
+    "archive_sha256": "82352854a1d01dfe6abeefaf023554e4722c1d7df48ba3ce0078f6c0a9c7e1a3",
+    "archive_member": "qtwebengine-everywhere-src-6.140.0/src/3rdparty/chromium/third_party/freetype/src/LICENSE.TXT"
+  },
+  {
+    "file": "licenses/Qt/qtwebengine/src/3rdparty/chromium/third_party/freetype/src/docs/FTL.TXT",
+    "url": "https://download.qt.io/official_releases/qtwebengine/6.140/6.140.0/src/qtwebengine-everywhere-src-6.140.0.tar.xz",
+    "sha256": "5a5ee54c5001bbad1cdc1a57cc3dd4c42199b2da09d39c7ee41fab002d02967f",
+    "archive": "qtwebengine-everywhere-src-6.140.0.tar.xz",
+    "archive_sha256": "82352854a1d01dfe6abeefaf023554e4722c1d7df48ba3ce0078f6c0a9c7e1a3",
+    "archive_member": "qtwebengine-everywhere-src-6.140.0/src/3rdparty/chromium/third_party/freetype/src/docs/FTL.TXT"
+  },
+  {
+    "file": "licenses/Qt/qtwebengine/src/3rdparty/chromium/third_party/freetype/src/docs/GPLv2.TXT",
+    "url": "https://download.qt.io/official_releases/qtwebengine/6.140/6.140.0/src/qtwebengine-everywhere-src-6.140.0.tar.xz",
+    "sha256": "c4120c6752c910c299e3bd9cb3a46ff262c268303ca2069b61f92f10a5656c18",
+    "archive": "qtwebengine-everywhere-src-6.140.0.tar.xz",
+    "archive_sha256": "82352854a1d01dfe6abeefaf023554e4722c1d7df48ba3ce0078f6c0a9c7e1a3",
+    "archive_member": "qtwebengine-everywhere-src-6.140.0/src/3rdparty/chromium/third_party/freetype/src/docs/GPLv2.TXT"
+  },
+  {
+    "file": "licenses/Qt/qtwebengine/src/3rdparty/chromium/third_party/icu/LICENSE",
+    "url": "https://download.qt.io/official_releases/qtwebengine/6.140/6.140.0/src/qtwebengine-everywhere-src-6.140.0.tar.xz",
+    "sha256": "17510cf7a58b4879b887ec05a45d72cf1b73544dd9ec7e72f20110ed104229ee",
+    "archive": "qtwebengine-everywhere-src-6.140.0.tar.xz",
+    "archive_sha256": "82352854a1d01dfe6abeefaf023554e4722c1d7df48ba3ce0078f6c0a9c7e1a3",
+    "archive_member": "qtwebengine-everywhere-src-6.140.0/src/3rdparty/chromium/third_party/icu/LICENSE"
+  },
+  {
+    "file": "licenses/Qt/qtwebengine/src/3rdparty/chromium/third_party/icu/README.chromium",
+    "url": "https://download.qt.io/official_releases/qtwebengine/6.140/6.140.0/src/qtwebengine-everywhere-src-6.140.0.tar.xz",
+    "sha256": "f9fceb0af677f4085bc1cd245f7af0a990773a8dd7382db627eae14251578ff4",
+    "archive": "qtwebengine-everywhere-src-6.140.0.tar.xz",
+    "archive_sha256": "82352854a1d01dfe6abeefaf023554e4722c1d7df48ba3ce0078f6c0a9c7e1a3",
+    "archive_member": "qtwebengine-everywhere-src-6.140.0/src/3rdparty/chromium/third_party/icu/README.chromium"
+  },
+  {
+    "file": "licenses/Qt/qtwebengine/src/3rdparty/chromium/third_party/libjpeg_turbo/LICENSE.md",
+    "url": "https://download.qt.io/official_releases/qtwebengine/6.140/6.140.0/src/qtwebengine-everywhere-src-6.140.0.tar.xz",
+    "sha256": "96f5b328adbb78eeaaec6980d73fd558cb1e4d62560ed615646bc3cf5e532430",
+    "archive": "qtwebengine-everywhere-src-6.140.0.tar.xz",
+    "archive_sha256": "82352854a1d01dfe6abeefaf023554e4722c1d7df48ba3ce0078f6c0a9c7e1a3",
+    "archive_member": "qtwebengine-everywhere-src-6.140.0/src/3rdparty/chromium/third_party/libjpeg_turbo/LICENSE.md"
+  },
+  {
+    "file": "licenses/Qt/qtwebengine/src/3rdparty/chromium/third_party/libjpeg_turbo/README.chromium",
+    "url": "https://download.qt.io/official_releases/qtwebengine/6.140/6.140.0/src/qtwebengine-everywhere-src-6.140.0.tar.xz",
+    "sha256": "7c064a8163041cef3d41727794c4deb97bd23354f065b471b9634405c494ff27",
+    "archive": "qtwebengine-everywhere-src-6.140.0.tar.xz",
+    "archive_sha256": "82352854a1d01dfe6abeefaf023554e4722c1d7df48ba3ce0078f6c0a9c7e1a3",
+    "archive_member": "qtwebengine-everywhere-src-6.140.0/src/3rdparty/chromium/third_party/libjpeg_turbo/README.chromium"
+  },
+  {
+    "file": "licenses/Qt/qtwebengine/src/3rdparty/chromium/third_party/libjpeg_turbo/README.ijg",
+    "url": "https://download.qt.io/official_releases/qtwebengine/6.140/6.140.0/src/qtwebengine-everywhere-src-6.140.0.tar.xz",
+    "sha256": "75815e3bf6484201a3c3d17a1bbf10f2e8e3237f84df10a2357ea896db2a81d6",
+    "archive": "qtwebengine-everywhere-src-6.140.0.tar.xz",
+    "archive_sha256": "82352854a1d01dfe6abeefaf023554e4722c1d7df48ba3ce0078f6c0a9c7e1a3",
+    "archive_member": "qtwebengine-everywhere-src-6.140.0/src/3rdparty/chromium/third_party/libjpeg_turbo/README.ijg"
+  },
+  {
+    "file": "licenses/Qt/qtwebengine/src/3rdparty/chromium/third_party/pdfium/AUTHORS",
+    "url": "https://download.qt.io/official_releases/qtwebengine/6.140/6.140.0/src/qtwebengine-everywhere-src-6.140.0.tar.xz",
+    "sha256": "57b11cf4d954df8d6aa13507db27072c1d74525e11cc6911b4729561775be792",
+    "archive": "qtwebengine-everywhere-src-6.140.0.tar.xz",
+    "archive_sha256": "82352854a1d01dfe6abeefaf023554e4722c1d7df48ba3ce0078f6c0a9c7e1a3",
+    "archive_member": "qtwebengine-everywhere-src-6.140.0/src/3rdparty/chromium/third_party/pdfium/AUTHORS"
+  },
+  {
+    "file": "licenses/Qt/qtwebengine/src/3rdparty/chromium/third_party/pdfium/LICENSE",
+    "url": "https://download.qt.io/official_releases/qtwebengine/6.140/6.140.0/src/qtwebengine-everywhere-src-6.140.0.tar.xz",
+    "sha256": "1fe9dea718fbd75cf149adaf4d8a22a4335604d964ddb76d1b45383dec8668c9",
+    "archive": "qtwebengine-everywhere-src-6.140.0.tar.xz",
+    "archive_sha256": "82352854a1d01dfe6abeefaf023554e4722c1d7df48ba3ce0078f6c0a9c7e1a3",
+    "archive_member": "qtwebengine-everywhere-src-6.140.0/src/3rdparty/chromium/third_party/pdfium/LICENSE"
+  },
+  {
+    "file": "licenses/Qt/qtwebengine/src/3rdparty/chromium/third_party/pdfium/third_party/agg23/README.pdfium",
+    "url": "https://download.qt.io/official_releases/qtwebengine/6.140/6.140.0/src/qtwebengine-everywhere-src-6.140.0.tar.xz",
+    "sha256": "d8a3f0347209a07fb1ed9fcc8a54a50628876fcd60a537a659851e8ba675d564",
+    "archive": "qtwebengine-everywhere-src-6.140.0.tar.xz",
+    "archive_sha256": "82352854a1d01dfe6abeefaf023554e4722c1d7df48ba3ce0078f6c0a9c7e1a3",
+    "archive_member": "qtwebengine-everywhere-src-6.140.0/src/3rdparty/chromium/third_party/pdfium/third_party/agg23/README.pdfium"
+  },
+  {
+    "file": "licenses/Qt/qtwebengine/src/3rdparty/chromium/third_party/pdfium/third_party/agg23/copying",
+    "url": "https://download.qt.io/official_releases/qtwebengine/6.140/6.140.0/src/qtwebengine-everywhere-src-6.140.0.tar.xz",
+    "sha256": "0e16f9c2285583269242e94c6f502de0c9910dfcbbc7b386e236cdf29ecd4333",
+    "archive": "qtwebengine-everywhere-src-6.140.0.tar.xz",
+    "archive_sha256": "82352854a1d01dfe6abeefaf023554e4722c1d7df48ba3ce0078f6c0a9c7e1a3",
+    "archive_member": "qtwebengine-everywhere-src-6.140.0/src/3rdparty/chromium/third_party/pdfium/third_party/agg23/copying"
+  },
+  {
+    "file": "licenses/Qt/qtwebengine/src/3rdparty/chromium/third_party/pdfium/third_party/bigint/LICENSE",
+    "url": "https://download.qt.io/official_releases/qtwebengine/6.140/6.140.0/src/qtwebengine-everywhere-src-6.140.0.tar.xz",
+    "sha256": "32759d1397d8f7b9e15ece146e4038b22b90e93b4935b5a840bcef4d2ba5ea55",
+    "archive": "qtwebengine-everywhere-src-6.140.0.tar.xz",
+    "archive_sha256": "82352854a1d01dfe6abeefaf023554e4722c1d7df48ba3ce0078f6c0a9c7e1a3",
+    "archive_member": "qtwebengine-everywhere-src-6.140.0/src/3rdparty/chromium/third_party/pdfium/third_party/bigint/LICENSE"
+  },
+  {
+    "file": "licenses/Qt/qtwebengine/src/3rdparty/chromium/third_party/pdfium/third_party/bigint/README.pdfium",
+    "url": "https://download.qt.io/official_releases/qtwebengine/6.140/6.140.0/src/qtwebengine-everywhere-src-6.140.0.tar.xz",
+    "sha256": "5a65a1539b279172d4bc942af9200fac6165dffdaf5663e962a302fc27e16e60",
+    "archive": "qtwebengine-everywhere-src-6.140.0.tar.xz",
+    "archive_sha256": "82352854a1d01dfe6abeefaf023554e4722c1d7df48ba3ce0078f6c0a9c7e1a3",
+    "archive_member": "qtwebengine-everywhere-src-6.140.0/src/3rdparty/chromium/third_party/pdfium/third_party/bigint/README.pdfium"
+  },
+  {
+    "file": "licenses/Qt/qtwebengine/src/3rdparty/chromium/third_party/pdfium/third_party/lcms/LICENSE",
+    "url": "https://download.qt.io/official_releases/qtwebengine/6.140/6.140.0/src/qtwebengine-everywhere-src-6.140.0.tar.xz",
+    "sha256": "6dbd60437f8ef91d8de1f08ad75882547fd4931bfcc3566a0735f28db1484d31",
+    "archive": "qtwebengine-everywhere-src-6.140.0.tar.xz",
+    "archive_sha256": "82352854a1d01dfe6abeefaf023554e4722c1d7df48ba3ce0078f6c0a9c7e1a3",
+    "archive_member": "qtwebengine-everywhere-src-6.140.0/src/3rdparty/chromium/third_party/pdfium/third_party/lcms/LICENSE"
+  },
+  {
+    "file": "licenses/Qt/qtwebengine/src/3rdparty/chromium/third_party/pdfium/third_party/lcms/README.pdfium",
+    "url": "https://download.qt.io/official_releases/qtwebengine/6.140/6.140.0/src/qtwebengine-everywhere-src-6.140.0.tar.xz",
+    "sha256": "959c4a0ce2350d8c0d904ae4ba5dab635bd663ae70c60a486ce5b51a449a1ee0",
+    "archive": "qtwebengine-everywhere-src-6.140.0.tar.xz",
+    "archive_sha256": "82352854a1d01dfe6abeefaf023554e4722c1d7df48ba3ce0078f6c0a9c7e1a3",
+    "archive_member": "qtwebengine-everywhere-src-6.140.0/src/3rdparty/chromium/third_party/pdfium/third_party/lcms/README.pdfium"
+  },
+  {
+    "file": "licenses/Qt/qtwebengine/src/3rdparty/chromium/third_party/pdfium/third_party/libopenjpeg/LICENSE",
+    "url": "https://download.qt.io/official_releases/qtwebengine/6.140/6.140.0/src/qtwebengine-everywhere-src-6.140.0.tar.xz",
+    "sha256": "a6af136f3e15038a666b61f376612a07d9a4e48cb7c01adbf3e33b3f14ab49b6",
+    "archive": "qtwebengine-everywhere-src-6.140.0.tar.xz",
+    "archive_sha256": "82352854a1d01dfe6abeefaf023554e4722c1d7df48ba3ce0078f6c0a9c7e1a3",
+    "archive_member": "qtwebengine-everywhere-src-6.140.0/src/3rdparty/chromium/third_party/pdfium/third_party/libopenjpeg/LICENSE"
+  },
+  {
+    "file": "licenses/Qt/qtwebengine/src/3rdparty/chromium/third_party/pdfium/third_party/libopenjpeg/README.pdfium",
+    "url": "https://download.qt.io/official_releases/qtwebengine/6.140/6.140.0/src/qtwebengine-everywhere-src-6.140.0.tar.xz",
+    "sha256": "84b075b8b33ec258adc273b2db0402d66c4a30fc77878e03227812ca6c047bc2",
+    "archive": "qtwebengine-everywhere-src-6.140.0.tar.xz",
+    "archive_sha256": "82352854a1d01dfe6abeefaf023554e4722c1d7df48ba3ce0078f6c0a9c7e1a3",
+    "archive_member": "qtwebengine-everywhere-src-6.140.0/src/3rdparty/chromium/third_party/pdfium/third_party/libopenjpeg/README.pdfium"
+  },
+  {
+    "file": "licenses/Qt/qtwebengine/src/3rdparty/chromium/third_party/zlib/LICENSE",
+    "url": "https://download.qt.io/official_releases/qtwebengine/6.140/6.140.0/src/qtwebengine-everywhere-src-6.140.0.tar.xz",
+    "sha256": "e1cfcc55c325b3f78cf55df9664abaa066e2271dffe8213347d9fccdfbac8f2c",
+    "archive": "qtwebengine-everywhere-src-6.140.0.tar.xz",
+    "archive_sha256": "82352854a1d01dfe6abeefaf023554e4722c1d7df48ba3ce0078f6c0a9c7e1a3",
+    "archive_member": "qtwebengine-everywhere-src-6.140.0/src/3rdparty/chromium/third_party/zlib/LICENSE"
+  },
+  {
+    "file": "licenses/Qt/qtwebengine/src/3rdparty/chromium/third_party/zlib/README.chromium",
+    "url": "https://download.qt.io/official_releases/qtwebengine/6.140/6.140.0/src/qtwebengine-everywhere-src-6.140.0.tar.xz",
+    "sha256": "3bf55fea0d3ace1f22ef1c94e78ac8aef1c69cd397a209949bf65cadb667525b",
+    "archive": "qtwebengine-everywhere-src-6.140.0.tar.xz",
+    "archive_sha256": "82352854a1d01dfe6abeefaf023554e4722c1d7df48ba3ce0078f6c0a9c7e1a3",
+    "archive_member": "qtwebengine-everywhere-src-6.140.0/src/3rdparty/chromium/third_party/zlib/README.chromium"
   }
 ]

@@ -17,9 +17,9 @@ with the procedure above; test the resulting application on the target system.
 
 ## Corresponding source
 
-Release downloads include the unmodified upstream Qt and PySide source archives
+Release downloads include the unmodified upstream Qt, Qt WebEngine/Qt PDF and PySide source archives
 listed in `third_party/SOURCES.json`, alongside the binaries, at no additional
-charge. They include the source and build files for Qt, PySide6 and Shiboken.
+charge. They include the source and build files for Qt, Qt PDF/PDFium, PySide6 and Shiboken.
 The manifest records exact upstream URLs, archive names and SHA-256 checksums.
 The release publisher must upload these source assets together with the binary
 packages; a link to an upstream website alone is not the source delivery route.
@@ -32,6 +32,7 @@ source modifications are applied by FormaTranslate.
 | Component | License / attribution |
 | --- | --- |
 | Qt, PySide6, Shiboken6 | Copyright The Qt Company Ltd. and contributors; LGPLv3 option selected for the distributed runtime modules. |
+| Qt PDF / PDFium | Qt PDF uses the LGPLv3 option. PDFium and its Chromium-derived dependencies retain their BSD, Apache, MIT and other notices in `third_party/licenses/Qt/qtwebengine/`. The exact sources are included in the separate, unmodified `qtwebengine-everywhere-src-6.140.0.tar.xz` archive listed as `QtPDF` in `third_party/SOURCES.json`; Qt 6.12's main source archive does not include them. |
 | CPython | Python Software Foundation License and the notices in the accompanying Python license file. |
 | HTTPX, HTTP Core, h11 | BSD-3-Clause or MIT, as specified in their included licenses. |
 | AnyIO, platformdirs, keyring and its helpers | MIT, with individual copyright notices in `licenses/`. |
@@ -59,6 +60,10 @@ FormaTranslate's QML packaging deliberately excludes unused Qt Charts, Graphs,
 Data Visualization, Quick 3D, Virtual Keyboard, Quick Timeline, Location and
 WebEngine modules. Build-time Qt tools and source-only material may have other
 licenses; they are not automatically part of the application runtime.
+
+Local document previews include Qt PDF and its PDFium renderer; the Qt WebEngine
+browser is not included. DOCX previews use a separately installed LibreOffice
+in a private temporary profile. FormaTranslate does not redistribute LibreOffice.
 
 BabelDOC and its dependencies retain their own licenses. Complete Windows
 builds include a separate worker and its offline assets; Linux/source workflows

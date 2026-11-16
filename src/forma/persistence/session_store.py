@@ -15,6 +15,7 @@ MAX_BYTES = 256 * 1024
 _HASH = re.compile(r"[0-9a-f]{64}")
 DEFAULT_OPTIONS = {"sourceLanguage": "auto", "targetLanguage": "en", "domain": "Загальна тематика",
                    "review": True, "autoGlossary": True}
+DEFAULT_VIEW = {"sidebarWidth": 320, "previewMode": "original"}
 LANGUAGES = {"en", "uk", "de", "pl", "fr", "es", "it", "pt", "zh", "ja"}
 DOMAINS = {"Загальна тематика", "Технічна документація", "Ділові документи", "Наукові матеріали", "Юридичні документи"}
 
@@ -28,13 +29,22 @@ def clean_options(options):
     return dict(options)
 
 
+def clean_view(view):
+    if (not isinstance(view, dict) or set(view) - set(DEFAULT_VIEW)
+            or type(view.get("sidebarWidth", DEFAULT_VIEW["sidebarWidth"])) is not int
+            or not 240 <= view.get("sidebarWidth", DEFAULT_VIEW["sidebarWidth"]) <= 440
+            or view.get("previewMode", DEFAULT_VIEW["previewMode"]) not in {"original", "translation", "paired"}):
+        raise ValueError
+    return {**DEFAULT_VIEW, **view}
+
+
 def _identifier(value, *, empty=False):
     return isinstance(value, str) and (bool(value) or empty) and len(value) <= 512 and all(ord(c) >= 32 for c in value)
 
 
 def _clean(data):
     fields = {"version", "selected", "mode", "history", "navigation"}
-    if (not isinstance(data, dict) or set(data) not in (fields, fields | {"options"})
+    if (not isinstance(data, dict) or not fields <= set(data) or set(data) - fields - {"options", "view"}
             or type(data["version"]) is not int or data["version"] != 1
             or not _identifier(data["selected"], empty=True) or data["mode"] not in {"translation", "review"}):
         raise ValueError
@@ -52,7 +62,8 @@ def _clean(data):
                 or any(not isinstance(state[name], str) or state[name] and not _HASH.fullmatch(state[name])
                        for name in ("reportKey", "fingerprint"))):
             raise ValueError
-    return {**data, "options": clean_options(data.get("options", DEFAULT_OPTIONS))}
+    return {**data, "options": clean_options(data.get("options", DEFAULT_OPTIONS)),
+            "view": clean_view(data.get("view", DEFAULT_VIEW))}
 
 
 class SessionStore:
@@ -68,7 +79,7 @@ class SessionStore:
                     raw = stream.read(MAX_BYTES + 1)
             except FileNotFoundError:
                 return {"version": 1, "selected": "", "mode": "translation", "history": [], "navigation": {},
-                        "options": dict(DEFAULT_OPTIONS)}
+                        "options": dict(DEFAULT_OPTIONS), "view": dict(DEFAULT_VIEW)}
             if len(raw) > MAX_BYTES:
                 raise ValueError
             return _clean(json.loads(raw.decode("utf-8")))

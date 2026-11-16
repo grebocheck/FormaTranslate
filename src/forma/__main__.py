@@ -11,6 +11,11 @@ from forma.core.models import FormaError, Options
 
 
 def main() -> int:
+    # Internal one-shot worker must not initialize the desktop, settings or credentials.
+    if len(sys.argv) > 1 and sys.argv[1] == "preview-worker":
+        from forma.documents.preview_worker import main as preview_main
+
+        return preview_main(sys.argv[2:])
     parser = argparse.ArgumentParser(
         prog="forma", description="FormaTranslate — document translation with structure preservation"
     )

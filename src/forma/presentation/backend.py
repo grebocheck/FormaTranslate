@@ -22,6 +22,7 @@ from forma.presentation.glossary_controller import GlossaryController
 from forma.presentation.history_workflow import HistoryWorkflow
 from forma.presentation.memory_workflow import MemoryWorkflow
 from forma.presentation.ocr_workflow import OcrWorkflow
+from forma.presentation.preview_controller import PreviewController
 from forma.presentation.quick_controller import QuickTranslator
 from forma.presentation.recovery_workflow import RecoveryWorkflow
 from forma.presentation.review_workflow import ReviewWorkflow
@@ -58,6 +59,7 @@ class Backend(
     languageChanged = Signal()
     uiThemeChanged = Signal()
     reviewEditChanged = Signal()
+    previewChanged = Signal()
     recoveryStarted = Signal()
     memoryProjectDeleted = Signal(str)
     closedReady = Signal()
@@ -247,6 +249,9 @@ class Backend(
             self._library = None
             self._notice(str(exc), "error")
         self._initialize_workspace()
+        self._preview = PreviewController(self, selected=self._workspace_document, launch=self._launch)
+        self._preview.changed.connect(self.previewChanged.emit)
+        self.languageChanged.connect(self.previewChanged.emit)
         if requested_memory_project and self._memory_message_error and not self._message:
             self._notice(self._memory_message, "warning")
         self._refresh_worker_availability()
@@ -621,6 +626,22 @@ class Backend(
     @Property("QVariantMap", notify=changed)
     def workspaceOptions(self):
         return dict(self._workspace_options)
+
+    @Property("QVariantMap", notify=changed)
+    def workspaceView(self):
+        return dict(self._workspace_view)
+
+    @Slot("QVariantMap", result=bool)
+    def setWorkspaceView(self, view):
+        return SessionWorkflow.setWorkspaceView(self, view)
+
+    @Property("QVariantMap", notify=previewChanged)
+    def previewState(self):
+        return self._preview.state()
+
+    @Slot(str, int, int)
+    def requestDocumentPreview(self, mode, page, width):
+        self._preview.request(mode, page, width)
 
     @Slot("QVariantMap", result=bool)
     def setWorkspaceOptions(self, options):

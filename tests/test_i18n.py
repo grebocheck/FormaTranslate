@@ -174,8 +174,9 @@ def message_literals(filenames, *, include_fragments=False):
         ("glossary", ("presentation/glossary_controller.py", "translation/failures.py"), (*NON_UK_LANGUAGES, "uk")),
         ("provider", ("settings/config.py", "providers/presets.py", "providers/protocol.py"), NON_UK_LANGUAGES),
         ("workspace", ("persistence/session_store.py", "presentation/session_workflow.py"), (*NON_UK_LANGUAGES, "uk")),
+        ("preview", ("documents/preview.py", "documents/preview_office.py", "documents/preview_worker.py", "presentation/preview_controller.py"), (*NON_UK_LANGUAGES, "uk")),
     ],
-    ids=("quick", "ocr", "memory", "glossary", "provider", "workspace"),
+    ids=("quick", "ocr", "memory", "glossary", "provider", "workspace", "preview"),
 )
 def test_python_workflow_messages_have_complete_interface_translations(boundary, filenames, languages):
     keys = message_literals(filenames, include_fragments=boundary == "quick")

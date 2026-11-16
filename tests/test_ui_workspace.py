@@ -3,7 +3,7 @@
 from pathlib import Path
 
 import pytest
-from PySide6.QtCore import QCoreApplication, QEvent, Qt, QUrl
+from PySide6.QtCore import QCoreApplication, QEvent, QPoint, QPointF, Qt, QUrl
 from PySide6.QtQml import QQmlApplicationEngine
 from PySide6.QtTest import QTest
 from support import pump
@@ -257,3 +257,69 @@ def test_translation_choices_restore_with_the_document_session_after_restart(
             engine.deleteLater()
         QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
         qapp.removeTranslator(translator)
+
+
+def test_sidebar_drag_keyboard_and_responsive_width_preserve_the_saved_preference(
+    qapp, workspace_window,
+):
+    backend, _result, _segment, window, warnings = workspace_window
+    window.setWidth(1920)
+    window.setHeight(1000)
+    QTest.qWait(30)
+    sidebar = item(window, "workspaceSidebar")
+    divider = item(window, "workspaceSidebarDivider")
+    assert sidebar.width() == 320
+    selected = backend.workspaceDocumentId
+    options = dict(backend.workspaceOptions)
+    filename = "Technical specification — heat meter commissioning and calibration requirements — revision 2026.docx"
+    backend._workspace_document()["name"] = filename
+    backend.changed.emit()
+    QTest.qWait(20)
+    label = item(window, "workspaceDocumentName_" + selected)
+    assert label.property("text") == filename
+    assert label.property("lineCount") == 2
+    assert label.property("maximumLineCount") == 2
+
+    start = divider.mapToScene(QPointF(divider.width() / 2, divider.height() / 2)).toPoint()
+    QTest.mousePress(window, Qt.LeftButton, Qt.NoModifier, start)
+    QTest.mouseMove(window, start + QPoint(100, 0), 20)
+    QTest.qWait(20)
+    assert sidebar.width() == 420
+    assert backend.workspaceView["sidebarWidth"] == 320  # Save once the drag ends.
+    QTest.mouseRelease(window, Qt.LeftButton, Qt.NoModifier, start + QPoint(100, 0))
+    QTest.qWait(20)
+    assert backend.workspaceView["sidebarWidth"] == 420
+    assert divider.hasActiveFocus()
+    QTest.keyClick(window, Qt.Key_Left)
+    QTest.qWait(20)
+    assert sidebar.width() == backend.workspaceView["sidebarWidth"] == 410
+    QTest.keyClick(window, Qt.Key_End)
+    QTest.qWait(20)
+    assert sidebar.width() == 440
+    QTest.keyClick(window, Qt.Key_Home)
+    QTest.qWait(20)
+    assert sidebar.width() == 240
+    QTest.keyClick(window, Qt.Key_Right)
+    QTest.qWait(20)
+    assert sidebar.width() == 250
+    assert backend.setWorkspaceView({"sidebarWidth": 410, "previewMode": "paired"})
+
+    window.setWidth(960)
+    window.setHeight(680)
+    QTest.qWait(30)
+    assert 240 <= sidebar.width() <= 280
+    assert item(window, "workspaceContent").width() >= 600
+    assert backend.workspaceView["sidebarWidth"] == 410
+    assert backend.workspaceDocumentId == selected and backend.workspaceOptions == options
+    window.setWidth(1920)
+    QTest.qWait(30)
+    assert sidebar.width() == 410
+    assert label.property("text") == filename
+    window.close()
+    QTest.qWait(20)
+    restarted = Backend()
+    pump(qapp, lambda: not restarted._threads)
+    assert restarted.workspaceView == {"sidebarWidth": 410, "previewMode": "paired"}
+    assert restarted.workspaceOptions == options
+    assert restarted.workspaceDocumentId == selected
+    assert not warnings, "\n".join(warnings)

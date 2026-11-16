@@ -519,6 +519,7 @@ class DocumentWorkflow:
             return False
         self._persist_queue()
         self._inspection_pending.clear()
+        self._preview.close()
         if not self._threads:
             return True
         self._closing = True

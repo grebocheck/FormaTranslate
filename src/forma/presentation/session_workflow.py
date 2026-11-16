@@ -8,10 +8,12 @@ from pathlib import Path
 from forma.core.models import FormaError
 from forma.persistence.session_store import (
     DEFAULT_OPTIONS,
+    DEFAULT_VIEW,
     MAX_DOCUMENTS,
     MAX_HISTORY,
     SessionStore,
     clean_options,
+    clean_view,
 )
 
 
@@ -21,6 +23,7 @@ class SessionWorkflow:
         self._workspace_navigation = {}
         self._workspace_mode = "translation"
         self._workspace_options = dict(DEFAULT_OPTIONS)
+        self._workspace_view = dict(DEFAULT_VIEW)
         self._workspace_store = None
         self._workspace_saved = None
         self._review_view_id = ""
@@ -35,6 +38,7 @@ class SessionWorkflow:
             self._workspace_navigation = dict(saved["navigation"])
             self._workspace_mode = saved["mode"]
             self._workspace_options = dict(saved["options"])
+            self._workspace_view = dict(saved["view"])
             for entry_id in saved["history"]:
                 entry = self._history_entry(entry_id)
                 if entry and entry.get("report"):
@@ -106,6 +110,19 @@ class SessionWorkflow:
     def workspaceDocuments(self):
         return [self._workspace_row(document) for document in [*self._documents, *self._workspace_history.values()]]
 
+    def setWorkspaceView(self, view):
+        if not isinstance(view, dict) or self._closing:
+            return False
+        try:
+            value = clean_view({**self._workspace_view, **view})
+        except (ValueError, TypeError):
+            return False
+        if value != self._workspace_view:
+            self._workspace_view = value
+            self._persist_workspace()
+            self.changed.emit()
+        return True
+
     def pendingDocumentCount(self):
         return sum(document["status"] in {"ready", "error", "cancelled"} for document in self._documents)
 
@@ -153,6 +170,7 @@ class SessionWorkflow:
         self._remember_review_navigation()
         data = {"version": 1, "selected": self._selected, "mode": self._workspace_mode,
                 "options": dict(self._workspace_options),
+                "view": dict(self._workspace_view),
                 "history": [key.removeprefix("history:") for key in self._workspace_history],
                 "navigation": {key: dict(value) for key, value in self._workspace_navigation.items()}}
         if data == self._workspace_saved:

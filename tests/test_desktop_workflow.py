@@ -88,7 +88,7 @@ def test_desktop_import_translate_review_all_pages(qapp, docx_file, xlsx_file, t
         backend.addFiles([QUrl.fromLocalFile(str(docx_file)), QUrl.fromLocalFile(str(xlsx_file))])
         pump(qapp, lambda: all(d["status"] == "ready" for d in backend.documents))
         assert backend.segments
-        assert root.findChild(QObject, "documentPreviewList").property("visible")
+        assert root.findChild(QObject, "documentPagePreview").property("visible")
         backend.start("en", "uk", "Технічна документація", True, False)
         pump(qapp, lambda: not backend.busy)
         assert all(d["status"] == "done" for d in backend.documents), backend.message

@@ -12,7 +12,7 @@ def keep_gui_plugin(source):
     name = path.name.lower()
     if "platforminputcontexts" in path.parts and "virtualkeyboard" in name:
         return False
-    # Forma renders PDFs through the external document engine, never QImage.
+    # Page previews use QtPdf directly in an isolated worker, never the QImage plugin.
     return not ("imageformats" in path.parts and name.startswith(("qpdf.", "libqpdf.")))
 
 

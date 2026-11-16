@@ -37,7 +37,7 @@ EXCLUDED_QT = (
     "QtCharts", "QtGraphs", "QtGraphsWidgets", "QtDataVisualization", "QtQuick3D",
     "QtQuick3DAssetImport", "QtQuick3DUtils", "QtQuickTimeline", "QtLocation",
     "QtVirtualKeyboard", "QtWebEngineCore", "QtWebEngineWidgets", "QtWebEngineQuick",
-    "QtWebView", "QtPdf", "QtPdfWidgets",
+    "QtWebView", "QtPdfWidgets",
 )
 
 
@@ -92,6 +92,12 @@ def prepare_release_materials(
     installed = importlib.metadata.version("PySide6")
     if versions.get("PySide6") != installed or versions.get("Qt") != installed:
         raise ValueError("Update third_party/SOURCES.json and the corresponding source archives for this PySide6/Qt version")
+    # Qt PDF is built from Qt WebEngine, whose release version is independent
+    # of Qt/PySide. The Qt-everywhere archive no longer contains these sources.
+    from PySide6.QtWebEngineCore import qWebEngineVersion
+
+    if versions.get("QtPDF") != qWebEngineVersion():
+        raise ValueError("Update third_party/SOURCES.json and the corresponding Qt PDF source archive")
     payload = root / "build" / "release" / artifact.stem / "legal"
     if payload.exists():
         shutil.rmtree(payload)

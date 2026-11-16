@@ -13,8 +13,9 @@ ColumnLayout {
     readonly property var document: backend.selectedDocument
     readonly property bool hasDocument: !!document.id
     readonly property bool isPdf: document.format === "PDF"
-    readonly property bool hasPdfTools: isPdf && !document.history || backend.recognizingScan
-    readonly property bool hasPreview: !isPdf && backend.segments.length > 0
+    readonly property bool hasPagePreview: hasDocument && (isPdf || document.format === "DOCX")
+    readonly property bool hasPdfTools: isPdf && !document.history && document.status !== "done" || backend.recognizingScan
+    readonly property bool hasPreview: !hasPagePreview && backend.segments.length > 0
     readonly property bool hasTranslation: hasPreview && document.status === "done"
     readonly property string previewDocumentId: document.id || ""
     readonly property string memoryProjectId: backend.memoryProject.id || ""
@@ -109,7 +110,7 @@ ColumnLayout {
         ColumnLayout {
             anchors.fill: parent; anchors.margins: 16; spacing: 10
             RowLayout {
-                visible: !!page.document.report || !!page.document.diagnosticReport
+                visible: (!!page.document.report && page.document.warningCount > 0) || !!page.document.diagnosticReport
                 Layout.fillWidth: true; spacing: 8
                 Item { Layout.fillWidth: true }
                 PageControls.Action {
@@ -130,11 +131,13 @@ ColumnLayout {
             ScrollView {
                 id: pdfScroll; objectName: "documentPdfOptionsScroll"
                 visible: page.hasPdfTools
-                Layout.fillWidth: true; Layout.fillHeight: true
+                Layout.fillWidth: true
+                Layout.preferredHeight: Math.min(pdfOptions.implicitHeight, page.height * 0.4)
                 clip: true; contentWidth: availableWidth
                 ScrollBar.vertical: PageControls.ReadingScrollBar { }
                 ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
                 ColumnLayout {
+                    id: pdfOptions
                     width: pdfScroll.availableWidth - 12; spacing: 8
                     RowLayout {
                         objectName: "documentWorkflowInfo"
@@ -196,6 +199,13 @@ ColumnLayout {
                     }
                 }
             }
+            DocumentPreview {
+                objectName: "documentPagePreview"
+                visible: page.hasPagePreview
+                active: visible && backend.workspaceMode === "translation" && shell.page === 0
+                document: page.document
+                Layout.fillWidth: true; Layout.fillHeight: true; Layout.preferredWidth: 1; Layout.minimumWidth: 0
+            }
             RowLayout {
                 visible: page.hasPreview; Layout.fillWidth: true; spacing: 24
                 PageControls.Caption { text: qsTr("Оригінал"); Layout.fillWidth: true; Layout.preferredWidth: 1; font.weight: Font.DemiBold }
@@ -219,7 +229,7 @@ ColumnLayout {
                 }
             }
             Item {
-                visible: !page.hasPreview && !page.hasPdfTools; Layout.fillWidth: true; Layout.fillHeight: true; Layout.minimumHeight: 24
+                visible: !page.hasPagePreview && !page.hasPreview && !page.hasPdfTools; Layout.fillWidth: true; Layout.fillHeight: true; Layout.minimumHeight: 24
                 ColumnLayout {
                     anchors.centerIn: parent; width: Math.max(0, Math.min(440, parent.width - 24)); spacing: 10
                     BusyIndicator { visible: page.document.status === "loading"; running: visible; Layout.alignment: Qt.AlignHCenter; Layout.preferredWidth: 28; Layout.preferredHeight: 28 }

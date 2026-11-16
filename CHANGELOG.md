@@ -8,6 +8,8 @@ Versions follow semantic versioning. Changes before 1.0 may evolve as document c
 - Move translation options into one dialog and document/queue operations into contextual menus. Keep source and translation side by side at the minimum window size, with the fragment list available on demand.
 - Keep historical results as separate read-only session references. Opening or switching a result never queues another translation; the main action shows its pending document count and excludes completed files.
 - Preserve unapplied-edit guards, report-bound drafts, asynchronous load cancellation, PDF/OCR handoffs and live switching of all six interface languages and themes.
+- Widen the document sidebar, wrap long filenames and remember its adjustable width. Add original, translated and paired page previews for PDF/DOCX, synchronized scrolling, page navigation and zoom.
+- Render local PDF pages in an isolated Qt PDF worker and DOCX through an installed LibreOffice. Restore completed-document previews directly from their files, without another translation request; bound and discard the temporary preview cache.
 
 ## 0.14.0 — 2026-11-16
 
