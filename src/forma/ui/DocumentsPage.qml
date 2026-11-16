@@ -57,49 +57,79 @@ ColumnLayout {
         saveWorkspaceOptions()
     }
 
-    RowLayout {
-        Layout.fillWidth: true; spacing: 10
+    PageControls.Panel {
+        objectName: "documentTranslationCard"
+        Layout.fillWidth: true; implicitHeight: translationSettings.implicitHeight + 20
         ColumnLayout {
-            Layout.fillWidth: true; Layout.preferredWidth: 1; spacing: 5
-            PageControls.Caption { text: qsTr("Мова оригіналу") }
-            PageControls.Select {
-                id: sourceLanguage; objectName: "sourceLanguage"
-                model: shell.sourceCodes; optionLabels: [qsTr("Автовизначення")].concat(shell.languageLabels)
-                Layout.fillWidth: true; enabled: !backend.busy && !backend.memoryProject.id
-                onActivated: page.saveWorkspaceOptions()
-                Accessible.name: qsTr("Мова оригіналу")
+            id: translationSettings
+            anchors.fill: parent; anchors.margins: 10; spacing: 6
+            RowLayout {
+                id: translationControls; objectName: "documentTranslationControls"
+                Layout.fillWidth: true; spacing: 8
+                ColumnLayout {
+                    Layout.fillWidth: true; Layout.preferredWidth: 1; Layout.minimumWidth: 60; spacing: 4
+                    PageControls.Caption { text: qsTr("Мова оригіналу") }
+                    PageControls.Select {
+                        id: sourceLanguage; objectName: "sourceLanguage"
+                        model: shell.sourceCodes; optionLabels: [qsTr("Автовизначення")].concat(shell.languageLabels)
+                        Layout.fillWidth: true; implicitHeight: 36; enabled: !backend.busy && !backend.memoryProject.id
+                        onActivated: page.saveWorkspaceOptions()
+                        Accessible.name: qsTr("Мова оригіналу")
+                    }
+                }
+                Icon { name: "chevron-right"; color: Theme.muted; Layout.preferredWidth: 18; Layout.preferredHeight: 18; Layout.topMargin: 18 }
+                ColumnLayout {
+                    Layout.fillWidth: true; Layout.preferredWidth: 1; Layout.minimumWidth: 60; spacing: 4
+                    PageControls.Caption { text: qsTr("Перекласти на") }
+                    PageControls.Select {
+                        id: targetLanguage; objectName: "targetLanguage"
+                        model: shell.targetCodes; optionLabels: shell.languageLabels; currentIndex: 0
+                        Layout.fillWidth: true; implicitHeight: 36; enabled: !backend.busy && !backend.memoryProject.id
+                        onActivated: page.saveWorkspaceOptions()
+                        Accessible.name: qsTr("Перекласти на")
+                    }
+                }
+                PageControls.Action {
+                    objectName: "translationOptionsButton"; text: page.width >= 900 ? qsTr("Параметри") : ""; hint: qsTr("Параметри"); Accessible.name: hint; iconName: "settings"; implicitHeight: 36
+                    Layout.topMargin: 18; enabled: !shell.reviewLocked
+                    onClicked: translationOptions.open()
+                }
+                PageControls.Action {
+                    objectName: "translateButton"
+                    iconName: shell.preparingDocuments ? "document" : backend.translating ? (backend.paused ? "play" : "pause") : "translate"
+                    text: shell.preparingDocuments ? qsTr("Підготовка…") : backend.translating ? (backend.paused ? qsTr("Продовжити") : qsTr("Пауза")) : (page.width >= 900 ? qsTr("Перекласти документи (%1)") : qsTr("Перекласти (%1)")).arg(backend.pendingDocumentCount)
+                    primary: true; implicitHeight: 36; Layout.topMargin: 18
+                    enabled: !shell.preparingDocuments && !shell.reviewLocked && (backend.translating || (!backend.busy && backend.pendingDocumentCount > 0 && !!backend.settings.model && !shell.needsSourceLanguage && !shell.sameLanguage))
+                    onClicked: backend.translating ? backend.togglePause() : backend.start(shell.sourceCodes[sourceLanguage.currentIndex], shell.targetCodes[targetLanguage.currentIndex], domain.currentText, review.checked, autoGlossary.checked)
+                }
+                PageControls.Action { text: ""; hint: qsTr("Стоп"); Accessible.name: hint; iconName: "stop"; objectName: "cancelButton"; visible: backend.translating || backend.recognizingScan; implicitHeight: 36; Layout.topMargin: 18; onClicked: backend.cancel() }
+
+            }
+            PageControls.Caption {
+                visible: shell.needsSourceLanguage || shell.sameLanguage
+                text: shell.needsSourceLanguage ? qsTr("Для PDF виберіть мову оригіналу.") : qsTr("Виберіть іншу мову перекладу.")
+                color: Theme.warning; wrapMode: Text.WordWrap; Layout.fillWidth: true
+            }
+            PageControls.Caption {
+                visible: !!backend.memoryProject.id
+                text: qsTr("Пам’ять проєкту") + ": " + (backend.memoryProject.name || "")
+                Layout.fillWidth: true; elide: Text.ElideRight
+            }
+
+            RowLayout {
+                visible: !backend.settings.model || backend.translating || !review.checked
+                Layout.fillWidth: true; spacing: 8
+                PageControls.Caption {
+                    text: !backend.settings.model ? qsTr("Спочатку підключіть модель у налаштуваннях.") : backend.translating ? qsTr("Нові файли перекладатимуться з поточними параметрами цього запуску.") : qsTr("Редакторську перевірку вимкнено.")
+                    Layout.fillWidth: true; wrapMode: Text.WordWrap; font.pixelSize: 11
+                }
+                PageControls.Action { text: qsTr("Налаштувати підключення"); iconName: "settings"; subtle: true; implicitHeight: 28; visible: !backend.settings.model; onClicked: shell.page = 2 }
             }
         }
-        Icon { name: "chevron-right"; color: Theme.muted; Layout.preferredWidth: 18; Layout.preferredHeight: 18; Layout.topMargin: 21 }
-        ColumnLayout {
-            Layout.fillWidth: true; Layout.preferredWidth: 1; spacing: 5
-            PageControls.Caption { text: qsTr("Перекласти на") }
-            PageControls.Select {
-                id: targetLanguage; objectName: "targetLanguage"
-                model: shell.targetCodes; optionLabels: shell.languageLabels; currentIndex: 0
-                Layout.fillWidth: true; enabled: !backend.busy && !backend.memoryProject.id
-                onActivated: page.saveWorkspaceOptions()
-                Accessible.name: qsTr("Перекласти на")
-            }
-        }
-        PageControls.Action {
-            objectName: "translationOptionsButton"; text: qsTr("Параметри"); iconName: "settings"
-            Layout.topMargin: 21; enabled: !shell.reviewLocked
-            onClicked: translationOptions.open()
-        }
-    }
-    PageControls.Caption {
-        visible: shell.needsSourceLanguage || shell.sameLanguage
-        text: shell.needsSourceLanguage ? qsTr("Для PDF виберіть мову оригіналу.") : qsTr("Виберіть іншу мову перекладу.")
-        color: Theme.warning; wrapMode: Text.WordWrap; Layout.fillWidth: true
-    }
-    PageControls.Caption {
-        visible: !!backend.memoryProject.id
-        text: qsTr("Пам’ять проєкту") + ": " + (backend.memoryProject.name || "")
-        Layout.fillWidth: true; elide: Text.ElideRight
     }
 
     PageControls.Panel {
+        objectName: "documentPreviewPanel"
         Layout.fillWidth: true; Layout.fillHeight: true; Layout.minimumHeight: 140
         border.color: documentDrop.containsDrag ? Theme.accent : Theme.line
         DropArea {
@@ -108,7 +138,7 @@ ColumnLayout {
             onDropped: function(event) { if (event.hasUrls) backend.addFiles(event.urls) }
         }
         ColumnLayout {
-            anchors.fill: parent; anchors.margins: 16; spacing: 10
+            anchors.fill: parent; anchors.margins: 10; spacing: 8
             RowLayout {
                 visible: (!!page.document.report && page.document.warningCount > 0) || !!page.document.diagnosticReport
                 Layout.fillWidth: true; spacing: 8
@@ -250,26 +280,6 @@ ColumnLayout {
                 Layout.fillWidth: true; wrapMode: Text.WordWrap
             }
         }
-    }
-
-    RowLayout {
-        Layout.fillWidth: true; spacing: 10
-        PageControls.Caption {
-            visible: !backend.settings.model || backend.translating || !review.checked
-            text: !backend.settings.model ? qsTr("Спочатку підключіть модель у налаштуваннях.") : backend.translating ? qsTr("Нові файли перекладатимуться з поточними параметрами цього запуску.") : qsTr("Редакторську перевірку вимкнено.")
-            Layout.fillWidth: true; wrapMode: Text.WordWrap; font.pixelSize: 11
-        }
-        Item { Layout.fillWidth: true; visible: !!backend.settings.model && !backend.translating && review.checked }
-        PageControls.Action { text: qsTr("Налаштувати підключення"); iconName: "settings"; subtle: true; visible: !backend.settings.model; onClicked: shell.page = 2 }
-        PageControls.Action {
-            objectName: "translateButton"
-            iconName: shell.preparingDocuments ? "document" : backend.translating ? (backend.paused ? "play" : "pause") : "translate"
-            text: shell.preparingDocuments ? qsTr("Підготовка…") : backend.translating ? (backend.paused ? qsTr("Продовжити") : qsTr("Пауза")) : qsTr("Перекласти документи (%1)").arg(backend.pendingDocumentCount)
-            primary: true; implicitHeight: 42
-            enabled: !shell.preparingDocuments && !shell.reviewLocked && (backend.translating || (!backend.busy && backend.pendingDocumentCount > 0 && !!backend.settings.model && !shell.needsSourceLanguage && !shell.sameLanguage))
-            onClicked: backend.translating ? backend.togglePause() : backend.start(shell.sourceCodes[sourceLanguage.currentIndex], shell.targetCodes[targetLanguage.currentIndex], domain.currentText, review.checked, autoGlossary.checked)
-        }
-        PageControls.Action { text: qsTr("Стоп"); iconName: "stop"; objectName: "cancelButton"; visible: backend.translating || backend.recognizingScan; implicitHeight: 42; onClicked: backend.cancel() }
     }
 
     Popup {

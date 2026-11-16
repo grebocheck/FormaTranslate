@@ -5,7 +5,7 @@ from PySide6.QtGui import QColor
 from PySide6.QtQml import QQmlApplicationEngine
 from PySide6.QtQuick import QQuickItem
 from PySide6.QtTest import QTest
-from ui_support import click
+from ui_support import click, item
 
 from forma.presentation.backend import Backend
 from forma.settings.config import Settings
@@ -167,8 +167,8 @@ def test_review_groups_findings_searches_pairs_and_keeps_text_selectable(
         click(window, "reviewIssuesFilter")
         assert len(backend.reviewEntries) == 2
         assert backend.selectedReviewEntry["issueCount"] == 2
-        source = window.findChild(QQuickItem, "reviewSourceText")
-        translation = window.findChild(QQuickItem, "reviewTranslationText")
+        source = item(window, "reviewSourceText")
+        translation = item(window, "reviewTranslationText")
         assert source.property("readOnly") and source.property("selectByMouse")
         assert translation.property("readOnly") and translation.property("selectByMouse")
         assert "16" in source.property("text") and "15" in translation.property("text")
@@ -179,7 +179,8 @@ def test_review_groups_findings_searches_pairs_and_keeps_text_selectable(
         )
         QTest.qWait(10)
         assert backend.selectedReviewId == "second"
-        assert "Потужність" in translation.property("text")
+        assert "Потужність" in item(window, "reviewTranslationText").property("text")
+        assert "15" in translation.property("text")  # Previous fragment remains readable.
         backend.setReviewSearch("Тиск")
         assert len(backend.reviewEntries) == 1
         assert backend.selectedReviewId == "first"
@@ -190,6 +191,59 @@ def test_review_groups_findings_searches_pairs_and_keeps_text_selectable(
         assert notice.property("visible")
         assert not warnings, "\n".join(warnings)
     finally:
+        window.close()
+        engine.deleteLater()
+        QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+
+
+def test_completed_queue_review_has_geometry_after_hidden_empty_start(qapp, docx_file, monkeypatch):
+    from support import pump
+
+    from forma.core.models import Segment, TranslationResult
+
+    monkeypatch.setattr(Backend, "_read_settings", lambda _: Settings())
+    backend = Backend()
+    backend.addFiles([str(docx_file)])
+    pump(qapp, lambda: not backend._threads)
+    segment = Segment("guide", "Paragraph 1", "<r0>Installation guide</r0>")
+    backend._documents[0].update(
+        status="done", sourceLanguage="en", targetLanguage="uk",
+        result=TranslationResult(docx_file, None, [segment], {"guide": "<r0>Посібник із монтажу</r0>"}, []),
+    )
+    backend.changed.emit()
+    engine = QQmlApplicationEngine()
+    warnings = []
+    engine.warnings.connect(lambda values: warnings.extend(str(value) for value in values))
+    engine.rootContext().setContextProperty("backend", backend)
+    engine.load(QUrl.fromLocalFile(str(Path("src/forma/ui/Main.qml").resolve())))
+    assert engine.rootObjects(), warnings
+    window = engine.rootObjects()[0]
+    window.setWidth(1600)
+    window.setHeight(1000)
+    try:
+        assert window.property("page") == 0 and not backend.reviewEntries
+        QTest.qWait(50)  # Let the initially empty hidden review page finish layout.
+        for language in ("en", "de", "uk"):
+            backend.setUiLanguage(language)
+            QTest.qWait(20)
+        click(window, "reviewTab")
+        pump(qapp, lambda: not backend._threads)
+        QTest.qWait(30)
+        assert backend.reviewSummary["segments"] == 1
+        assert backend.reviewSummary["attention"] == 0
+        viewport = item(window, "reviewEntryList")
+        assert viewport.isVisible() and viewport.property("count") == 1
+        assert viewport.width() > 900 and viewport.height() > 400
+        assert item(window, "reviewSourceText").isVisible()
+        assert item(window, "reviewTranslationText").property("text") == "Посібник із монтажу"
+        # Empty filters and restoring all text cannot collapse the common viewport.
+        click(window, "reviewIssuesFilter")
+        assert not viewport.isVisible()
+        click(window, "reviewShowAllButton")
+        assert viewport.isVisible() and viewport.width() > 900 and viewport.height() > 400
+        assert not warnings, "\n".join(warnings)
+    finally:
+        pump(qapp, lambda: not backend._threads)
         window.close()
         engine.deleteLater()
         QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)

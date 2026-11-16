@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import os
 import shutil
 import sys
 import threading
 import time
 import zipfile
+from pathlib import Path
 
 import pytest
 from docx import Document
@@ -77,6 +79,8 @@ def test_width_is_bounded_and_independent_files_never_share_preview(session, tmp
     first = session.render(pdf(tmp_path / "one.pdf"), 0, 50000, threading.Event())
     second = session.render(pdf(tmp_path / "two.pdf", color="0 0 1"), 0, 50000, threading.Event())
     assert first.width <= 2400 and first.height <= 4000
+    assert first.width * first.height <= 4_000_000
+    assert first.width / first.height == pytest.approx(.5, abs=.001)
     assert first.image_path != second.image_path
     assert first.image_path.read_bytes() != second.image_path.read_bytes()
 
@@ -96,6 +100,95 @@ def test_cache_eviction_keeps_both_displayed_images_alive(session, tmp_path, mon
     assert not QImage(str(first.image_path)).isNull()
     assert not QImage(str(second.image_path)).isNull()
     assert session.render(source, 0, 600, threading.Event()) is first
+
+
+def test_describe_96_pages_is_metadata_only_then_renders_only_requested_page(session, tmp_path, monkeypatch):
+    source = pdf(tmp_path / "96-pages.pdf", pages=96)
+    before = source.read_bytes()
+    calls = []
+    run = session._run
+
+    def counted(arguments, *args, **kwargs):
+        calls.append(arguments)
+        return run(arguments, *args, **kwargs)
+
+    monkeypatch.setattr(session, "_run", counted)
+    layout = session.describe(source, threading.Event())
+    assert layout.page_count == 96 and len(layout.page_sizes) == 96
+    assert layout.page_sizes[0] == (300.0, 600.0)
+    assert layout.page_sizes[95] == (600.0, 300.0)
+    assert len(calls) == 1 and "--describe" in calls[0] and "--output" not in calls[0]
+    assert not list(session._root.rglob("*.png"))
+    assert session.describe(source, threading.Event()) is layout and len(calls) == 1
+    requested = session.render(source, 95, 600, threading.Event())
+    assert len(calls) == 2 and requested.page_index == 95
+    assert len(list(session._root.rglob("*.png"))) == 1
+    assert source.read_bytes() == before
+
+
+def test_describe_invalidation_does_not_return_old_page_geometry(session, tmp_path):
+    source = pdf(tmp_path / "source.pdf")
+    first = session.describe(source, threading.Event())
+    pdf(source, pages=4)
+    changed = session.describe(source, threading.Event())
+    assert first.page_count == 2 and changed.page_count == 4
+    assert changed is not first and len(changed.page_sizes) == 4
+
+
+@pytest.mark.parametrize("result", [
+    {"page_count": 2, "page_sizes": [[300, 600]]},
+    {"page_count": 1, "page_sizes": [[float("nan"), 600]]},
+    {"page_count": 1, "page_sizes": [[300, 0]]},
+])
+def test_describe_rejects_invalid_worker_geometry(session, tmp_path, monkeypatch, result):
+    def invalid(arguments, *args, **kwargs):
+        Path(arguments[arguments.index("--metadata") + 1]).write_text(json.dumps(result))
+
+    monkeypatch.setattr(session, "_run", invalid)
+    with pytest.raises(FormaError, match="некоректний"):
+        session.describe(pdf(tmp_path / "source.pdf"), threading.Event())
+    assert not session._layouts
+
+
+def test_describe_rejects_stale_results_and_cancellation(session, tmp_path, monkeypatch):
+    source = pdf(tmp_path / "source.pdf")
+    run = session._run
+
+    def change_after_describe(*args, **kwargs):
+        run(*args, **kwargs)
+        pdf(source, pages=3)
+
+    monkeypatch.setattr(session, "_run", change_after_describe)
+    with pytest.raises(Cancelled, match="змінився"):
+        session.describe(source, threading.Event())
+    assert not session._layouts
+    cancel = threading.Event()
+    cancel.set()
+    with pytest.raises(Cancelled):
+        session.describe(source, cancel)
+
+
+def test_retained_twelve_image_viewport_survives_cache_pressure(session, tmp_path, monkeypatch):
+    source = pdf(tmp_path / "source.pdf", pages=12)
+    translation = pdf(tmp_path / "translation.pdf", color="0 0 1", pages=12)
+    requests = [(path, page, 200) for path in (source, translation) for page in range(6)]
+    session.retain_pages(requests)
+    images = []
+    monkeypatch.setattr(preview, "MAX_CACHE_BYTES", 200000)
+    for index, (path, page, width) in enumerate(requests):
+        if index == 6:
+            folder, _ = session._documents[preview.file_signature(source)]
+            (folder / "large-converted.pdf").write_bytes(b"x" * 300000)
+        images.append(session.render(path, page, width, threading.Event()).image_path)
+    assert len(session._retained_pages) == 12 and len(session._pages) == 12
+    assert all(image.is_file() for image in images)
+    assert preview._disk_bytes(session._root) <= 200000
+    folder, _ = next(iter(session._documents.values()))
+    (folder / "large-converted.pdf").write_bytes(b"x" * 300000)
+    session.retain_pages([(source, page, 200) for page in range(6, 12)])
+    assert not any(image.exists() for image in images)
+    with pytest.raises(ValueError, match="twelve"):
+        session.retain_pages([(source, index, 200) for index in range(13)])
 
 
 def test_missing_invalid_and_password_protected_pdfs_have_actionable_errors(session, tmp_path):
@@ -252,12 +345,16 @@ def test_installed_libreoffice_converts_once_and_worker_receives_no_credentials(
     monkeypatch.setattr(preview, "start_worker", checked)
     instance = PreviewSession(cache_parent=tmp_path)
     try:
+        layout = instance.describe(source, threading.Event())
+        assert layout.page_count == 2 and len(layout.page_sizes) == 2
+        assert not list(instance._root.rglob("*.png"))
         first = instance.render(source, 0, 600, threading.Event())
         second = instance.render(source, 1, 600, threading.Event())
         assert first.page_count == second.page_count == 2
         assert not QImage(str(first.image_path)).isNull()
         assert first.image_path.read_bytes() != second.image_path.read_bytes()
         assert sum("--convert-to" in command for command in commands) == 1
+        assert sum("--describe" in command for command in commands) == 1
         assert not list(instance._root.rglob("*.docx")) and not list(instance._root.rglob("registrymodifications.xcu"))
         assert source.read_bytes() == before
     finally:

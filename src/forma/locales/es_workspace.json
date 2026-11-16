@@ -56,5 +56,11 @@
   "У цьому документі немає цієї сторінки.": "Esta página no existe en este documento.",
   "Файл для перегляду недоступний або перевищує 200 МБ. Перевірте його розташування.": "El archivo de la vista previa no está disponible o supera los 200 MB. Comprueba su ubicación.",
   "Файл змінився під час підготовки перегляду. Відкрийте його знову.": "El archivo ha cambiado durante la preparación de la vista previa. Ábrelo de nuevo.",
-  "Файл недоступний. Відкрийте його знову або додайте файл.": "El archivo no está disponible. Ábrelo de nuevo o añade un archivo."
+  "Файл недоступний. Відкрийте його знову або додайте файл.": "El archivo no está disponible. Ábrelo de nuevo o añade un archivo.",
+  "Без автоматичних зауважень": "Sin observaciones automáticas",
+  "Зауважень: %1": "Observaciones: %1",
+  "Потрібне виправлення": "Requiere corrección",
+  "Правку збережено": "Cambio guardado",
+  "Перейти до сторінки": "Ir a la página",
+  "Перекласти (%1)": "Traducir (%1)"
 }

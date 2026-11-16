@@ -56,5 +56,11 @@
   "У цьому документі немає цієї сторінки.": "This page does not exist in this document.",
   "Файл для перегляду недоступний або перевищує 200 МБ. Перевірте його розташування.": "The preview file is unavailable or exceeds 200 MB. Check its location.",
   "Файл змінився під час підготовки перегляду. Відкрийте його знову.": "The file changed while preparing the preview. Open it again.",
-  "Файл недоступний. Відкрийте його знову або додайте файл.": "The file is unavailable. Open it again or add a file."
+  "Файл недоступний. Відкрийте його знову або додайте файл.": "The file is unavailable. Open it again or add a file.",
+  "Без автоматичних зауважень": "No automatic findings",
+  "Зауважень: %1": "Findings: %1",
+  "Потрібне виправлення": "Correction required",
+  "Правку збережено": "Edit saved",
+  "Перейти до сторінки": "Go to page",
+  "Перекласти (%1)": "Translate (%1)"
 }

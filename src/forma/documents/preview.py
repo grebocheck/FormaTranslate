@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import os
 import shutil
 import subprocess
@@ -20,8 +21,9 @@ from forma.documents.ocr import _stop_process
 from forma.documents.preview_office import find_libreoffice, prepare_docx, prepare_profile
 
 MAX_INPUT_BYTES = 200 * 1024**2
-MAX_CACHE_BYTES = 128 * 1024**2
+MAX_CACHE_BYTES = 256 * 1024**2
 MAX_CONVERTED_BYTES = 64 * 1024**2
+MAX_RETAINED_PAGES = 12
 
 
 def _disk_bytes(folder: Path) -> int:
@@ -65,6 +67,12 @@ class PreviewPage:
     page_index: int
 
 
+@dataclass(frozen=True)
+class PreviewDocument:
+    page_count: int
+    page_sizes: tuple[tuple[float, float], ...]
+
+
 def file_signature(path: Path) -> tuple:
     path = Path(path).expanduser().resolve()
     try:
@@ -86,7 +94,9 @@ class PreviewSession:
         self._conversion_timeout = conversion_timeout
         self._documents = OrderedDict()
         self._pages = OrderedDict()
+        self._layouts = OrderedDict()
         self._display_pages = OrderedDict()
+        self._retained_pages = None
         self._lock = threading.Lock()
         self._closed = threading.Event()
 
@@ -161,6 +171,94 @@ class PreviewSession:
             shutil.rmtree(folder, ignore_errors=True)
             raise
 
+    @staticmethod
+    def _worker_arguments(pdf, metadata):
+        arguments = ([sys.executable, "preview-worker"] if getattr(sys, "frozen", False)
+                     else [sys.executable, "-m", "forma.documents.preview_worker"])
+        return arguments + ["--source", str(pdf), "--metadata", str(metadata)]
+
+    @staticmethod
+    def _read_metadata(metadata, limit=4096):
+        if not metadata.is_file() or metadata.stat().st_size > limit:
+            raise ValueError("metadata")
+        result = json.loads(metadata.read_text(encoding="utf-8"))
+        if not isinstance(result, dict):
+            raise ValueError("metadata")
+        if result.get("error") == "password":
+            raise FormaError("PDF захищено паролем. Для перегляду відкрийте незахищену копію документа.")
+        if "error" in result:
+            raise FormaError("Не вдалося прочитати сторінку PDF. Перевірте, чи відкривається файл у зовнішній програмі.")
+        return result
+
+    def describe(self, path: Path, cancel_event: threading.Event) -> PreviewDocument:
+        """Read every page's point size once, without rasterizing the document."""
+        while not self._lock.acquire(timeout=0.05):
+            self._check(cancel_event)
+        try:
+            self._check(cancel_event)
+            source = Path(path).expanduser().resolve()
+            if source.suffix.lower() not in {".pdf", ".docx"}:
+                raise FormaError("Перегляд сторінок доступний для PDF і DOCX.")
+            signature = file_signature(source)
+            if signature in self._layouts:
+                self._layouts.move_to_end(signature)
+                return self._layouts[signature]
+            folder, pdf = self._pdf(source, signature, cancel_event)
+            metadata = folder / "description.json"
+            metadata.unlink(missing_ok=True)
+            try:
+                self._run(self._worker_arguments(pdf, metadata) + ["--describe"], folder, self._render_timeout, cancel_event)
+                result = self._read_metadata(metadata, 1024**2)
+                count, sizes = result.get("page_count"), result.get("page_sizes")
+                if type(count) is not int or not 1 <= count <= 10000 or not isinstance(sizes, list) or len(sizes) != count:
+                    raise ValueError("metadata")
+                for size in sizes:
+                    if (not isinstance(size, list) or len(size) != 2
+                            or any(type(value) not in {int, float} or not math.isfinite(value) or not 0 < value <= 10_000_000 for value in size)):
+                        raise ValueError("page size")
+                self._check(cancel_event)
+                if file_signature(source) != signature:
+                    raise Cancelled("Документ змінився під час підготовки перегляду.")
+                description = PreviewDocument(count, tuple(tuple(float(value) for value in size) for size in sizes))
+                self._layouts[signature] = description
+                while len(self._layouts) > 8:
+                    self._layouts.popitem(last=False)
+                return description
+            except (OSError, ValueError, TypeError) as exc:
+                raise FormaError("Локальний рушій повернув некоректний перегляд документа.") from exc
+            finally:
+                metadata.unlink(missing_ok=True)
+                self._trim()
+        finally:
+            self._lock.release()
+
+    def retain_pages(self, requests) -> None:
+        """Pin one viewport and its nearby pages before a serial rendering batch.
+
+        Entries are (path, zero-based page index, requested width). Only these
+        pages remain pinned until the next call, with at most twelve images.
+        """
+        requests = list(requests)
+        if len(requests) > MAX_RETAINED_PAGES:
+            raise ValueError("Preview viewport exceeds twelve images")
+        with self._lock:
+            if self._closed.is_set():
+                raise Cancelled("Перегляд документа скасовано.")
+            retained, signatures = set(), {}
+            for path, page_index, width in requests:
+                if type(page_index) is not int or page_index < 0 or type(width) is not int:
+                    raise ValueError("Invalid retained preview page or width")
+                source = Path(path).expanduser().resolve()
+                try:
+                    if source not in signatures:
+                        signatures[source] = file_signature(source)
+                    retained.add((signatures[source], page_index, max(128, min(2400, width))))
+                except FormaError:
+                    continue  # Individual describe/render results explain missing sides.
+            self._retained_pages = retained
+            self._display_pages.clear()
+            self._trim()
+
     def render(self, path: Path, page_index: int, width_px: int, cancel_event: threading.Event) -> PreviewPage:
         while not self._lock.acquire(timeout=0.05):
             self._check(cancel_event)
@@ -186,24 +284,15 @@ class PreviewSession:
             image = pages / (hashlib.sha256(repr(key).encode()).hexdigest() + ".png")
             metadata = folder / "result.json"
             metadata.unlink(missing_ok=True)
-            arguments = ([sys.executable, "preview-worker"] if getattr(sys, "frozen", False)
-                         else [sys.executable, "-m", "forma.documents.preview_worker"])
-            arguments += ["--source", str(pdf), "--output", str(image), "--metadata", str(metadata),
-                          "--page", str(page_index), "--width", str(width_px)]
+            arguments = self._worker_arguments(pdf, metadata) + ["--output", str(image), "--page", str(page_index), "--width", str(width_px)]
             try:
                 self._run(arguments, folder, self._render_timeout, cancel_event)
-                if not metadata.is_file() or metadata.stat().st_size > 4096:
-                    raise ValueError("metadata")
-                result = json.loads(metadata.read_text(encoding="utf-8"))
-                if result.get("error") == "password":
-                    raise FormaError("PDF захищено паролем. Для перегляду відкрийте незахищену копію документа.")
-                if "error" in result:
-                    raise FormaError("Не вдалося прочитати сторінку PDF. Перевірте, чи відкривається файл у зовнішній програмі.")
+                result = self._read_metadata(metadata)
                 count, width, height = (result.get(name) for name in ("page_count", "width", "height"))
                 if any(type(value) is not int for value in (count, width, height)) or not 1 <= count <= 10000 or result.get("page_index") != page_index:
                     raise ValueError("metadata")
                 available = page_index < count
-                if available and (not 1 <= width <= 2400 or not 1 <= height <= 4000 or not image.is_file() or image.stat().st_size > 40 * 1024**2):
+                if available and (not 1 <= width <= 2400 or not 1 <= height <= 4000 or width * height > 4_000_000 or not image.is_file() or image.stat().st_size > 20 * 1024**2):
                     raise ValueError("image")
                 if not available and (width != 0 or height != 0):
                     raise ValueError("unavailable")
@@ -225,16 +314,18 @@ class PreviewSession:
             self._lock.release()
 
     def _protect(self, key):
+        if self._retained_pages is not None:
+            return
         self._display_pages.pop(key, None)
         self._display_pages[key] = None
         while len(self._display_pages) > 2:
             self._display_pages.popitem(last=False)
 
     def _trim(self):
-        # Source and translation are returned sequentially for one paired view.
-        # Keep both images alive even when their converted PDF cache is evicted.
+        # Pin the current viewport, independently of reusable converted PDFs.
+        protected = self._display_pages if self._retained_pages is None else self._retained_pages
         while len(self._pages) > 24 or _disk_bytes(self._root) > MAX_CACHE_BYTES:
-            key = next((key for key in self._pages if key not in self._display_pages), None)
+            key = next((key for key in self._pages if key not in protected), None)
             if key is None:
                 break
             page = self._pages.pop(key)
@@ -248,6 +339,8 @@ class PreviewSession:
         self._closed.set()
         with self._lock:
             self._pages.clear()
+            self._layouts.clear()
             self._display_pages.clear()
+            self._retained_pages = None
             self._documents.clear()
             self._temporary.cleanup()

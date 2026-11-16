@@ -5,11 +5,13 @@ from pathlib import Path
 
 import pytest
 from docx import Document
-from PySide6.QtCore import QCoreApplication, QEvent, QPointF, Qt, QUrl
+from PySide6.QtCore import QCoreApplication, QEvent, QUrl
 from PySide6.QtQml import QQmlApplicationEngine
 from PySide6.QtQuick import QQuickItem
 from PySide6.QtTest import QTest
 from support import pump
+from ui_support import click as click_control
+from ui_support import item
 
 from forma.core.models import FormaError, Options, TranslationFailure, plain_text
 from forma.documents.ooxml import OfficeDocument
@@ -99,12 +101,7 @@ def test_real_failure_controls_edit_validate_and_resume_without_api(qapp, failed
     window.setHeight(680)
 
     def click(name):
-        button = window.findChild(QQuickItem, name)
-        assert button is not None and button.isVisible() and button.isEnabled(), name
-        point = button.mapToScene(QPointF(button.width() / 2, button.height() / 2))
-        QTest.mouseClick(window, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier,
-                         point.toPoint())
-        QTest.qWait(10)
+        return click_control(window, name)
 
     try:
         QTest.qWait(20)
@@ -121,7 +118,7 @@ def test_real_failure_controls_edit_validate_and_resume_without_api(qapp, failed
         export = window.findChild(QQuickItem, "reviewExportButton")
         assert export.isVisible() and not export.isEnabled()
         click("reviewEditButton")
-        target = window.findChild(QQuickItem, "reviewTranslationText")
+        target = item(window, "reviewTranslationText")
         target.setProperty("text", "Pressure 201 bar")
         QTest.qWait(10)
         click("reviewApplyButton")

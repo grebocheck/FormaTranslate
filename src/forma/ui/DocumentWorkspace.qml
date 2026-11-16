@@ -68,7 +68,7 @@ RowLayout {
                 id: documentList
                 objectName: "workspaceDocumentList"
                 Layout.fillWidth: true; Layout.fillHeight: true
-                model: backend.workspaceDocumentModel; clip: true; spacing: 4
+                model: backend.workspaceDocumentModel; clip: true; spacing: 6
                 enabled: !shell.reviewLocked
                 currentIndex: backend.workspaceDocuments.findIndex(function(item) { return item.id === backend.workspaceDocumentId })
                 onCurrentIndexChanged: if (currentIndex >= 0) positionViewAtIndex(currentIndex, ListView.Contain)
@@ -79,20 +79,22 @@ RowLayout {
                     id: documentRow
                     required property var modelData
                     objectName: "workspaceDocumentRow_" + modelData.id
-                    width: ListView.view.width - 6; height: 86
+                    width: ListView.view.width - 18
+                    height: Math.max(60, contentItem.implicitHeight + 16)
                     highlighted: modelData.id === backend.workspaceDocumentId
-                    leftPadding: 10; rightPadding: 10; topPadding: 10; bottomPadding: 10
+                    leftPadding: 10; rightPadding: 10; topPadding: 8; bottomPadding: 8
                     Accessible.name: modelData.name + ", " + (modelData.statusText || "")
                     ToolTip.visible: hovered
                     ToolTip.delay: 700
                     ToolTip.text: modelData.name + "\n" + (modelData.history ? modelData.output || modelData.path : modelData.path || "")
                     onClicked: backend.selectWorkspaceDocument(modelData.id)
                     background: Rectangle {
-                        radius: 8; color: documentRow.highlighted ? Theme.accentLight : documentRow.hovered ? Theme.hover : "transparent"
-                        border.color: documentRow.visualFocus ? Theme.accent : documentRow.highlighted ? Theme.accentLine : "transparent"
+                        radius: 7; color: documentRow.highlighted ? Theme.accentLight : documentRow.hovered ? Theme.hover : Theme.surface
+                        border.color: documentRow.visualFocus || documentRow.highlighted ? Theme.accent : Theme.line
+                        Rectangle { width: 3; radius: 1; anchors.left: parent.left; anchors.top: parent.top; anchors.bottom: parent.bottom; anchors.leftMargin: 1; anchors.topMargin: 8; anchors.bottomMargin: 8; color: Theme.accent; visible: documentRow.highlighted }
                     }
                     contentItem: ColumnLayout {
-                        spacing: 5
+                        spacing: 4
                         RowLayout {
                             Layout.fillWidth: true; spacing: 7
                             Icon { name: documentRow.modelData.history ? "history" : "document"; color: documentRow.highlighted ? Theme.accent : Theme.muted; width: 16; height: 16; Layout.alignment: Qt.AlignTop; Layout.topMargin: 2 }
@@ -103,10 +105,19 @@ RowLayout {
                                 wrapMode: Text.WrapAnywhere; maximumLineCount: 2; elide: Text.ElideRight
                             }
                         }
-                        PageControls.Caption {
-                            Layout.fillWidth: true; font.pixelSize: 11; elide: Text.ElideRight
-                            text: documentRow.modelData.history ? shell.historyDate(documentRow.modelData.finishedAt || documentRow.modelData.startedAt) : documentRow.modelData.format + " · " + (documentRow.modelData.statusText || "")
-                            color: documentRow.modelData.status === "error" ? Theme.danger : documentRow.modelData.status === "translating" ? Theme.accent : Theme.muted
+                        RowLayout {
+                            Layout.fillWidth: true; spacing: 5
+                            Icon {
+                                name: documentRow.modelData.status === "done" ? ((documentRow.modelData.warningCount || 0) > 0 ? "attention" : "check") : documentRow.modelData.status === "error" ? "attention" : "document"
+                                color: documentRow.modelData.status === "error" ? Theme.danger : (documentRow.modelData.warningCount || 0) > 0 ? Theme.warning : documentRow.modelData.status === "done" ? Theme.success : Theme.muted
+                                Layout.preferredWidth: 12; Layout.preferredHeight: 12
+                            }
+                            PageControls.Caption {
+                                Layout.fillWidth: true; font.pixelSize: 11; elide: Text.ElideRight
+                                text: documentRow.modelData.history ? shell.historyDate(documentRow.modelData.finishedAt || documentRow.modelData.startedAt) : documentRow.modelData.statusText || ""
+                                color: documentRow.modelData.status === "error" ? Theme.danger : documentRow.modelData.status === "translating" ? Theme.accent : Theme.muted
+                            }
+                            PageControls.Caption { text: documentRow.modelData.format; font.pixelSize: 10; color: Theme.muted }
                         }
                         Rectangle {
                             Layout.fillWidth: true; height: 3; radius: 2; color: Theme.accentLine

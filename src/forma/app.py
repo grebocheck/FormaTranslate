@@ -33,7 +33,8 @@ def _preview_image_status(window):
     while items:
         item = items.pop()
         items.extend(item.childItems())
-        if item.objectName() not in {"documentOriginalPreviewImage", "documentTranslationPreviewImage"} or not item.isVisible():
+        if (item.objectName() not in {"documentOriginalPreviewImage", "documentTranslationPreviewImage"}
+                or not item.isVisible() or not item.property("captureRelevant")):
             continue
         value = item.property("captureStatus")  # QQuickImage's private enum has no Python converter.
         if value == 3:  # Image.Error

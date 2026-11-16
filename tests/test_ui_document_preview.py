@@ -1,8 +1,8 @@
-"""Rendered document pages remain usable across modes, navigation and restart."""
+"""Continuous page previews render a viewport and keep the reading area free."""
 from pathlib import Path
 
 from pypdf import PdfWriter
-from PySide6.QtCore import QCoreApplication, QEvent, Qt, QTimer, QUrl
+from PySide6.QtCore import QCoreApplication, QEvent, QPointF, Qt, QUrl
 from PySide6.QtQml import QQmlApplicationEngine
 from PySide6.QtTest import QTest
 from support import pump
@@ -16,11 +16,11 @@ from forma.settings.config import Settings
 def _pdf(path, pages):
     writer = PdfWriter()
     for index in range(pages):
-        writer.add_blank_page(width=595, height=842 + index * 20)
+        writer.add_blank_page(width=595, height=842 + index % 3 * 20)
     writer.write(path)
 
 
-def test_pdf_pages_modes_zoom_and_unequal_lengths_after_restart(qapp, monkeypatch, tmp_path):
+def test_continuous_document_scrolling_modes_and_restored_session(qapp, monkeypatch, tmp_path):
     monkeypatch.setattr(Backend, "_read_settings", lambda _: Settings(model="offline"))
 
     def forbidden(*_args, **_kwargs):
@@ -28,8 +28,8 @@ def test_pdf_pages_modes_zoom_and_unequal_lengths_after_restart(qapp, monkeypatc
 
     monkeypatch.setattr("forma.providers.client.Provider.complete", forbidden)
     source, output = tmp_path / "source.pdf", tmp_path / "translation.pdf"
-    _pdf(source, 3)
-    _pdf(output, 2)
+    _pdf(source, 24)
+    _pdf(output, 22)
     original = Backend()
     original.addFiles([str(source)])
     pump(qapp, lambda: not original._threads)
@@ -53,17 +53,16 @@ def test_pdf_pages_modes_zoom_and_unequal_lengths_after_restart(qapp, monkeypatc
     window = engine.rootObjects()[0]
     window.setWidth(1220)
     window.setHeight(820)
-    progress_timer = QTimer(window)
-    progress_timer.setInterval(50)
-    progress_timer.timeout.connect(backend.changed.emit)
+
+    def row(page):
+        model = backend.previewPageModel
+        return model.data(model.index(page - 1), model.ROW_ROLE) or {}
 
     def wait_page(page, mode="paired"):
-        pump(qapp, lambda: backend.previewState["page"] == page
-             and backend.previewState["mode"] == mode
-             and not backend.previewState["busy"]
-             and backend.previewState["source" if mode != "translation" else "translation"]["status"] == "ready",
-             timeout=15)
-        QTest.qWait(50)
+        side = "translation" if mode == "translation" else "source"
+        pump(qapp, lambda: backend.previewState.get("mode") == mode
+             and row(page).get(side, {}).get("status") == "ready", timeout=20)
+        QTest.qWait(70)
 
     def mode(value):
         selector = item(window, "documentPreviewMode")
@@ -74,45 +73,51 @@ def test_pdf_pages_modes_zoom_and_unequal_lengths_after_restart(qapp, monkeypatc
 
     try:
         wait_page(1)
-        assert backend.previewState["source"]["pageCount"] == 3
-        assert backend.previewState["translation"]["pageCount"] == 2
-        assert item(window, "documentOriginalPreview").isVisible()
-        assert item(window, "documentTranslationPreview").isVisible()
-        page_field = item(window, "documentPreviewPageField")
-        progress_timer.start()  # Background progress must not starve the preview debounce.
-        page_field.forceActiveFocus()
-        QTest.keyClick(window, Qt.Key.Key_A, Qt.KeyboardModifier.ControlModifier)
-        QTest.keyClick(window, Qt.Key.Key_2)
-        QTest.keyClick(window, Qt.Key.Key_Return)
+        assert backend.previewPageModel.rowCount() == 24
+        assert backend.previewState["source"]["pageCount"] == 24
+        assert backend.previewState["translation"]["pageCount"] == 22
+        # All pages exist in the scroll model; distant pages have not been rasterized.
+        assert not row(24)["source"]["imageUrl"]
+        viewport = item(window, "documentContinuousPreview")
+        assert viewport.property("contentHeight") > viewport.height() * 10
+        viewport.forceActiveFocus()
+        QTest.keyClick(window, Qt.Key_PageDown)
+        QTest.qWait(150)
+        assert viewport.property("contentY") > 0
         wait_page(2)
-        progress_timer.stop()
-        assert page_field.property("text") == "2" and page_field.isEnabled()
-        click(window, "previewPreviousPageButton")
-        wait_page(1)
-        click(window, "previewNextPageButton")
-        wait_page(2)
-        assert item(window, "documentPreviewPageField").property("text") == "2"
-        click(window, "previewNextPageButton")
-        wait_page(3)
-        assert backend.previewState["translation"]["status"] == "unavailable"
-        assert not backend.previewState["translation"]["imageUrl"]
-        assert not item(window, "previewNextPageButton").isEnabled()
 
-        mode("original")
-        assert not item(window, "documentTranslationPreview").isVisible()
-        mode("translation")
-        assert not item(window, "documentOriginalPreview").isVisible()
-        mode("paired")
-        # Zoom exposes scrollable page detail. Paired panes scroll together.
+        # A page number jumps within the same continuous document.
+        field = click(window, "documentPreviewPageField")
+        QTest.keyClick(window, Qt.Key_A, Qt.ControlModifier)
+        QTest.keyClick(window, Qt.Key_2)
+        QTest.keyClick(window, Qt.Key_4)
+        QTest.keyClick(window, Qt.Key_Return)
+        wait_page(24)
+        assert field.property("text") == "24"
+        assert viewport.property("contentY") > viewport.height() * 10
+        assert row(24)["translation"]["status"] == "unavailable"
+        assert not row(24)["translation"]["imageUrl"]
         item(window, "documentPreviewZoom").setProperty("currentIndex", 4)
-        pump(qapp, lambda: not backend._threads, timeout=15)
+        QTest.qWait(250)
+        wait_page(24)
+        assert item(window, "documentPagePreview").property("currentPage") == 24
+        item(window, "documentPreviewZoom").setProperty("currentIndex", 0)
         QTest.qWait(200)
-        wait_page(1)
-        source_view = item(window, "documentOriginalPreviewViewport")
-        translated_view = item(window, "documentTranslationPreviewViewport")
-        source_view.setProperty("contentY", 100.0)
-        QTest.qWait(20)
-        assert translated_view.property("contentY") > 0
+        mode("original")
+        assert backend.previewPageModel.rowCount() == 24
+        mode("translation")
+        assert backend.previewPageModel.rowCount() == 22
+        mode("paired")
+
+        # Translation controls share the top card; the preview reaches the bottom.
+        button = item(window, "translateButton")
+        panel = item(window, "documentPreviewPanel")
+        assert button.mapToScene(QPointF()).y() < panel.mapToScene(QPointF()).y()
+        assert panel.mapToScene(QPointF()).y() + panel.height() > window.height() - 70
+        sidebar_row = item(window, "workspaceDocumentRow_" + backend.workspaceDocumentId)
+        sidebar_list = item(window, "workspaceDocumentList")
+        assert sidebar_row.height() <= 72
+        assert sidebar_list.width() - sidebar_row.width() >= 16
         selected = backend.workspaceDocumentId
         for language in ("en", "uk", "pl", "de", "fr", "es"):
             backend.setUiLanguage(language)
@@ -122,10 +127,9 @@ def test_pdf_pages_modes_zoom_and_unequal_lengths_after_restart(qapp, monkeypatc
             assert backend.workspaceDocumentId == selected
             assert backend.workspaceView["previewMode"] == "paired"
             assert item(window, "documentPreviewMode").isVisible()
-            assert item(window, "documentTranslationPreview").width() > 220
+        wait_page(1)
         assert not warnings, "\n".join(warnings)
     finally:
-        progress_timer.stop()
         backend._preview.shutdown()
         pump(qapp, lambda: not backend._threads)
         window.close()

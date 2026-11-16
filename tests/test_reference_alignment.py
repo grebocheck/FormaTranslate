@@ -132,8 +132,8 @@ def test_alignment_persists_preserves_existing_edits_and_exports_only_a_copy(app
 def test_real_alignment_menu_localizes_and_keeps_selection_before_explicit_action(appendix_review, qapp):
     from PySide6.QtCore import QCoreApplication, QEvent, QObject, QPointF, Qt, QUrl
     from PySide6.QtQml import QQmlApplicationEngine
-    from PySide6.QtQuick import QQuickItem
     from PySide6.QtTest import QTest
+    from ui_support import item as ui_item
 
     from forma.localization.catalog import CatalogTranslator
 
@@ -154,8 +154,10 @@ def test_real_alignment_menu_localizes_and_keeps_selection_before_explicit_actio
         window.setProperty("page", 1)
         pump(qapp, lambda: not backend._threads)
         backend.selectReviewEntry(selected.id)
-        item = window.findChild(QObject, "reviewAlignReferencesButton")
-        more = window.findChild(QQuickItem, "reviewMoreActionsButton")
+        QTest.qWait(20)
+        card = ui_item(window, "reviewCard_" + selected.id)
+        item = card.findChild(QObject, "reviewAlignReferencesButton")
+        more = ui_item(window, "reviewMoreActionsButton")
         assert item is not None
         labels = set()
         for language, theme in (("uk", "light"), ("en", "dark"), ("pl", "light"),

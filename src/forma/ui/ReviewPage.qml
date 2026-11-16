@@ -5,23 +5,34 @@ import QtQuick.Layouts
 ColumnLayout {
     id: page
     required property var shell
+    property bool ready: false
+    readonly property string navigationKey: backend.reviewDocumentId + "\n" + backend.reviewFilter + "\n" + backend.reviewSearch
     spacing: 10
+
+    function locationLabel(entry) {
+        var label = entry.location || qsTr("Документ")
+        if (entry.id && entry.id.indexOf("word/document.xml#") === 0 && label.indexOf("document · ") === 0)
+            return qsTr("Документ") + label.substring("document".length)
+        return label
+    }
+
+    function revealCurrent() {
+        if (ready && reviewList.currentIndex >= 0 && !backend.reviewEditing)
+            reviewList.positionViewAtIndex(reviewList.currentIndex, ListView.Contain)
+    }
+    onNavigationKeyChanged: if (ready) Qt.callLater(revealCurrent)
+    Component.onCompleted: { ready = true; Qt.callLater(revealCurrent) }
     Connections {
         target: backend
         function onRecoveryStarted() { backend.setWorkspaceMode("translation") }
     }
     Shortcut {
         sequences: ["Ctrl+Return", "Ctrl+Enter"]
-        enabled: page.visible && backend.reviewEditing && translationPane.editorHasFocus && !backend.reviewSaving && !backend.memoryWorking
+        enabled: page.visible && backend.reviewEditing && reviewList.currentItem && reviewList.currentItem.editorHasFocus && !backend.reviewSaving && !backend.memoryWorking
         onActivated: backend.applyReviewEdit()
     }
     RowLayout {
         Layout.fillWidth: true; spacing: 10
-        PageControls.Action {
-            objectName: "reviewOutlineButton"; iconName: "list"; hint: qsTr("Фрагменти документа"); Accessible.name: hint
-            implicitWidth: 36; implicitHeight: 36; subtle: true; enabled: !shell.reviewLocked && backend.reviewEntries.length > 0
-            onClicked: outlinePopup.open()
-        }
         TabBar {
             id: reviewModes; objectName: "reviewModes"; enabled: !shell.reviewLocked
             Layout.preferredWidth: Math.max(220, reviewAllMode.implicitWidth + reviewIssuesMode.implicitWidth)
@@ -49,15 +60,19 @@ ColumnLayout {
     }
     RowLayout {
         Layout.fillWidth: true; spacing: 7
-        PageControls.Caption { text: backend.selectedReviewEntry.location || ""; Layout.fillWidth: true; elide: Text.ElideMiddle; color: Theme.ink }
-        PageControls.Action { text: ""; iconName: "chevron-left"; hint: qsTr("Попередній запис"); objectName: "reviewPreviousButton"; subtle: true; implicitWidth: 30; implicitHeight: 32; enabled: !shell.reviewLocked && shell.reviewEntryIndex > 0; onClicked: backend.stepReviewEntry(-1); Accessible.name: hint }
-        PageControls.Caption { text: backend.reviewSummary.loading ? qsTr("Завантажуємо…") : (shell.reviewEntryIndex + 1) + " / " + backend.reviewEntries.length; horizontalAlignment: Text.AlignHCenter }
-        PageControls.Action { text: ""; iconName: "chevron-right"; hint: qsTr("Наступний запис"); objectName: "reviewNextButton"; subtle: true; implicitWidth: 30; implicitHeight: 32; enabled: !shell.reviewLocked && shell.reviewEntryIndex >= 0 && shell.reviewEntryIndex < backend.reviewEntries.length - 1; onClicked: backend.stepReviewEntry(1); Accessible.name: hint }
-        PageControls.Caption { text: qsTr("Правок: %1").arg(backend.reviewSummary.edited || 0); color: Theme.accent; visible: backend.reviewHasEdits }
+        PageControls.Caption {
+            text: backend.reviewEditing ? qsTr("Редагування") + " · " + page.locationLabel(backend.selectedReviewEntry) : qsTr("Фрагментів: %1").arg(backend.reviewSummary.segments || 0) + (backend.reviewSummary.attention > 0 ? " · " + qsTr("Потребують уваги: %1").arg(backend.reviewSummary.attention) : "")
+            Layout.fillWidth: true; elide: Text.ElideRight; color: backend.reviewEditing ? Theme.accent : Theme.muted
+        }
+        PageControls.Action { text: ""; iconName: "chevron-left"; hint: qsTr("Попередній запис"); objectName: "reviewPreviousButton"; subtle: true; implicitWidth: 30; implicitHeight: 32; visible: !backend.reviewEditing; enabled: !shell.reviewLocked && shell.reviewEntryIndex > 0; onClicked: backend.stepReviewEntry(-1); Accessible.name: hint }
+        PageControls.Action { text: ""; iconName: "chevron-right"; hint: qsTr("Наступний запис"); objectName: "reviewNextButton"; subtle: true; implicitWidth: 30; implicitHeight: 32; visible: !backend.reviewEditing; enabled: !shell.reviewLocked && shell.reviewEntryIndex >= 0 && shell.reviewEntryIndex < backend.reviewEntries.length - 1; onClicked: backend.stepReviewEntry(1); Accessible.name: hint }
+        PageControls.Action { text: qsTr("Зберегти правку"); iconName: "check"; objectName: "reviewApplyButton"; primary: true; implicitHeight: 34; visible: backend.reviewEditing; enabled: !backend.reviewSaving; onClicked: backend.applyReviewEdit(); hint: qsTr("Зберегти правку в чернетці") + " (Ctrl+Enter)" }
+        PageControls.Action { text: page.width >= 700 ? qsTr("Скасувати") : ""; hint: qsTr("Скасувати"); Accessible.name: hint; iconName: "close"; objectName: "reviewCancelEditButton"; implicitHeight: 34; visible: backend.reviewEditing; enabled: !backend.reviewSaving; onClicked: backend.cancelReviewEdit() }
+        PageControls.Caption { text: qsTr("Правок: %1").arg(backend.reviewSummary.edited || 0); color: Theme.accent; visible: backend.reviewHasEdits && !backend.reviewEditing }
         PageControls.Action {
             text: backend.reviewSaving ? qsTr("Зберігаємо…") : backend.reviewDocument.recovery ? qsTr("Продовжити переклад") : qsTr("Зберегти копію")
             iconName: backend.reviewDocument.recovery ? "play" : "save"; objectName: "reviewExportButton"; primary: true; implicitHeight: 34
-            visible: backend.reviewHasEdits || !!backend.reviewDocument.recovery || backend.reviewSaving
+            visible: !backend.reviewEditing && (backend.reviewHasEdits || !!backend.reviewDocument.recovery || backend.reviewSaving)
             enabled: (backend.reviewDocument.recovery ? backend.reviewDocument.canResume : backend.reviewHasEdits) && !shell.reviewLocked
             onClicked: backend.exportReviewEdits()
             hint: backend.reviewDocument.recovery ? qsTr("Перевірити правки й продовжити переклад цього документа") : qsTr("Створити виправлену копію. Попередній переклад залишиться без змін")
@@ -68,126 +83,148 @@ ColumnLayout {
         visible: !!backend.reviewDocument.recovery; Layout.fillWidth: true; wrapMode: Text.WordWrap
     }
     PageControls.Caption { text: backend.reviewActionError; objectName: "reviewActionError"; visible: text.length > 0; color: Theme.danger; Layout.fillWidth: true; wrapMode: Text.WordWrap }
-    Popup {
-        id: outlinePopup; objectName: "reviewOutlinePopup"
-        parent: Overlay.overlay; anchors.centerIn: parent
-        width: Math.min(620, parent.width - 40); height: Math.min(540, parent.height - 80)
-        padding: 18; modal: true; focus: true
-        closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
-        background: Rectangle { color: Theme.surface; border.color: Theme.line; radius: 12 }
-        Overlay.modal: Rectangle { color: Theme.overlay }
-        onOpened: { reviewEntryList.positionViewAtIndex(shell.reviewEntryIndex, ListView.Contain); reviewEntryList.forceActiveFocus() }
-        contentItem: ColumnLayout {
-            spacing: 12
-            RowLayout {
-                Layout.fillWidth: true
-                PageControls.Heading { text: qsTr("Фрагменти документа"); Layout.fillWidth: true }
-                PageControls.Action { text: ""; iconName: "close"; hint: qsTr("Закрити"); Accessible.name: hint; subtle: true; implicitWidth: 32; implicitHeight: 32; onClicked: outlinePopup.close() }
-            }
-            PageControls.Caption { text: backend.reviewFilter === "issues" ? qsTr("Потребують уваги: %1").arg(backend.reviewSummary.attention || 0) : qsTr("Фрагментів: %1").arg(backend.reviewSummary.segments || 0); Layout.fillWidth: true }
-            ListView {
-                id: reviewEntryList; objectName: "reviewEntryList"
-                Layout.fillWidth: true; Layout.fillHeight: true; clip: true; spacing: 4
-                model: backend.reviewEntries; currentIndex: shell.reviewEntryIndex
-                onCurrentIndexChanged: if (currentIndex >= 0) positionViewAtIndex(currentIndex, ListView.Contain)
-                ScrollBar.vertical: PageControls.ReadingScrollBar { }
-                Keys.onUpPressed: backend.stepReviewEntry(-1)
-                Keys.onDownPressed: backend.stepReviewEntry(1)
-                Keys.onReturnPressed: outlinePopup.close()
-                delegate: ItemDelegate {
-                    id: reviewEntryRow
-                    required property var modelData
-                    width: ListView.view.width - 10; height: 86
-                    leftPadding: 12; rightPadding: 12; topPadding: 10; bottomPadding: 10
-                    highlighted: modelData.id === backend.selectedReviewId
-                    Accessible.name: modelData.issueCount > 0 ? qsTr("%1, зауважень: %2").arg(modelData.location).arg(modelData.issueCount) : modelData.location
-                    background: Rectangle {
-                        radius: 7; color: reviewEntryRow.highlighted ? Theme.accentLight : reviewEntryRow.hovered ? Theme.surfaceMuted : Theme.surface
-                        border.color: reviewEntryRow.visualFocus ? Theme.accent : reviewEntryRow.highlighted ? Theme.accentLine : "transparent"
-                        Rectangle { x: 0; y: 10; width: 3; height: parent.height - 20; radius: 1; visible: reviewEntryRow.modelData.issueCount > 0 && !reviewEntryRow.modelData.accepted; color: reviewEntryRow.modelData.severity === "error" ? Theme.danger : Theme.warning }
-                    }
-                    contentItem: ColumnLayout {
-                        spacing: 5
-                        RowLayout {
-                            Layout.fillWidth: true; spacing: 6
-                            PageControls.Caption { text: reviewEntryRow.modelData.location || qsTr("Документ"); Layout.fillWidth: true; elide: Text.ElideMiddle; font.weight: Font.DemiBold; color: Theme.ink }
-                            Icon { name: "check"; color: Theme.success; visible: !!reviewEntryRow.modelData.accepted; Accessible.name: qsTr("Позначено як коректне") }
-                            Icon { name: "edit"; color: Theme.accent; visible: !!reviewEntryRow.modelData.edited; Accessible.name: qsTr("Є правка") }
+
+    Item {
+        Layout.fillWidth: true; Layout.fillHeight: true
+        ListView {
+            id: reviewList; objectName: "reviewEntryList"
+            anchors.fill: parent
+            visible: count > 0; clip: true; spacing: 10; cacheBuffer: Math.max(0, height)
+            model: backend.reviewEntryModel; currentIndex: shell.reviewEntryIndex
+            highlightFollowsCurrentItem: false; keyNavigationEnabled: false; reuseItems: false
+            boundsBehavior: Flickable.StopAtBounds
+            onCurrentIndexChanged: if (page.ready) Qt.callLater(function() {
+                if (!reviewList.currentItem || backend.reviewEditing) return
+                var top = reviewList.currentItem.y
+                if (top + reviewList.currentItem.height < reviewList.contentY || top > reviewList.contentY + reviewList.height)
+                    page.revealCurrent()
+            })
+            ScrollBar.vertical: PageControls.ReadingScrollBar { }
+            delegate: PageControls.Panel {
+                id: card
+                required property var modelData
+                required property int index
+                readonly property bool selected: modelData.id === backend.selectedReviewId
+                readonly property bool editing: selected && backend.reviewEditing
+                readonly property var entry: selected ? backend.selectedReviewEntry : modelData
+                readonly property bool editorHasFocus: translationText.activeFocus
+                readonly property color statusColor: entry.accepted ? Theme.success : entry.severity === "error" ? Theme.danger : entry.issueCount > 0 ? Theme.warning : entry.edited ? Theme.accent : Theme.muted
+                objectName: "reviewCard_" + modelData.id
+                width: ListView.view.width - 16; height: contents.implicitHeight + 24
+                border.color: editing || selected ? Theme.accent : Theme.line
+                border.width: editing ? 2 : 1
+                color: Theme.surface
+                function select() { if (!shell.reviewLocked) backend.selectReviewEntry(modelData.id) }
+                onEditingChanged: if (editing) Qt.callLater(function() {
+                    reviewList.positionViewAtIndex(card.index, ListView.Beginning)
+                    translationText.forceActiveFocus()
+                })
+                TapHandler { acceptedButtons: Qt.LeftButton; onTapped: card.select() }
+                ColumnLayout {
+                    id: contents
+                    anchors.left: parent.left; anchors.right: parent.right; anchors.top: parent.top
+                    anchors.margins: 12; spacing: 10
+                    RowLayout {
+                        Layout.fillWidth: true; spacing: 8
+                        PageControls.Caption { objectName: "reviewLocation_" + card.modelData.id; text: page.locationLabel(card.entry); Layout.fillWidth: true; elide: Text.ElideMiddle; font.weight: Font.DemiBold; color: Theme.ink }
+                        Icon { name: card.entry.accepted ? "check" : card.entry.severity === "error" || card.entry.issueCount > 0 ? "attention" : card.entry.edited ? "edit" : "check"; color: card.statusColor; Layout.preferredWidth: 14; Layout.preferredHeight: 14 }
+                        PageControls.Caption {
+                            text: card.entry.accepted ? qsTr("Позначено як коректне") : card.entry.severity === "error" ? qsTr("Потрібне виправлення") : card.entry.issueCount > 0 ? qsTr("Зауважень: %1").arg(card.entry.issueCount) : card.entry.edited ? qsTr("Правку збережено") : qsTr("Без автоматичних зауважень")
+                            color: card.statusColor; font.pixelSize: 11; Layout.maximumWidth: card.width * 0.52; elide: Text.ElideRight
                         }
-                        PageControls.LabelText { text: (reviewEntryRow.modelData.source || reviewEntryRow.modelData.translation || (reviewEntryRow.modelData.messages || [])[0] || qsTr("Примітка до документа")).replace(/\s+/g, " "); font.pixelSize: 13; Layout.fillWidth: true; Layout.fillHeight: true; wrapMode: Text.WordWrap; maximumLineCount: 2; elide: Text.ElideRight }
                     }
-                    onClicked: { backend.selectReviewEntry(modelData.id); outlinePopup.close() }
-                }
-            }
-        }
-    }
-    RowLayout {
-        Layout.fillWidth: true; Layout.fillHeight: true; spacing: 12
-        ColumnLayout {
-            Layout.fillWidth: true; Layout.fillHeight: true; spacing: 12
-            visible: !!backend.selectedReviewEntry.id
-            PageControls.Panel {
-                id: explanationsPanel
-                Layout.fillWidth: true
-                Layout.fillHeight: backend.selectedReviewEntry.kind === "document"
-                Layout.preferredHeight: backend.selectedReviewEntry.kind === "document" ? 1 : Math.min(112, Math.max(54, explanationsText.implicitHeight + 20))
-                Layout.minimumHeight: 54
-                visible: (backend.selectedReviewEntry.messages || []).length > 0
-                color: backend.selectedReviewEntry.accepted ? Theme.successFill : backend.selectedReviewEntry.severity === "error" ? Theme.dangerFill : backend.selectedReviewEntry.severity === "warning" ? Theme.warningFill : Theme.surface
-                border.color: backend.selectedReviewEntry.accepted ? Theme.successLine : backend.selectedReviewEntry.severity === "error" ? Theme.dangerLine : backend.selectedReviewEntry.severity === "warning" ? Theme.warningLine : shell.line
-                RowLayout {
-                    anchors.fill: parent; anchors.margins: 10; spacing: 10
-                    Icon { name: backend.selectedReviewEntry.accepted ? "check" : backend.selectedReviewEntry.severity === "info" ? "info" : "attention"; color: backend.selectedReviewEntry.accepted ? Theme.success : backend.selectedReviewEntry.severity === "error" ? Theme.danger : backend.selectedReviewEntry.severity === "warning" ? Theme.warning : shell.muted; Layout.alignment: Qt.AlignTop }
-                    ScrollView {
-                        id: explanationsScroll
-                        Layout.fillWidth: true; Layout.fillHeight: true; clip: true; contentWidth: availableWidth
-                        ScrollBar.vertical: PageControls.ReadingScrollBar { }
-                        ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
-                        PageControls.ReadOnlyText { id: explanationsText; objectName: "reviewExplanationText"; width: explanationsScroll.availableWidth; text: (backend.selectedReviewEntry.accepted ? qsTr("Позначено як коректне") + "\n\n" : "") + (backend.selectedReviewEntry.messages || []).join("\n\n") + (backend.selectedReviewEntry.severity === "error" ? "\n\n" + qsTr("Помилку потрібно виправити; позначити її коректною не можна.") : ""); onTextChanged: if (explanationsScroll.contentItem) explanationsScroll.contentItem.contentY = 0; font.pixelSize: 13; Accessible.name: qsTr("Пояснення до вибраного запису") }
-                    }
-                    PageControls.Action { text: qsTr("Це коректно"); iconName: "check"; objectName: "reviewConfirmButton"; implicitHeight: 30; visible: !!backend.selectedReviewEntry.canAccept && !backend.selectedReviewEntry.accepted; enabled: !shell.reviewLocked; onClicked: backend.confirmReviewEntry(); hint: qsTr("Позначити цей запис як перевірений. Він залишиться у вкладці «Увесь текст»"); Layout.alignment: Qt.AlignTop }
-                    PageControls.Action { text: qsTr("Повернути зауваження"); iconName: "undo"; objectName: "reviewReopenButton"; implicitHeight: 30; visible: !!backend.selectedReviewEntry.accepted; enabled: !shell.reviewLocked; onClicked: backend.reopenReviewEntry(); Layout.alignment: Qt.AlignTop }
-                }
-            }
-            GridLayout {
-                id: textPanes
-                Layout.fillWidth: true; Layout.fillHeight: true; columnSpacing: 12; rowSpacing: 10
-                columns: width >= 520 ? 2 : 1
-                visible: backend.selectedReviewEntry.kind !== "document"
-                PageControls.ReviewTextPanel { heading: qsTr("ОРИГІНАЛ"); text: backend.selectedReviewEntry.source || ""; textObjectName: "reviewSourceText"; Layout.fillWidth: true; Layout.fillHeight: true; Layout.preferredWidth: 1; Layout.minimumWidth: 0; Layout.preferredHeight: textPanes.columns === 1 ? 1 : -1 }
-                PageControls.ReviewTextPanel {
-                    id: translationPane
-                    heading: qsTr("ПЕРЕКЛАД"); text: backend.reviewEditing ? backend.reviewDraftText : backend.selectedReviewEntry.translation || ""
-                    textObjectName: "reviewTranslationText"; editing: backend.reviewEditing; edited: !!backend.selectedReviewEntry.edited
-                    editError: backend.reviewEditing ? backend.reviewEditError : ""
-                    onDraftEdited: function(value) { if (backend.reviewEditing && value !== backend.reviewDraftText) backend.updateReviewDraft(value) }
-                    footerContent: [
-                        PageControls.Action { text: qsTr("Редагувати"); iconName: "edit"; objectName: "reviewEditButton"; subtle: true; implicitHeight: 32; visible: !backend.reviewEditing; enabled: !!backend.selectedReviewEntry.canEdit && !backend.reviewSaving && !backend.memoryWorking; onClicked: backend.beginReviewEdit(); hint: backend.selectedReviewEntry.editReason || qsTr("Редагувати текст перекладу цього фрагмента") },
-                        PageControls.Action { text: qsTr("Зберегти правку"); iconName: "check"; objectName: "reviewApplyButton"; primary: true; implicitHeight: 32; leftPadding: 10; rightPadding: 10; visible: backend.reviewEditing; enabled: !backend.reviewSaving; onClicked: backend.applyReviewEdit(); hint: qsTr("Зберегти правку в чернетці") + " (Ctrl+Enter)" },
-                        PageControls.Action { text: translationPane.width >= 380 ? qsTr("Скасувати") : ""; hint: qsTr("Скасувати"); Accessible.name: hint; iconName: "close"; objectName: "reviewCancelEditButton"; implicitHeight: 32; leftPadding: 10; rightPadding: 10; visible: backend.reviewEditing; enabled: !backend.reviewSaving; onClicked: backend.cancelReviewEdit() },
+                    Flow {
+                        Layout.fillWidth: true; Layout.preferredHeight: implicitHeight; spacing: 6
+                        visible: card.selected && !card.editing
+                        PageControls.Action { text: qsTr("Редагувати"); iconName: "edit"; objectName: card.selected ? "reviewEditButton" : "reviewEdit_" + card.modelData.id; subtle: true; implicitHeight: 30; visible: card.entry.kind === "segment"; enabled: !!card.entry.canEdit && !backend.reviewSaving && !backend.memoryWorking; onClicked: backend.beginReviewEdit(); hint: card.entry.editReason || qsTr("Редагувати текст перекладу цього фрагмента") }
+                        PageControls.Action { text: qsTr("Це коректно"); iconName: "check"; objectName: card.selected ? "reviewConfirmButton" : "reviewConfirm_" + card.modelData.id; implicitHeight: 30; visible: !!card.entry.canAccept && !card.entry.accepted && card.entry.issueCount > 0; enabled: !shell.reviewLocked; onClicked: backend.confirmReviewEntry(); hint: qsTr("Позначити цей запис як перевірений. Він залишиться у вкладці «Увесь текст»") }
+                        PageControls.Action { text: qsTr("Повернути зауваження"); iconName: "undo"; objectName: card.selected ? "reviewReopenButton" : "reviewReopen_" + card.modelData.id; implicitHeight: 30; visible: !!card.entry.accepted; enabled: !shell.reviewLocked; onClicked: backend.reopenReviewEntry() }
                         PageControls.Action {
-                            objectName: "reviewMoreActionsButton"
-                            text: translationPane.width >= 380 ? qsTr("Інші дії") : ""; hint: qsTr("Інші дії"); iconName: "chevron-down"; subtle: true; implicitHeight: 32
-                            visible: !backend.reviewEditing && ((!backend.reviewDocument.recovery && !!backend.memoryProject.id) || !!backend.selectedReviewEntry.edited || !!backend.selectedReviewEntry.canAlignReferences)
-                            enabled: !shell.reviewLocked
-                            onClicked: secondaryActions.open()
+                            objectName: card.selected ? "reviewMoreActionsButton" : "reviewMoreActions_" + card.modelData.id
+                            text: qsTr("Інші дії"); hint: text; iconName: "chevron-down"; subtle: true; implicitHeight: 30
+                            visible: (!backend.reviewDocument.recovery && !!backend.memoryProject.id) || !!card.entry.edited || !!card.entry.canAlignReferences
+                            enabled: !shell.reviewLocked; onClicked: secondaryActions.open()
                             Menu {
                                 id: secondaryActions
                                 width: Math.min(shell.width - 40, Math.max(300, alignReferenceAction.implicitWidth + 24))
-                                MenuItem { text: qsTr("Запам’ятати формулювання"); objectName: "rememberReviewWordingButton"; visible: !backend.reviewDocument.recovery && !!backend.memoryProject.id; enabled: backend.canRememberReviewWording; onClicked: shell.showRememberWordingDialog() }
-                                MenuItem { id: alignReferenceAction; text: qsTr("Позначення «%1» для всіх заголовків цього додатка").arg(backend.selectedReviewEntry.referenceLabel || ""); objectName: "reviewAlignReferencesButton"; visible: !!backend.selectedReviewEntry.canAlignReferences; enabled: !shell.reviewLocked; onClicked: backend.alignReviewReferences() }
-                                MenuItem { text: qsTr("Скасувати збережену правку цього фрагмента"); objectName: "reviewDiscardEditButton"; visible: !!backend.selectedReviewEntry.edited; enabled: !shell.reviewLocked; onClicked: backend.discardReviewEdit() }
+                                MenuItem { text: qsTr("Запам’ятати формулювання"); objectName: card.selected ? "rememberReviewWordingButton" : "rememberReview_" + card.modelData.id; visible: !backend.reviewDocument.recovery && !!backend.memoryProject.id; enabled: backend.canRememberReviewWording; onClicked: shell.showRememberWordingDialog() }
+                                MenuItem { id: alignReferenceAction; text: qsTr("Позначення «%1» для всіх заголовків цього додатка").arg(card.entry.referenceLabel || ""); objectName: card.selected ? "reviewAlignReferencesButton" : "reviewAlign_" + card.modelData.id; visible: !!card.entry.canAlignReferences; enabled: !shell.reviewLocked; onClicked: backend.alignReviewReferences() }
+                                MenuItem { text: qsTr("Скасувати збережену правку цього фрагмента"); objectName: card.selected ? "reviewDiscardEditButton" : "reviewDiscard_" + card.modelData.id; visible: !!card.entry.edited; enabled: !shell.reviewLocked; onClicked: backend.discardReviewEdit() }
                             }
                         }
-                    ]
-                    Layout.fillWidth: true; Layout.fillHeight: true; Layout.preferredWidth: 1; Layout.minimumWidth: 0
-                    Layout.preferredHeight: textPanes.columns === 1 ? 2 : -1
+                    }
+                    Rectangle {
+                        visible: (card.entry.messages || []).length > 0
+                        Layout.fillWidth: true; implicitHeight: messages.implicitHeight + 16; radius: 6
+                        color: card.entry.accepted ? Theme.successFill : card.entry.severity === "error" ? Theme.dangerFill : card.entry.severity === "warning" ? Theme.warningFill : Theme.surfaceMuted
+                        ColumnLayout {
+                            id: messages; anchors.left: parent.left; anchors.right: parent.right; anchors.top: parent.top; anchors.margins: 8
+                            PageControls.ReadOnlyText {
+                                objectName: card.selected ? "reviewExplanationText" : "reviewExplanation_" + card.modelData.id
+                                visible: card.selected; Layout.fillWidth: true; font.pixelSize: 12
+                                text: (card.entry.messages || []).join("\n\n") + (card.entry.severity === "error" ? "\n\n" + qsTr("Помилку потрібно виправити; позначити її коректною не можна.") : "")
+                                Accessible.name: qsTr("Пояснення до вибраного запису")
+                            }
+                            PageControls.LabelText { visible: !card.selected; Layout.fillWidth: true; font.pixelSize: 12; text: (card.entry.messages || [])[0] || ""; wrapMode: Text.WordWrap; maximumLineCount: 2; elide: Text.ElideRight }
+                        }
+                    }
+                    GridLayout {
+                        id: pairs; columns: width >= 520 ? 2 : 1
+                        Layout.fillWidth: true; columnSpacing: 12; rowSpacing: 10
+                        visible: card.entry.kind !== "document"
+                        ColumnLayout {
+                            Layout.fillWidth: true; Layout.fillHeight: true; Layout.preferredWidth: 1; Layout.minimumWidth: 0; spacing: 5
+                            PageControls.Caption { text: qsTr("ОРИГІНАЛ"); font.pixelSize: 11; Layout.fillWidth: true }
+                            PageControls.ReadOnlyText {
+                                id: sourceText
+                                objectName: card.selected ? "reviewSourceText" : "reviewSource_" + card.modelData.id
+                                text: card.entry.source || ""; Layout.fillWidth: true; Layout.fillHeight: true; Layout.minimumWidth: 0
+                                Layout.preferredHeight: Math.max(card.editing ? 140 : 24, contentHeight + topPadding + bottomPadding)
+                                padding: 8; rightPadding: 8
+                                background: Rectangle { color: Theme.surfaceMuted; radius: 5 }
+                                onActiveFocusChanged: if (activeFocus) card.select()
+                                Accessible.name: qsTr("ОРИГІНАЛ")
+                            }
+                        }
+                        ColumnLayout {
+                            Layout.fillWidth: true; Layout.fillHeight: true; Layout.preferredWidth: 1; Layout.minimumWidth: 0; spacing: 5
+                            PageControls.Caption { text: card.editing ? qsTr("Редагування") : qsTr("ПЕРЕКЛАД"); font.pixelSize: 11; Layout.fillWidth: true; color: card.editing ? Theme.accent : Theme.muted }
+                            PageControls.ReadOnlyText {
+                                id: translationText
+                                objectName: card.selected ? "reviewTranslationText" : "reviewTranslation_" + card.modelData.id
+                                text: card.editing ? backend.reviewDraftText : card.entry.translation || ""
+                                readOnly: !card.editing; Layout.fillWidth: true; Layout.fillHeight: true; Layout.minimumWidth: 0
+                                Layout.preferredHeight: Math.max(card.editing ? 140 : 24, contentHeight + topPadding + bottomPadding)
+                                padding: 8; rightPadding: 8
+                                background: Rectangle { color: card.editing ? Theme.accentLight : Theme.surfaceMuted; radius: 5; border.color: card.editing ? Theme.accent : "transparent" }
+                                function revealCursor() {
+                                    if (!card.editing || !activeFocus) return
+                                    var point = mapToItem(reviewList, cursorRectangle.x, cursorRectangle.y)
+                                    var top = reviewList.contentY
+                                    if (point.y < 8) top += point.y - 8
+                                    else if (point.y + cursorRectangle.height > reviewList.height - 8)
+                                        top += point.y + cursorRectangle.height - reviewList.height + 8
+                                    reviewList.contentY = Math.max(reviewList.originY, Math.min(top, reviewList.originY + reviewList.contentHeight - reviewList.height))
+                                }
+                                onCursorRectangleChanged: if (card.editing && activeFocus) Qt.callLater(revealCursor)
+                                onTextChanged: if (card.editing && text !== backend.reviewDraftText) backend.updateReviewDraft(text)
+                                onActiveFocusChanged: if (activeFocus) card.select()
+                                Accessible.name: qsTr("ПЕРЕКЛАД")
+                            }
+                        }
+                    }
+                    PageControls.ReadOnlyText {
+                        objectName: card.selected ? "reviewTranslationTextError" : "reviewError_" + card.modelData.id
+                        visible: card.editing && backend.reviewEditError.length > 0; text: card.editing ? backend.reviewEditError : ""
+                        Layout.fillWidth: true; font.pixelSize: 12; color: Theme.danger
+                        Accessible.name: qsTr("Помилка збереження правки")
+                    }
                 }
             }
         }
         PageControls.Panel {
-            Layout.fillWidth: true; Layout.fillHeight: true
-            visible: !backend.selectedReviewEntry.id
+            anchors.fill: parent
+            visible: reviewList.count === 0
             ColumnLayout {
                 anchors.centerIn: parent; width: Math.min(400, parent.width - 40); spacing: 14
                 BusyIndicator { running: backend.reviewSummary.loading; visible: running; Layout.alignment: Qt.AlignHCenter; Layout.preferredWidth: 36; Layout.preferredHeight: 36 }

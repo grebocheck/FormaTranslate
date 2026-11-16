@@ -56,5 +56,11 @@
   "У цьому документі немає цієї сторінки.": "Cette page n’existe pas dans ce document.",
   "Файл для перегляду недоступний або перевищує 200 МБ. Перевірте його розташування.": "Le fichier à afficher est indisponible ou dépasse 200 Mo. Vérifiez son emplacement.",
   "Файл змінився під час підготовки перегляду. Відкрийте його знову.": "Le fichier a été modifié pendant la préparation de l’aperçu. Ouvrez-le à nouveau.",
-  "Файл недоступний. Відкрийте його знову або додайте файл.": "Le fichier est indisponible. Ouvrez-le à nouveau ou ajoutez un fichier."
+  "Файл недоступний. Відкрийте його знову або додайте файл.": "Le fichier est indisponible. Ouvrez-le à nouveau ou ajoutez un fichier.",
+  "Без автоматичних зауважень": "Aucune remarque automatique",
+  "Зауважень: %1": "Remarques : %1",
+  "Потрібне виправлення": "Correction nécessaire",
+  "Правку збережено": "Modification enregistrée",
+  "Перейти до сторінки": "Aller à la page",
+  "Перекласти (%1)": "Traduire (%1)"
 }

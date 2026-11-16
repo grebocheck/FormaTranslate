@@ -130,7 +130,7 @@ def test_opened_history_documents_remain_available_and_keep_independent_review_v
     assert not warnings, "\n".join(warnings)
 
 
-def test_review_outline_is_explicit_and_file_actions_are_available_in_all_locales(
+def test_continuous_review_pairs_and_file_actions_are_available_in_all_locales(
     qapp, workspace_window, monkeypatch,
 ):
     backend, result, segment, window, warnings = workspace_window
@@ -142,7 +142,7 @@ def test_review_outline_is_explicit_and_file_actions_are_available_in_all_locale
     backend.selectReviewEntry(segment.id)
     source = item(window, "reviewSourceText")
     translation = item(window, "reviewTranslationText")
-    assert not item(window, "reviewEntryList").isVisible()
+    assert item(window, "reviewEntryList").isVisible()
     assert source.isVisible() and translation.isVisible()
     assert source.property("readOnly") and source.property("selectByMouse")
     assert translation.property("readOnly") and translation.property("selectByMouse")
@@ -153,13 +153,15 @@ def test_review_outline_is_explicit_and_file_actions_are_available_in_all_locale
         QTest.qWait(20)
         assert backend.workspaceDocumentId == "history:attempt"
         assert backend.selectedReviewId == segment.id
-        assert source.height() >= 140 and translation.height() >= 140
-        click(window, "reviewOutlineButton")
+        from forma.localization.catalog import translate
+
+        assert item(window, "reviewLocation_" + segment.id).property("text").startswith(translate("Документ") + " · ")
+        assert backend.selectedReviewEntry["location"].startswith("document · ")
+        assert source.height() >= source.property("contentHeight")
+        assert translation.height() >= translation.property("contentHeight")
+        assert source.mapToScene(QPointF()).x() < translation.mapToScene(QPointF()).x()
+        assert abs(source.mapToScene(QPointF()).y() - translation.mapToScene(QPointF()).y()) < 1
         assert item(window, "reviewEntryList").isVisible()
-        # Escape dismisses the navigator without changing the selected fragment.
-        QTest.keyClick(window, Qt.Key_Escape)
-        QTest.qWait(20)
-        assert not item(window, "reviewEntryList").isVisible()
         assert backend.selectedReviewId == segment.id
         click(window, "workspaceFileActionsButton")
         assert item(window, "reviewOriginalButton").isVisible()

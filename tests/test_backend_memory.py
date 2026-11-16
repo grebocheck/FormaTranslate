@@ -13,6 +13,7 @@ from PySide6.QtQml import QQmlApplicationEngine
 from PySide6.QtQuick import QQuickItem
 from PySide6.QtTest import QTest
 from support import settle
+from ui_support import click
 
 import forma.presentation.backend as backend_module
 from forma.core.models import FormaError, Options
@@ -354,9 +355,11 @@ def test_preferred_dialog_async_close_preserves_conflict_and_replacement(
     backend.selectReviewEntry(files[3])
     dialog = window.findChild(QObject, "rememberWordingDialog")
     try:
-        remember = window.findChild(QObject, "rememberReviewWordingButton")
+        def remember():
+            click(window, "reviewMoreActionsButton")
+            click(window, "rememberReviewWordingButton")
         confirm = window.findChild(QObject, "confirmRememberWordingButton")
-        remember.clicked.emit()
+        remember()
         assert dialog.property("visible")
         confirm.clicked.emit()
         settle(qapp, backend)
@@ -366,7 +369,7 @@ def test_preferred_dialog_async_close_preserves_conflict_and_replacement(
         backend.beginReviewEdit()
         backend.updateReviewDraft("Rated pump power 16 kW")
         assert backend.applyReviewEdit()
-        remember.clicked.emit()
+        remember()
         confirm.clicked.emit()
         settle(qapp, backend)
         QTest.qWait(30)
@@ -401,7 +404,7 @@ def test_preferred_dialog_async_close_preserves_conflict_and_replacement(
         QTest.qWait(30)
         assert not backend.memoryConflict and not dialog.property("visible")
         assert backend._memory.snapshot(backend.memoryProject["id"]).approved_revision == first_revision
-        remember.clicked.emit()
+        remember()
         confirm.clicked.emit()
         settle(qapp, backend)
         assert dialog.property("visible") and backend.memoryConflict["active"]

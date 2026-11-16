@@ -56,5 +56,11 @@
   "У цьому документі немає цієї сторінки.": "Diese Seite ist in diesem Dokument nicht vorhanden.",
   "Файл для перегляду недоступний або перевищує 200 МБ. Перевірте його розташування.": "Die Datei für die Vorschau ist nicht verfügbar oder größer als 200 MB. Prüfen Sie ihren Speicherort.",
   "Файл змінився під час підготовки перегляду. Відкрийте його знову.": "Die Datei wurde während der Vorbereitung der Vorschau geändert. Öffnen Sie sie erneut.",
-  "Файл недоступний. Відкрийте його знову або додайте файл.": "Die Datei ist nicht verfügbar. Öffnen Sie sie erneut oder fügen Sie eine Datei hinzu."
+  "Файл недоступний. Відкрийте його знову або додайте файл.": "Die Datei ist nicht verfügbar. Öffnen Sie sie erneut oder fügen Sie eine Datei hinzu.",
+  "Без автоматичних зауважень": "Keine automatischen Hinweise",
+  "Зауважень: %1": "Hinweise: %1",
+  "Потрібне виправлення": "Korrektur erforderlich",
+  "Правку збережено": "Änderung gespeichert",
+  "Перейти до сторінки": "Zur Seite springen",
+  "Перекласти (%1)": "Übersetzen (%1)"
 }

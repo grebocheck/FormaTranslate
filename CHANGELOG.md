@@ -5,11 +5,12 @@ Versions follow semantic versioning. Changes before 1.0 may evolve as document c
 ## Unreleased
 
 - Rebuild Documents and Review around one automatically saved session with a shared, persistent document sidebar. Restore the selected document, translation options and each report's fragment, search and filter across navigation and restarts.
-- Move translation options into one dialog and document/queue operations into contextual menus. Keep source and translation side by side at the minimum window size, with the fragment list available on demand.
+- Move translation options into one dialog and document/queue operations into contextual menus. Keep the translation action with the top language controls and give the document preview the remaining height.
 - Keep historical results as separate read-only session references. Opening or switching a result never queues another translation; the main action shows its pending document count and excludes completed files.
 - Preserve unapplied-edit guards, report-bound drafts, asynchronous load cancellation, PDF/OCR handoffs and live switching of all six interface languages and themes.
-- Widen the document sidebar, wrap long filenames and remember its adjustable width. Add original, translated and paired page previews for PDF/DOCX, synchronized scrolling, page navigation and zoom.
-- Render local PDF pages in an isolated Qt PDF worker and DOCX through an installed LibreOffice. Restore completed-document previews directly from their files, without another translation request; bound and discard the temporary preview cache.
+- Use compact, clearly bordered document cards with wrapped filenames, status markers and a scrollbar gutter; remember the adjustable sidebar width. PDF/DOCX previews scroll continuously through original, translated or paired pages, with zoom and direct page jumps.
+- Read page geometry in an isolated worker and render only the visible area and nearby pages, including long documents. DOCX conversion through installed LibreOffice is cached locally. Restore completed previews directly from files without another translation request; bound and discard temporary preview files.
+- Review translations as a continuous list of paired fragments with inline editing, visible findings, search and filters. Keep the editor and caret stable across scrolling and live language/theme changes, and preserve draft, recovery and export safeguards.
 
 ## 0.14.0 — 2026-11-16
 

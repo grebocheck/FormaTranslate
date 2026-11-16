@@ -5,6 +5,8 @@ from PySide6.QtQml import QQmlApplicationEngine
 from PySide6.QtQuick import QQuickItem
 from PySide6.QtTest import QTest
 from support import pump
+from ui_support import click as click_control
+from ui_support import item
 
 from forma.localization.catalog import CatalogTranslator
 
@@ -25,15 +27,7 @@ def test_real_review_confirm_edit_apply_and_export_controls(qapp, reviewed):
     window.setHeight(680)
 
     def click(name):
-        button = window.findChild(QQuickItem, name)
-        assert button is not None and button.property("visible") and button.property("enabled"), (
-            name
-        )
-        point = button.mapToScene(QPointF(button.width() / 2, button.height() / 2))
-        QTest.mouseClick(
-            window, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier, point.toPoint()
-        )
-        QTest.qWait(10)
+        return click_control(window, name)
 
     try:
         window.setProperty("page", 1)
@@ -47,7 +41,7 @@ def test_real_review_confirm_edit_apply_and_export_controls(qapp, reviewed):
         click("reviewReopenButton")
         assert not backend.selectedReviewEntry["accepted"]
         click("reviewEditButton")
-        target = window.findChild(QQuickItem, "reviewTranslationText")
+        target = item(window, "reviewTranslationText")
         assert backend.reviewEditing and not target.property("readOnly")
         assert not window.findChild(QQuickItem, "workspaceDocumentList").property("enabled")
         target.setProperty("text", "Введення теплолічильника в експлуатацію")
@@ -67,7 +61,7 @@ def test_real_review_confirm_edit_apply_and_export_controls(qapp, reviewed):
             cancel = window.findChild(QQuickItem, "reviewCancelEditButton")
             assert target.height() >= 140
             assert abs(apply.mapToScene(QPointF()).y() - cancel.mapToScene(QPointF()).y()) < 1
-            assert cancel.mapToScene(QPointF(cancel.width(), cancel.height())).x() <= window.width() - 20
+            assert cancel.mapToScene(QPointF(cancel.width(), cancel.height())).x() <= window.width() - 16
             assert not export.isVisible() and not export.isEnabled()
         click("reviewApplyButton")
         assert not backend.reviewEditing and backend.reviewHasEdits
@@ -106,3 +100,56 @@ def test_real_review_confirm_edit_apply_and_export_controls(qapp, reviewed):
         engine.deleteLater()
         QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
         qapp.removeTranslator(translator)
+
+
+def test_long_review_draft_uses_common_scroll_and_retains_editor(qapp, reviewed):
+    backend, _, segment = reviewed
+    engine = QQmlApplicationEngine()
+    warnings = []
+    engine.warnings.connect(lambda values: warnings.extend(str(value) for value in values))
+    engine.rootContext().setContextProperty("backend", backend)
+    engine.load(QUrl.fromLocalFile(str(Path("src/forma/ui/Main.qml").resolve())))
+    assert engine.rootObjects(), warnings
+    window = engine.rootObjects()[0]
+    window.setWidth(960)
+    window.setHeight(680)
+    try:
+        window.setProperty("page", 1)
+        pump(qapp, lambda: not backend._threads)
+        backend.selectReviewEntry(segment.id)
+        QTest.qWait(20)
+        viewport = item(window, "reviewEntryList")
+        assert viewport.isVisible() and viewport.property("count") > 1
+        # The list presents document context without opening another navigator.
+        assert viewport.property("contentHeight") > viewport.height()
+        click_control(window, "reviewEditButton")
+        target = item(window, "reviewTranslationText")
+        draft = "\n".join(f"Technical sentence {number} with terminology." for number in range(60))
+        target.setProperty("text", draft)
+        target.forceActiveFocus()
+        QTest.keyClick(window, Qt.Key_End, Qt.ControlModifier)
+        QTest.qWait(30)
+        assert target.height() >= target.property("contentHeight")
+        assert target.height() > viewport.height() * 2
+        assert viewport.property("contentY") > 0
+        cursor = target.property("cursorRectangle")
+        cursor_bottom = target.mapToItem(viewport, QPointF(cursor.x(), cursor.bottom())).y()
+        assert 0 <= cursor_bottom <= viewport.height()
+        assert backend.reviewDraftText == draft
+        assert item(window, "reviewTranslationText") is target
+        # Moving far away in the common viewport cannot destroy the current editor.
+        viewport.setProperty("contentY", viewport.property("contentHeight") - viewport.height())
+        QTest.qWait(30)
+        assert item(window, "reviewTranslationText") is target
+        assert backend.selectedReviewId == segment.id and backend.reviewDraftText == draft
+        assert not item(window, "reviewNextButton").isVisible()
+        assert not item(window, "reviewSearchField").isEnabled()
+        click_control(window, "reviewCancelEditButton")
+        assert not backend.reviewEditing and not backend.reviewHasEdits
+        assert not warnings, "\n".join(warnings)
+    finally:
+        backend.cancelReviewEdit()
+        pump(qapp, lambda: not backend._threads)
+        window.close()
+        engine.deleteLater()
+        QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)

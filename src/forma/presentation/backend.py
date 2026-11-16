@@ -82,6 +82,7 @@ class Backend(
         self._documents = []
         self._document_model = DocumentListModel(self)
         self._workspace_document_model = DocumentListModel(self)
+        self._review_entry_model = DocumentListModel(self)
         self._skip_document_sync = False
         self._selected = ""
         self._threads: list[TaskThread] = []
@@ -251,7 +252,7 @@ class Backend(
         self._initialize_workspace()
         self._preview = PreviewController(self, selected=self._workspace_document, launch=self._launch)
         self._preview.changed.connect(self.previewChanged.emit)
-        self.languageChanged.connect(self.previewChanged.emit)
+        self.languageChanged.connect(self._preview.retranslate)
         if requested_memory_project and self._memory_message_error and not self._message:
             self._notice(self._memory_message, "warning")
         self._refresh_worker_availability()
@@ -267,6 +268,7 @@ class Backend(
             return
         self._document_model.sync(DocumentWorkflow.documents(self))
         self._workspace_document_model.sync(SessionWorkflow.workspaceDocuments(self))
+        self._review_entry_model.sync(ReviewWorkflow.reviewEntries(self))
 
     def _read_settings(self):
         return Settings.load(load_credentials=False)
@@ -349,6 +351,10 @@ class Backend(
     @Property("QVariantList", notify=changed)
     def reviewEntries(self):
         return ReviewWorkflow.reviewEntries(self)
+
+    @Property(QObject, constant=True)
+    def reviewEntryModel(self):
+        return self._review_entry_model
 
     @Property("QVariantMap", notify=changed)
     def reviewSummary(self):
@@ -638,6 +644,18 @@ class Backend(
     @Property("QVariantMap", notify=previewChanged)
     def previewState(self):
         return self._preview.state()
+
+    @Property(QObject, constant=True)
+    def previewPageModel(self):
+        return self._preview._pages.model
+
+    @Slot(str, int)
+    def openDocumentPreview(self, mode, width):
+        self._preview.open(mode, width)
+
+    @Slot(str, int, int, int)
+    def requestDocumentPreviewRange(self, mode, first, last, width):
+        self._preview.request_range(mode, first, last, width)
 
     @Slot(str, int, int)
     def requestDocumentPreview(self, mode, page, width):
