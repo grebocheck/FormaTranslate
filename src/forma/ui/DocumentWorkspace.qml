@@ -198,15 +198,32 @@ RowLayout {
         RowLayout {
             Layout.fillWidth: true; spacing: 12
             ColumnLayout {
-                Layout.fillWidth: true; spacing: 4
-                PageControls.Heading { text: workspace.activeDocument.name || qsTr("Переклад документів"); Layout.fillWidth: true; font.pixelSize: 21; elide: Text.ElideMiddle }
+                Layout.fillWidth: true; Layout.minimumWidth: 0; spacing: 4
+                PageControls.Heading {
+                    id: documentTitle; objectName: "workspaceDocumentTitle"
+                    text: workspace.activeDocument.name || qsTr("Переклад документів")
+                    Layout.fillWidth: true; Layout.minimumWidth: 0; font.pixelSize: 21; elide: Text.ElideMiddle
+                    HoverHandler { id: titleHover }
+                    ToolTip.visible: titleHover.hovered && documentTitle.truncated
+                    ToolTip.delay: 700; ToolTip.text: documentTitle.text
+                }
                 PageControls.Caption {
                     text: workspace.activeDocument.id ? (workspace.activeDocument.history ? qsTr("З історії перекладів") + " · " + shell.historyDate(workspace.activeDocument.finishedAt || workspace.activeDocument.startedAt) : workspace.activeDocument.statusText || "") : qsTr("Додайте файли, виберіть мови та почніть переклад.")
-                    Layout.fillWidth: true; elide: Text.ElideRight
+                    Layout.fillWidth: true; Layout.minimumWidth: 0; elide: Text.ElideRight
                 }
+            }
+            TabBar {
+                objectName: "workspaceModes"; implicitHeight: 40
+                Layout.minimumWidth: implicitWidth; Layout.preferredWidth: implicitWidth; Layout.maximumWidth: implicitWidth
+                enabled: !shell.reviewLocked
+                currentIndex: backend.workspaceMode === "review" ? 1 : 0
+                background: Rectangle { color: "transparent" }
+                PageControls.NavigationTab { objectName: "translationModeTab"; text: qsTr("Переклад"); iconName: "translate"; implicitHeight: 40; onClicked: backend.setWorkspaceMode("translation") }
+                PageControls.NavigationTab { objectName: "reviewTab"; text: qsTr("Перевірка"); iconName: "review"; implicitHeight: 40; onClicked: backend.setWorkspaceMode("review") }
             }
             PageControls.Action {
                 objectName: "workspaceFileActionsButton"; text: qsTr("Дії"); iconName: "chevron-down"; subtle: true; implicitHeight: 34
+                Layout.minimumWidth: implicitWidth
                 visible: !!workspace.activeDocument.id; enabled: !shell.reviewLocked
                 onClicked: workspace.showFileMenu(backend.workspaceDocumentId)
                 Menu {
@@ -221,14 +238,6 @@ RowLayout {
                     MenuItem { text: qsTr("Прибрати із сесії"); objectName: "removeDocumentButton"; enabled: !!workspace.menuDocument.canRemove; onTriggered: backend.closeWorkspaceDocument(workspace.menuDocumentId) }
                 }
             }
-        }
-        TabBar {
-            objectName: "workspaceModes"; Layout.fillWidth: true; implicitHeight: 40
-            enabled: !shell.reviewLocked
-            currentIndex: backend.workspaceMode === "review" ? 1 : 0
-            background: Rectangle { color: "transparent" }
-            PageControls.NavigationTab { objectName: "translationModeTab"; text: qsTr("Переклад"); iconName: "translate"; implicitHeight: 40; onClicked: backend.setWorkspaceMode("translation") }
-            PageControls.NavigationTab { objectName: "reviewTab"; text: qsTr("Перевірка"); iconName: "review"; implicitHeight: 40; onClicked: backend.setWorkspaceMode("review") }
         }
         StackLayout {
             Layout.fillWidth: true; Layout.fillHeight: true; currentIndex: backend.workspaceMode === "review" ? 1 : 0
