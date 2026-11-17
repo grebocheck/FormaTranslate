@@ -4,6 +4,7 @@ Versions follow semantic versioning. Changes before 1.0 may evolve as document c
 
 ## 0.17.0 — 2026-11-17
 
+- Write redirected CLI output as UTF-8 so Unicode document paths, JSON, progress and errors remain usable on Windows consoles.
 - Keep explicitly hidden Markdown HTML and invisible OpenDocument drawing layers outside translation requests; version the corrected extraction surfaces while retaining completed legacy reports for manual editing.
 - Reject release packaging when bundled QML, fonts or interface catalogs differ from the current source inventory, including nested plural catalogs.
 - Avoid quadratic protected-value scanning on long words, malformed format placeholders and many identifiers while preserving existing protected spans.

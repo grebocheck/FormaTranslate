@@ -10,7 +10,21 @@ from forma import __version__
 from forma.core.models import FormaError, Options
 
 
+def _configure_cli_streams() -> None:
+    """Keep redirected CLI text UTF-8, including on Windows ANSI consoles."""
+    for name in ("stdout", "stderr"):
+        reconfigure = getattr(getattr(sys, name, None), "reconfigure", None)
+        if callable(reconfigure):
+            try:
+                reconfigure(encoding="utf-8", errors="backslashreplace")
+            except (AttributeError, OSError, TypeError, ValueError):
+                # Windowed launchers and capture streams may not support it.
+                pass
+
+
 def main() -> int:
+    if len(sys.argv) > 1 and sys.argv[1] != "gui":
+        _configure_cli_streams()
     # Internal one-shot worker must not initialize the desktop, settings or credentials.
     if len(sys.argv) > 1 and sys.argv[1] == "preview-worker":
         from forma.documents.preview_worker import main as preview_main
