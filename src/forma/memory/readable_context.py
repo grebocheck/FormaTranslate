@@ -153,6 +153,15 @@ def _xlsx_contexts(document):
 
 
 def readable_context(document, segment) -> str:
+    if document.engine in {"forma-text", "forma-odf", "forma-epub"}:
+        from forma.memory.source_context import source_facts
+
+        full = source_facts(document, segment)
+        facts = {**full, "context": excerpt(full["context"], 1400),
+                 "neighbors": [excerpt(text, 700) for text in full["neighbors"]]}
+        return _packed(full, facts)
+    if document.extraction_profile == 4:
+        return _packed(document.presentation_contexts[segment.id], json.loads(segment.context))
     if document.path.suffix.lower() == ".docx":
         return _word_context(document, segment)
     target = document.targets[segment.id]

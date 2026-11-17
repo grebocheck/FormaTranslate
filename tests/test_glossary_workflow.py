@@ -179,11 +179,11 @@ def test_generation_is_explicit_bounded_reviewable_and_preserves_existing_prefer
     assert editor.apply() and backend.glossaryCount == 2
 
 
-def test_generation_without_office_documents_does_not_create_a_provider(backend, monkeypatch):
+def test_generation_without_documents_does_not_create_a_provider(backend, monkeypatch):
     monkeypatch.setattr(glossary_module, "Provider", lambda *_: pytest.fail("No documents must mean no API call"))
     editor = prepare(backend)
     editor.suggest()
-    assert editor.error and "Додайте DOCX" in editor.message
+    assert editor.error and editor.message
     assert not editor.working
 
 

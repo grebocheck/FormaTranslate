@@ -120,15 +120,17 @@ def _verify_legacy_package(source: Path, current: OfficeDocument, translations: 
         expected_path = Path(temporary) / "expected.docx"
         expected_source.write(translations, expected_path, decimal_comma_to_point=use_english_decimals(options))
         expected = OfficeDocument(expected_path, extraction_profile=current.extraction_profile)
-    if set(expected.parts) != set(current.parts):
-        raise FormaError(_MISMATCH)
-    for name, data in expected.parts.items():
-        present = current.parts[name]
-        if data == present:
-            continue
-        if name.endswith((".xml", ".rels")) and _canonical_xml(data) == _canonical_xml(present):
-            continue
-        raise FormaError(_MISMATCH)
+        if set(expected.parts) != set(current.parts):
+            raise FormaError(_MISMATCH)
+        # Lazy package members remain backed by this temporary file.
+        with current.parts.reading():
+            for name, data in expected.parts.items():
+                present = current.parts[name]
+                if data == present:
+                    continue
+                if name.endswith((".xml", ".rels")) and _canonical_xml(data) == _canonical_xml(present):
+                    continue
+                raise FormaError(_MISMATCH)
 
 
 def _verify(source, output, report, expected_report_fingerprint=None) -> _Verified:

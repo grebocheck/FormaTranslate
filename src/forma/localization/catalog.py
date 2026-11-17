@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import re
 from collections import OrderedDict
+from dataclasses import dataclass
 from functools import lru_cache
 from string import Formatter
 from threading import RLock
@@ -14,15 +15,110 @@ from PySide6.QtCore import QLocale, QTranslator
 
 from forma.core.resources import resource_path
 
-_LANGUAGES = {
-    "uk": "Українська", "en": "English", "pl": "Polski", "de": "Deutsch",
-    "fr": "Français", "es": "Español",
-}
+
+@dataclass(frozen=True)
+class InterfaceLanguage:
+    label: str
+    locale: str
+    script: str = "Latn"
+    direction: str = "ltr"
+    plural_rule: str = "one_other"
+
+
+# Interface, document translation and OCR languages are independent capabilities.
+LANGUAGE_METADATA = MappingProxyType({
+    "uk": InterfaceLanguage("Українська", "uk_UA", script="Cyrl", plural_rule="uk"),
+    "en": InterfaceLanguage("English", "en_US"),
+    "pl": InterfaceLanguage("Polski", "pl_PL", plural_rule="pl"),
+    "de": InterfaceLanguage("Deutsch", "de_DE"),
+    "fr": InterfaceLanguage("Français", "fr_FR", plural_rule="zero_one_million"),
+    "es": InterfaceLanguage("Español", "es_ES", plural_rule="one_other_million"),
+    "it": InterfaceLanguage("Italiano", "it_IT", plural_rule="one_other_million"),
+    "pt-BR": InterfaceLanguage("Português (Brasil)", "pt_BR", plural_rule="zero_one_million"),
+    "cs": InterfaceLanguage("Čeština", "cs_CZ", plural_rule="cs"),
+    "ro": InterfaceLanguage("Română", "ro_RO", plural_rule="ro"),
+    "nl": InterfaceLanguage("Nederlands", "nl_NL"),
+    "sk": InterfaceLanguage("Slovenčina", "sk_SK", plural_rule="sk"),
+})
+_LANGUAGES = {code: metadata.label for code, metadata in LANGUAGE_METADATA.items()}
 SUPPORTED_LANGUAGES = frozenset(_LANGUAGES)
+_NORMALIZED_CODES = {code.lower().replace("_", "-"): code for code in _LANGUAGES}
+_BASE_DEFAULTS = {"pt": "pt-BR"}
 _LOCK = RLock()
 _language = "uk"
 _FORMATTER = Formatter()
 _TRANSLATIONS: OrderedDict[tuple[str, str], str] = OrderedDict()
+_PLURAL_MESSAGES = MappingProxyType({
+    "{count} фрагментів · готовий": "segments_ready",
+    "{count} стор. · готовий": "pages_ready",
+    "Додано {count} термінів до чернетки. Наявні переклади збережено.": "terms_added",
+    "%n фрагментів · готовий": "segments_ready",
+    "%n стор. · готовий": "pages_ready",
+})
+
+
+def plural_category(count: int | str, language: str | None = None) -> str:
+    """Select an integer cardinal form for interface counts (CLDR rules).
+
+    Numeric strings also occur when presenting canonical, already-formatted
+    status messages. Floats, negative counts and booleans are not quantities
+    accepted by this bounded interface API.
+    """
+    if isinstance(count, str) and re.fullmatch(r"[0-9]{1,18}", count):
+        count = int(count)
+    if type(count) is not int or count < 0:
+        raise ValueError("Interface counts must be non-negative integers")
+    code = resolve_language(language) if language is not None else current_language()
+    rule = LANGUAGE_METADATA[code].plural_rule
+    if rule in {"zero_one_million", "one_other_million"} and count and count % 1_000_000 == 0:
+        return "many"
+    if rule == "zero_one_million":
+        return "one" if count in {0, 1} else "other"
+    if rule in {"cs", "sk"}:
+        return "one" if count == 1 else "few" if 2 <= count <= 4 else "other"
+    if rule == "ro":
+        return "one" if count == 1 else "few" if count == 0 or 1 <= count % 100 <= 19 else "other"
+    if rule in {"uk", "pl"}:
+        if count == 1 or rule == "uk" and count % 10 == 1 and count % 100 != 11:
+            return "one"
+        if 2 <= count % 10 <= 4 and not 12 <= count % 100 <= 14:
+            return "few"
+        return "many"
+    return "one" if count == 1 else "other"
+
+
+@lru_cache(maxsize=1)
+def _plural_catalogs():
+    catalogs = {}
+    for code in LANGUAGE_METADATA:
+        path = resource_path("locales", "plurals", f"{code}.json")
+        data = json.loads(path.read_text(encoding="utf-8"))
+        if not isinstance(data, dict) or not all(
+            isinstance(key, str) and isinstance(value, str) and value.strip()
+            for key, value in data.items()
+        ):
+            raise ValueError(f"Invalid interface plural catalog: {path.name}")
+        catalogs[code] = MappingProxyType(data)
+    return MappingProxyType(catalogs)
+
+
+def _plural_translation(language: str, source: str, values: dict) -> str | None:
+    message = _PLURAL_MESSAGES.get(source)
+    if message is None or "count" not in values:
+        return None
+    try:
+        category = plural_category(values["count"], language)
+    except ValueError:
+        return None
+    catalog = _plural_catalogs()[language]
+    template = catalog.get(f"{message}.{category}", catalog[f"{message}.other"])
+    return _format(template, values)
+
+
+def translate_count(source: str, count: int, **values) -> str:
+    """Translate a UI count template without changing its canonical source."""
+    plural_category(count)
+    return translate(source, count=count, **values)
 
 
 def _cached(language: str, source: str) -> str | None:
@@ -47,10 +143,24 @@ def _system_locale_name() -> str:
     return QLocale.system().name()
 
 
+def match_language(value: str) -> str | None:
+    """Match a locale to a supported interface code without choosing a fallback."""
+    normalized = str(value).strip().lower().replace("_", "-")
+    # Preserve regional/script variants before falling back to the base language.
+    parts = normalized.split("-")
+    while parts:
+        candidate = "-".join(parts)
+        if candidate in _NORMALIZED_CODES:
+            return _NORMALIZED_CODES[candidate]
+        if candidate in _BASE_DEFAULTS:
+            return _BASE_DEFAULTS[candidate]
+        parts.pop()
+    return None
+
+
 def resolve_language(choice: str) -> str:
     value = _system_locale_name() if choice == "system" else choice
-    language = str(value).lower().replace("-", "_").split("_")[0]
-    return language if language in _LANGUAGES else "en"
+    return match_language(value) or "en"
 
 
 def set_language(choice: str) -> str:
@@ -153,14 +263,18 @@ def translate(source: str, **values) -> str:
     document text could coincidentally equal a known interface label.
     """
     language = current_language()
+    counted = _plural_translation(language, source, values)
+    if counted is not None:
+        return counted
     catalog = _catalogs()[language]
     if source in _source_keys():
         return _format(catalog.get(source, source), values)
-    if language != "uk" and not values:
+    if not values:
         matched = _match(source)
         if matched:
             key, captured = matched
-            return _format(catalog.get(key, key), captured)
+            counted = _plural_translation(language, key, captured)
+            return counted if counted is not None else _format(catalog.get(key, key), captured)
     return _format(source, values)
 
 
@@ -298,8 +412,8 @@ class CatalogTranslator(QTranslator):
         return False
 
     def translate(self, context, sourceText, disambiguation=None, n=-1):
-        if sourceText in _source_keys() or _match(sourceText):
-            return translate(sourceText)
+        if sourceText in _source_keys() or sourceText in _PLURAL_MESSAGES or _match(sourceText):
+            return translate(sourceText, **({"count": n} if n >= 0 else {}))
         # PySide converts None to a null QString, which lets Qt continue fallback.
         # Returning Python '' would instead produce a blank label.
         return None

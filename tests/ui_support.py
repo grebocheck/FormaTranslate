@@ -33,3 +33,15 @@ def click(window, name):
     QTest.mouseClick(window, Qt.LeftButton, Qt.NoModifier, point.toPoint())
     QTest.qWait(20)
     return button
+
+
+def forbid_provider_requests(monkeypatch):
+    attempted = []
+
+    def unexpected(*args, **kwargs):
+        attempted.append(True)
+        raise AssertionError("A local interface action must not call a provider")
+
+    monkeypatch.setattr("httpx.Client", unexpected)
+    monkeypatch.setattr("forma.providers.client.Provider.complete", unexpected)
+    return attempted

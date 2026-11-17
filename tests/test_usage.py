@@ -313,17 +313,19 @@ def test_future_database_version_is_never_reset():
         assert db.execute("PRAGMA user_version").fetchone()[0] == 9
 
 
-def test_protocol_failure_records_unknown_charge_before_propagating():
+def test_protocol_failures_record_each_unknown_charge_before_safe_error(monkeypatch):
     cfg = settings()
+    control = JobControl()
+    monkeypatch.setattr(control, "delay", lambda _: None)
 
     def handler(request):
         raise httpx.RemoteProtocolError("connection closed", request=request)
 
-    provider = Provider(cfg, transport=httpx.MockTransport(handler))
+    provider = Provider(cfg, control=control, transport=httpx.MockTransport(handler))
     try:
-        with pytest.raises(httpx.RemoteProtocolError):
+        with pytest.raises(FormaError, match="Немає відповіді API"):
             provider.complete("Test", {}, {})
     finally:
         provider.close()
     totals = UsageLedger().summary(cfg)["today"]
-    assert totals["requests"] == 1 and totals["unknown"] == 1
+    assert totals["requests"] == 4 and totals["unknown"] == 4

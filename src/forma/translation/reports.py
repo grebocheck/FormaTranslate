@@ -1,13 +1,16 @@
 from __future__ import annotations
 
 import html
+import json
+from collections.abc import Mapping
 from dataclasses import asdict
 from pathlib import Path
 
-from forma.core.models import Options, TranslationResult, plain_text
+from forma.core.models import Options, TranslationResult
+from forma.documents.adapters import segment_plain_text
 from forma.localization.catalog import current_language
 from forma.localization.catalog import translate_ui_message as tr
-from forma.persistence.files import atomic_bytes, atomic_json
+from forma.persistence.files import atomic_bytes, publish_artifacts
 
 CSS = """body{font:15px/1.6 system-ui,sans-serif;color:#18332d;background:#f6f8f5;margin:40px auto;max-width:1200px;padding:0 24px}h1{font-size:30px}table{width:100%;border-collapse:collapse;background:white;margin:24px 0}td,th{text-align:left;padding:14px;border:1px solid #dfe7e1;vertical-align:top;white-space:pre-wrap;overflow-wrap:anywhere}th{background:#e8f1eb}small{color:#65766f}.warning{color:#99631a}.error{color:#b52d36}code{background:#e7ece8;padding:3px 5px}a{color:#176f55}.meta{background:#e7f0e9;padding:18px;border-radius:12px}"""
 
@@ -19,7 +22,10 @@ def document_html(title: str, body: str, *, language: str = "uk") -> bytes:
     ).encode()
 
 
-def write_translation_report(result: TranslationResult, options: Options, model: str, *, settings=None) -> None:
+def write_translation_report(
+    result: TranslationResult, options: Options, model: str, *, settings=None, overwrite: bool = False,
+    additional_artifacts: Mapping[Path, bytes | Path] | None = None,
+) -> None:
     assert result.output is not None
     if settings is not None:
         from forma import __version__
@@ -35,10 +41,10 @@ def write_translation_report(result: TranslationResult, options: Options, model:
         }
     report = result.output.with_name(result.output.name + ".forma.json")
     payload = {**result.serializable(), "options": asdict(options), "model": model}
-    atomic_json(report, payload)
+    report_bytes = json.dumps(payload, ensure_ascii=False, indent=2).encode("utf-8")
     rows = "".join(
-        f'<tr id="segment-{html.escape(s.id, quote=True)}"><td><small>{html.escape(tr(s.location))}</small><br>{html.escape(s.plain)}</td>'
-        f"<td>{html.escape(plain_text(result.translations.get(s.id, '')))}</td></tr>"
+        f'<tr id="segment-{html.escape(s.id, quote=True)}"><td><small>{html.escape(tr(s.location))}</small><br>{html.escape(segment_plain_text(s))}</td>'
+        f"<td>{html.escape(segment_plain_text(s, result.translations.get(s.id, '')))}</td></tr>"
         for s in result.segments
     )
     locations = {s.id: s.location for s in result.segments}
@@ -93,8 +99,19 @@ def write_translation_report(result: TranslationResult, options: Options, model:
         f"<p><small>{html.escape(note)}</small></p>"
         f"<table><tr><th>{html.escape(tr('Оригінал'))}</th><th>{html.escape(tr('Переклад'))}</th></tr>{rows}</table>"
     )
-    atomic_bytes(
-        report.with_suffix(".html"),
-        document_html(tr("Forma — звіт перекладу"), body, language=current_language()),
-    )
+    artifacts = {
+        report: report_bytes,
+        report.with_suffix(".html"): document_html(
+            tr("Forma — звіт перекладу"), body, language=current_language()
+        ),
+    }
+    if additional_artifacts:
+        if overwrite or artifacts.keys() & additional_artifacts.keys():
+            raise ValueError("Additional artifacts require fresh, distinct output paths")
+        artifacts = {**additional_artifacts, **artifacts}
+    if overwrite:
+        for path, data in artifacts.items():
+            atomic_bytes(path, data)
+    else:
+        publish_artifacts(artifacts)
     result.report = report

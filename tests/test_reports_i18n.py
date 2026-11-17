@@ -40,7 +40,8 @@ def test_report_localizes_only_html_presentation_and_keeps_json_and_document_tex
         ]:
             set_language(language)
             write_translation_report(
-                result, Options(source_language="uk", target_language="en"), "model<&>"
+                result, Options(source_language="uk", target_language="en"), "model<&>",
+                overwrite=True,
             )
             assert result.report.read_bytes() == canonical
             page = html.fromstring(result.report.with_suffix(".html").read_bytes())

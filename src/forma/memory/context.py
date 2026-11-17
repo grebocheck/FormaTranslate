@@ -153,9 +153,15 @@ def _xlsx_contexts(document):
 
 
 def segment_role(document: OfficeDocument, segment: Segment) -> str:
+    if document.engine in {"forma-text", "forma-odf", "forma-epub"}:
+        from forma.memory.source_context import source_role
+
+        return _digest(source_role(document, segment))
     target = document.targets[segment.id]
     part = re.sub(r"\d+(?=\.xml$)", "", target.part)
     role = {"format": document.path.suffix.lower(), "part": part}
+    if document.extraction_profile == 4:
+        role.update(document.presentation_roles[segment.id], extraction_profile=4)
     if document.path.suffix.lower() == ".xlsx" and getattr(document, "extraction_profile", 1) == 2:
         role["extraction_profile"] = 2
         if getattr(target, "worksheet_part", None):
@@ -186,11 +192,21 @@ def segment_context(document: OfficeDocument, segment: Segment) -> str:
     changed negation, identifier or value beyond that excerpt in a TM identity.
     Only the digest of the full context is stored alongside the short excerpt.
     """
+    if document.engine in {"forma-text", "forma-odf", "forma-epub"}:
+        from forma.memory.source_context import source_facts
+
+        return json.dumps({"context": segment.context,
+                           "full_context_sha256": _digest(source_facts(document, segment))},
+                          ensure_ascii=False, sort_keys=True)
     indices = getattr(document, "_memory_segment_indices", None)
     if indices is None:
         indices = {item.id: index for index, item in enumerate(document.segments)}
         document._memory_segment_indices = indices
     target = document.targets[segment.id]
+    if document.extraction_profile == 4:
+        return json.dumps({"context": segment.context,
+                           "full_context_sha256": _digest(document.presentation_contexts[segment.id])},
+                          ensure_ascii=False, sort_keys=True)
     if document.path.suffix.lower() == ".xlsx" and getattr(document, "extraction_profile", 1) == 2 and getattr(target, "cell", None) is not None:
         contexts, fallback = _xlsx_contexts(document)
         full = {"local": segment.context, "worksheet_context": contexts.get(target.cell, fallback)}
@@ -226,7 +242,7 @@ def segment_context(document: OfficeDocument, segment: Segment) -> str:
 def scoped_segment_context(document: OfficeDocument, segment: Segment) -> str:
     """Version-two identity binds every authoritative document/section input."""
     from forma.memory.readable_context import readable_context
-    from forma.memory.scope import Scope, word_scope
+    from forma.memory.scope import Scope, presentation_scope, word_scope
 
     previous = json.loads(segment_context(document, segment))
     readable = readable_context(document, segment)
@@ -234,7 +250,12 @@ def scoped_segment_context(document: OfficeDocument, segment: Segment) -> str:
         selected = json.loads(readable)["selected_context_sha256"]
     except (ValueError, TypeError, KeyError):
         selected = _digest(readable)
-    if document.path.suffix.lower() == ".docx":
+    if document.engine in {"forma-text", "forma-odf", "forma-epub"}:
+        scope = Scope(_digest({"version": 1, "format": document.path.suffix.lower(),
+                               "source_sha256": document.source_sha256}), "Source document snapshot")
+    elif document.extraction_profile == 4:
+        scope = presentation_scope(document, segment)
+    elif document.path.suffix.lower() == ".docx":
         scope = word_scope(document, segment)
     else:
         # The v1 worksheet context already covers named sheets, complete
@@ -248,6 +269,10 @@ def scoped_segment_context(document: OfficeDocument, segment: Segment) -> str:
     }
     if document.path.suffix.lower() == ".xlsx" and getattr(document, "extraction_profile", 1) == 2:
         value["extraction_profile"] = 2
+    elif document.extraction_profile == 4:
+        value["extraction_profile"] = 4
+    elif document.engine in {"forma-text", "forma-odf", "forma-epub"}:
+        value["extraction_profile"] = document.extraction_profile
     return json.dumps(value, ensure_ascii=False, sort_keys=True)
 
 

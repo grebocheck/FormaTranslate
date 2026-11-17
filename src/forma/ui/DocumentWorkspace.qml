@@ -194,7 +194,9 @@ RowLayout {
 
     ColumnLayout {
         objectName: "workspaceContent"
-        Layout.fillWidth: true; Layout.fillHeight: true; spacing: 10
+        Layout.fillWidth: true; Layout.fillHeight: true
+        // Allocate the remaining width without feeding wrapped text back into it.
+        Layout.minimumWidth: 0; Layout.preferredWidth: 1; spacing: 10
         RowLayout {
             Layout.fillWidth: true; spacing: 12
             ColumnLayout {

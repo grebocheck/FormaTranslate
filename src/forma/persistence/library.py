@@ -11,11 +11,11 @@ import uuid
 from contextlib import contextmanager
 from pathlib import Path
 
+from forma.core.formats import SUPPORTED_FORMATS
 from forma.core.models import INFORMATION_CODES, FormaError
 from forma.settings.config import data_directory
 
 SCHEMA_VERSION = 1
-SUPPORTED_FORMATS = {"DOCX", "XLSX", "PDF"}
 QUEUE_STATUSES = {
     "loading",
     "ready",

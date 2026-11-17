@@ -9,7 +9,7 @@ import pytest
 from docx import Document
 
 from forma.core.models import FormaError, Options, TranslationFailure
-from forma.localization.catalog import set_language
+from forma.localization.catalog import LANGUAGE_METADATA, set_language
 from forma.persistence.library import TranslationLibrary
 from forma.persistence.review_store import ReviewStore
 from forma.providers.client import JobControl
@@ -117,7 +117,7 @@ def test_diagnostic_json_is_canonical_while_html_follows_interface_language(tmp_
     source, settings, options = case(tmp_path)
     reports = []
     try:
-        for language in ("uk", "en", "pl", "de"):
+        for language in LANGUAGE_METADATA:
             set_language(language)
             with pytest.raises(TranslationFailure) as caught:
                 TranslationEngine(settings, provider=Provider()).translate(source, tmp_path / "output", options)

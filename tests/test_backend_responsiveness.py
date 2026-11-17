@@ -216,13 +216,14 @@ def test_large_document_presentation_reuses_work_and_updates_for_results_and_lan
     backend._documents = [document]
     backend._selected = "one"
     calls = []
-    original = documents_workflow.plain_text
+    original = documents_workflow.segment_plain_text
 
-    def count(value):
-        calls.append(value)
-        return original(value)
+    def count(segment, translated=None):
+        if translated is not None:
+            calls.append(translated)
+        return original(segment, translated)
 
-    monkeypatch.setattr(documents_workflow, "plain_text", count)
+    monkeypatch.setattr(documents_workflow, "segment_plain_text", count)
     assert len(backend.segments) == 1600
     result = TranslationResult(
         source, source, segments, {s.id: "<r0>Translation</r0>" for s in segments}, []

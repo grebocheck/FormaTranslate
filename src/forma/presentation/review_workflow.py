@@ -10,6 +10,7 @@ import time
 import uuid
 from pathlib import Path
 
+from forma.core.formats import EDITABLE_SUFFIXES
 from forma.core.models import (
     FormaError,
     Options,
@@ -36,6 +37,12 @@ def _report_signature(path):
         return stat.st_dev, stat.st_ino, stat.st_size, stat.st_mtime_ns, stat.st_ctime_ns
     except (OSError, ValueError):
         return None
+
+
+def _recovery_readonly_reason(metadata):
+    if metadata.get("retired_extraction"):
+        return "Цей звіт доступний лише для перегляду. Запустіть новий переклад, щоб застосувати виправлену обробку прихованого тексту."
+    return "Цей звіт не підтримує ручне продовження. Повторіть переклад: готові фрагменти буде використано повторно."
 
 
 class ReviewWorkflow:
@@ -71,7 +78,7 @@ class ReviewWorkflow:
             "recovery": recovery,
             "canResume": recovery and self._can_resume_recovery(),
             "recoveryReason": tr(
-                "Цей звіт не підтримує ручне продовження. Повторіть переклад: готові фрагменти буде використано повторно."
+                _recovery_readonly_reason(self._review_context["recovery"])
             ) if legacy_recovery else "",
         }
 
@@ -94,12 +101,12 @@ class ReviewWorkflow:
         reason = ""
         if entry["kind"] != "segment":
             reason = "Це примітка до документа. Її можна позначити як переглянуту."
-        elif Path(source).suffix.lower() not in (".docx", ".xlsx"):
+        elif Path(source).suffix.lower() not in EDITABLE_SUFFIXES:
             reason = "Редагування тексту PDF зі збереженням верстки поки недоступне."
         elif not persisted:
             reason = "Для збереження правок потрібен доступний звіт Forma."
         elif recovery and not self._review_context["recovery"].get("can_resume"):
-            reason = "Цей звіт не підтримує ручне продовження. Повторіть переклад: готові фрагменти буде використано повторно."
+            reason = _recovery_readonly_reason(self._review_context["recovery"])
         elif not source or not self._file_status.is_file(source):
             reason = "Оригінальний файл недоступний. Він потрібен для збереження форматування."
         elif not recovery and (not document.get("output") or not self._file_status.is_file(document["output"])):
@@ -200,7 +207,7 @@ class ReviewWorkflow:
                 segment.source if context.get("recovery")
                 else self._review_edits.get(entry_id, result.translations.get(entry_id, ""))
             )
-            revised = edit_translation_markup(current, self._review_draft_text)
+            revised = edit_translation_markup(current, self._review_draft_text, segment=segment)
             errors = blocking_issues(segment, revised, options)
             if errors:
                 raise FormaError(
@@ -251,7 +258,7 @@ class ReviewWorkflow:
             segments = {segment.id: segment for segment in result.segments}
             edits, accepted = dict(self._review_edits), dict(self._review_accepted)
             for segment_id, text in planned.items():
-                revised = edit_translation_markup(current[segment_id], text)
+                revised = edit_translation_markup(current[segment_id], text, segment=segments[segment_id])
                 errors = blocking_issues(segments[segment_id], revised, options)
                 if errors:
                     raise FormaError("Правку не збережено: " + " ".join(issue.message for issue in errors))

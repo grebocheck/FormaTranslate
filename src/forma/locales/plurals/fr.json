@@ -1,0 +1,14 @@
+{
+  "segments_ready.one": "{count} fragment · prêt",
+  "segments_ready.few": "{count} fragments · prêts",
+  "segments_ready.many": "{count} fragments · prêts",
+  "segments_ready.other": "{count} fragments · prêts",
+  "pages_ready.one": "{count} page · prête",
+  "pages_ready.few": "{count} pages · prêtes",
+  "pages_ready.many": "{count} pages · prêtes",
+  "pages_ready.other": "{count} pages · prêtes",
+  "terms_added.one": "{count} terme ajouté au brouillon. Les traductions existantes ont été conservées.",
+  "terms_added.few": "{count} termes ajoutés au brouillon. Les traductions existantes ont été conservées.",
+  "terms_added.many": "{count} termes ajoutés au brouillon. Les traductions existantes ont été conservées.",
+  "terms_added.other": "{count} termes ajoutés au brouillon. Les traductions existantes ont été conservées."
+}

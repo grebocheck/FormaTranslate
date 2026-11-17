@@ -9,7 +9,7 @@ from pathlib import Path
 from PySide6.QtCore import Property, QAbstractListModel, QModelIndex, QObject, Qt, Signal, Slot
 
 from forma.core.models import Cancelled, FormaError, Options
-from forma.documents.ooxml import OfficeDocument
+from forma.documents.adapters import open_document
 from forma.localization.catalog import translate
 from forma.localization.catalog import translate_ui_message as tr
 from forma.persistence.files import atomic_bytes
@@ -303,7 +303,7 @@ class GlossaryController(QObject):
             return
         paths = self._documents()
         if not paths:
-            self._notice("Додайте DOCX або XLSX до черги, щоб запропонувати терміни.", error=True)
+            self._notice("Додайте документи до черги для пропозицій термінів.", error=True)
             return
         try:
             settings = self._settings().with_overrides(max_parallel_requests=1, parallel_documents=1)
@@ -324,7 +324,7 @@ class GlossaryController(QObject):
             segments = []
             for path in paths[:12]:
                 control.check()
-                segments.extend(OfficeDocument(Path(path)).segments)
+                segments.extend(open_document(Path(path), check_cancel=control.check).segments)
             if not segments:
                 raise FormaError("У документах немає тексту для створення глосарія.")
             text = document_context(segments, max_chars=16000)

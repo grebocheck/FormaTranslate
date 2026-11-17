@@ -4,6 +4,7 @@ from __future__ import annotations
 import math
 from pathlib import Path
 
+from forma.core.formats import PREVIEW_SUFFIXES
 from forma.core.models import Cancelled, FormaError
 from forma.localization.catalog import translate_ui_message as tr
 from forma.presentation.document_model import DocumentListModel
@@ -63,9 +64,9 @@ class ContinuousPages:
                 metadata[side] = self._summary(request, side, "unavailable", (
                     "Переклад ще не створено." if side == "translation" else "Виберіть документ для перегляду."
                 ))
-            elif Path(path).suffix.lower() not in {".pdf", ".docx"}:
+            elif Path(path).suffix.lower() not in PREVIEW_SUFFIXES:
                 metadata[side] = self._summary(request, side, "unavailable",
-                                               "Попередній перегляд сторінок доступний для PDF і DOCX.")
+                                               "Попередній перегляд сторінок доступний для PDF, DOCX, PPTX, ODT і ODP.")
             elif signatures[side] is None:
                 metadata[side] = self._summary(request, side, "unavailable",
                                                "Файл недоступний. Відкрийте його знову або додайте файл.")

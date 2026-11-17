@@ -15,10 +15,12 @@ from collections import OrderedDict
 from dataclasses import dataclass
 from pathlib import Path
 
+from forma.core.formats import PREVIEW_SUFFIXES, get_format
 from forma.core.models import Cancelled, FormaError
 from forma.documents.bundled_runtime import start_worker
 from forma.documents.ocr import _stop_process
-from forma.documents.preview_office import find_libreoffice, prepare_docx, prepare_profile
+from forma.documents.preview_odf import prepare_odf
+from forma.documents.preview_office import find_libreoffice, prepare_office, prepare_profile
 
 MAX_INPUT_BYTES = 200 * 1024**2
 MAX_CACHE_BYTES = 256 * 1024**2
@@ -149,18 +151,38 @@ class PreviewSession:
         folder = Path(tempfile.mkdtemp(prefix="document-", dir=self._root))
         try:
             pdf = source
-            if source.suffix.lower() == ".docx":
+            capabilities = get_format(source)
+            if capabilities and capabilities.pdf_filter:
                 converter = find_libreoffice() if self._converter is None else self._converter
                 if not converter:
-                    raise FormaError("Для перегляду сторінок DOCX установіть LibreOffice. Текст документа можна переглянути без нього.")
-                copied = folder / "preview.docx"
-                prepare_docx(source, copied, lambda: self._check(cancel))
+                    raise FormaError(
+                        "Для перегляду сторінок PPTX установіть LibreOffice. Текст документа можна переглянути без нього."
+                        if source.suffix.lower() == ".pptx" else
+                        "Для перегляду сторінок OpenDocument установіть LibreOffice. Текст документа можна переглянути без нього."
+                        if capabilities.engine == "forma-odf" else
+                        "Для перегляду сторінок DOCX установіть LibreOffice. Текст документа можна переглянути без нього."
+                    )
+                copied = folder / ("preview" + source.suffix.lower())
+                prepare = prepare_odf if capabilities.engine == "forma-odf" else prepare_office
+                prepare(source, copied, lambda: self._check(cancel))
                 profile = folder / "profile"
                 prepare_profile(profile)
-                self._run([converter, "-env:UserInstallation=" + profile.as_uri(), "--headless", "--nologo", "--nodefault", "--norestore", "--convert-to", "pdf:writer_pdf_Export", "--outdir", str(folder), str(copied)], folder, self._conversion_timeout, cancel, external=True)
+                export_filter = "pdf:" + capabilities.pdf_filter
+                if source.suffix.lower() in {".pptx", ".odp"}:
+                    export_filter += ':' + json.dumps({
+                        "ExportHiddenSlides": {"type": "boolean", "value": "true"},
+                        "ExportNotesPages": {"type": "boolean", "value": "false"},
+                    }, separators=(",", ":"))
+                self._run([converter, "-env:UserInstallation=" + profile.as_uri(), "--headless", "--nologo", "--nodefault", "--norestore", "--convert-to", export_filter, "--outdir", str(folder), str(copied)], folder, self._conversion_timeout, cancel, external=True)
                 pdf = folder / "preview.pdf"
                 if not pdf.is_file() or not 0 < pdf.stat().st_size <= MAX_CONVERTED_BYTES:
-                    raise FormaError("LibreOffice не створив PDF для перегляду. Перевірте, чи відкривається DOCX у LibreOffice.")
+                    raise FormaError(
+                        "LibreOffice не створив PDF для перегляду. Перевірте, чи відкривається PPTX у LibreOffice."
+                        if source.suffix.lower() == ".pptx" else
+                        "LibreOffice не створив PDF для перегляду. Перевірте, чи відкривається OpenDocument у LibreOffice."
+                        if capabilities.engine == "forma-odf" else
+                        "LibreOffice не створив PDF для перегляду. Перевірте, чи відкривається DOCX у LibreOffice."
+                    )
                 copied.unlink()
                 shutil.rmtree(profile, ignore_errors=True)
             if file_signature(source) != signature:
@@ -197,8 +219,8 @@ class PreviewSession:
         try:
             self._check(cancel_event)
             source = Path(path).expanduser().resolve()
-            if source.suffix.lower() not in {".pdf", ".docx"}:
-                raise FormaError("Перегляд сторінок доступний для PDF і DOCX.")
+            if source.suffix.lower() not in PREVIEW_SUFFIXES:
+                raise FormaError("Перегляд сторінок доступний для PDF, DOCX, PPTX, ODT і ODP.")
             signature = file_signature(source)
             if signature in self._layouts:
                 self._layouts.move_to_end(signature)
@@ -265,8 +287,8 @@ class PreviewSession:
         try:
             self._check(cancel_event)
             source = Path(path).expanduser().resolve()
-            if source.suffix.lower() not in {".pdf", ".docx"}:
-                raise FormaError("Перегляд сторінок доступний для PDF і DOCX.")
+            if source.suffix.lower() not in PREVIEW_SUFFIXES:
+                raise FormaError("Перегляд сторінок доступний для PDF, DOCX, PPTX, ODT і ODP.")
             if type(page_index) is not int or page_index < 0 or type(width_px) is not int:
                 raise ValueError("Invalid preview page or width")
             width_px = max(128, min(2400, width_px))

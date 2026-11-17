@@ -3,8 +3,13 @@
 from __future__ import annotations
 
 import io
+import os
 import posixpath
 import re
+import tempfile
+import zlib
+from collections.abc import Mapping
+from contextlib import contextmanager
 from copy import deepcopy
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -13,8 +18,8 @@ from zipfile import BadZipFile, ZipFile
 
 from lxml import etree
 
+from forma.core.formats import get_format
 from forma.core.models import ISSUE_EXPLANATIONS, FormaError, Issue, Segment, plain_text
-from forma.persistence.files import atomic_bytes
 from forma.translation.quality import immutable_spans
 
 W = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
@@ -52,22 +57,85 @@ class Target:
     chart_key: str = ""
 
 
+class _ZipParts(Mapping):
+    """Read a member on demand without retaining expanded media in memory."""
+
+    def __init__(self, path, infos, check_cancel):
+        self.path, self.infos, self.check_cancel = path, {info.filename: info for info in infos}, check_cancel
+        self.signature = self._signature()
+        self._reader = None
+
+    @contextmanager
+    def reading(self, archive=None):
+        """Reuse one central-directory parse during a bounded operation."""
+        if self._reader is not None:
+            yield self._reader
+            return
+        reader = archive if archive is not None else ZipFile(self.path)
+        self._reader = reader
+        try:
+            self.check()
+            yield reader
+        finally:
+            self._reader = None
+            if archive is None:
+                reader.close()
+
+    def _signature(self):
+        info = self.path.stat()
+        return info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns
+
+    def check(self):
+        self.check_cancel()
+        if self._signature() != self.signature:
+            raise FormaError("Оригінал змінився під час читання. Повторіть переклад.")
+
+    def __iter__(self):
+        return iter(self.infos)
+
+    def __len__(self):
+        return len(self.infos)
+
+    def __contains__(self, name):
+        return name in self.infos
+
+    def __getitem__(self, name):
+        info = self.infos[name]
+        self.check()
+        with self.reading() as archive:
+            data = archive.read(info)
+        self.check()
+        return data
+
+    def items(self):
+        with self.reading():
+            for name in self:
+                yield name, self[name]
+
+
 class OfficeDocument:
-    def __init__(self, path: Path, *, extraction_profile: int | None = None):
+    engine = "forma-ooxml"
+
+    def __init__(self, path: Path, *, extraction_profile: int | None = None, check_cancel=lambda: None):
         self.path = Path(path)
-        self.parts: dict[str, bytes] = {}
+        self.check_cancel = check_cancel
+        self.check_cancel()
+        self.parts: Mapping[str, bytes] = {}
         self.trees: dict[str, etree._ElementTree] = {}
         self._orders: dict[str, dict] = {}
         self.segments: list[Segment] = []
         self.targets: dict[str, Target] = {}
         self.issues: list[Issue] = []
-        if self.path.suffix.lower() not in (".docx", ".xlsx"):
-            raise FormaError("Цей рушій підтримує DOCX і XLSX.")
-        if extraction_profile is not None and (type(extraction_profile) is not int or extraction_profile not in {1, 2, 3}):
+        suffix = self.path.suffix.lower()
+        capability = get_format(self.path)
+        if capability is None or not capability.office:
+            raise FormaError("Цей рушій підтримує DOCX, XLSX і PPTX.")
+        allowed_profiles = capability.extraction_profiles + ((2,) if suffix == ".docx" else ())
+        if extraction_profile is not None and (type(extraction_profile) is not int or extraction_profile not in allowed_profiles):
             raise ValueError("Unsupported document extraction profile")
-        if extraction_profile == 3 and self.path.suffix.lower() != ".docx":
-            raise ValueError("Chart extraction profile requires DOCX")
-        self.extraction_profile = (extraction_profile or 2) if self.path.suffix.lower() == ".xlsx" else (3 if extraction_profile in {None, 3} else 1)
+        # DOCX profile 2 was historically treated as profile 1. Preserve that
+        # legacy projection; all newly registered adapters use their own profile.
+        self.extraction_profile = 4 if suffix == ".pptx" else ((extraction_profile or 2) if suffix == ".xlsx" else (3 if extraction_profile in {None, 3} else 1))
         self.chart_labels = None
         try:
             with ZipFile(self.path) as archive:
@@ -80,7 +148,9 @@ class OfficeDocument:
                     raise FormaError("Документ містить дублікати частин ZIP.")
                 self.infos = infos
                 self.zip_comment = archive.comment
-                self.parts = {x.filename: archive.read(x) for x in infos}
+                if any(x.flag_bits & 1 for x in infos):
+                    raise FormaError("Файл пошкоджений, зашифрований або не є документом Office.")
+                self.parts = _ZipParts(self.path, infos, self.check_cancel)
         except (BadZipFile, RuntimeError) as exc:
             raise FormaError("Файл пошкоджений, зашифрований або не є документом Office.") from exc
         if "[Content_Types].xml" not in self.parts:
@@ -90,14 +160,18 @@ class OfficeDocument:
                 "Документ має цифровий підпис. Для перекладу створіть непідписану копію."
             )
         try:
-            self._extract()
+            with self.parts.reading():
+                self._extract()
         except etree.XMLSyntaxError as exc:
             raise FormaError("У документі знайдено некоректний XML.") from exc
+        except (BadZipFile, RuntimeError) as exc:
+            raise FormaError("Файл пошкоджений, зашифрований або не є документом Office.") from exc
 
     def _tree(self, part: str) -> etree._ElementTree:
-        if len(self.parts[part]) > MAX_XML:
-            raise FormaError(f"XML-частина документа завелика: {part}")
+        self.check_cancel()
         if part not in self.trees:
+            if self.parts.infos[part].file_size > MAX_XML:
+                raise FormaError(f"XML-частина документа завелика: {part}")
             self.trees[part] = parse_xml(self.parts[part])
         return self.trees[part]
 
@@ -114,6 +188,7 @@ class OfficeDocument:
         original_shared_index: int | None = None,
         chart_key: str = "",
     ) -> None:
+        self.check_cancel()
         if not nodes or not any(c.isalpha() for n in nodes for c in (n.text or "")):
             return
         # Use the same protected-value rules as translation validation. Uppercase
@@ -139,11 +214,17 @@ class OfficeDocument:
         sid = f"{part}#{len(self.segments)}"
         if self.extraction_profile == 2:
             sid = "xlsx-v2:" + sid
+        elif self.extraction_profile == 4:
+            sid = "pptx-v4:" + sid
         self.segments.append(Segment(sid, location, source, context))
         self.targets[sid] = Target(part, nodes, marker_nodes, cell, worksheet_part, original_shared_index, chart_key)
 
     def _extract(self) -> None:
-        if self.path.suffix.lower() == ".docx":
+        if self.extraction_profile == 4:
+            from forma.documents.pptx import extract_presentation
+
+            extract_presentation(self)
+        elif self.path.suffix.lower() == ".docx":
             if "word/document.xml" not in self.parts:
                 raise FormaError("У DOCX відсутня основна частина документа.")
             chart_data_labels = False
@@ -547,6 +628,27 @@ class OfficeDocument:
             contexts[cell] = "\n".join(lines)
         return contexts
 
+    def layout_issues(self, translations: dict[str, str]) -> list[Issue]:
+        """Presentation fit estimates are warnings, independent of text validation."""
+        if self.extraction_profile != 4:
+            return []
+        from forma.documents.pptx import layout_issues
+
+        return layout_issues(self, translations)
+
+    def validate_package(self) -> None:
+        """Check every member before paid work, without retaining expanded media."""
+        try:
+            with self.parts.reading() as archive:
+                for info in self.infos:
+                    self.parts.check()
+                    with archive.open(info) as member:
+                        while member.read(1024 * 1024):
+                            self.check_cancel()
+                self.parts.check()
+        except (BadZipFile, RuntimeError, EOFError, zlib.error) as exc:
+            raise FormaError("Файл пошкоджений, зашифрований або не є документом Office.") from exc
+
     def write(
         self, translations: dict[str, str], output: Path, *, decimal_comma_to_point: bool = False
     ) -> None:
@@ -630,18 +732,35 @@ class OfficeDocument:
                     ):
                         editable(part, node).text = text.replace(",", ".")
         chart_workbooks = self.chart_labels.write_workbooks(chart_replacements) if self.chart_labels else {}
-        buffer = io.BytesIO()
-        with ZipFile(buffer, "w") as archive:
-            archive.comment = self.zip_comment
-            for info in self.infos:
-                data = chart_workbooks.get(info.filename, self.parts[info.filename])
-                if info.filename in staged:
-                    original = data
-                    data = etree.tostring(
-                        staged[info.filename],
-                        encoding="UTF-8",
-                        xml_declaration=original.lstrip().startswith(b"<?xml"),
-                        standalone=self.trees[info.filename].docinfo.standalone,
-                    )
-                archive.writestr(info, data)
-        atomic_bytes(output, buffer.getvalue(), overwrite=False)
+        output.parent.mkdir(parents=True, exist_ok=True)
+        fd, name = tempfile.mkstemp(prefix=".forma-", dir=output.parent)
+        temporary = Path(name)
+        try:
+            with os.fdopen(fd, "w+b") as stream, ZipFile(self.path) as original, self.parts.reading(original), ZipFile(stream, "w") as archive:
+                self.parts.check()
+                archive.comment = self.zip_comment
+                for info in self.infos:
+                    self.parts.check()
+                    data = chart_workbooks.get(info.filename)
+                    if info.filename in staged:
+                        raw = self.parts[info.filename]
+                        data = etree.tostring(
+                            staged[info.filename], encoding="UTF-8",
+                            xml_declaration=raw.lstrip().startswith(b"<?xml"),
+                            standalone=self.trees[info.filename].docinfo.standalone,
+                        )
+                    if data is not None:
+                        archive.writestr(deepcopy(info), data)
+                    else:
+                        with original.open(info.filename) as source, archive.open(deepcopy(info), "w") as destination:
+                            while chunk := source.read(1024 * 1024):
+                                self.check_cancel()
+                                destination.write(chunk)
+                self.parts.check()
+                archive.close()
+                stream.flush()
+                os.fsync(stream.fileno())
+            self.parts.check()
+            os.link(temporary, output)
+        finally:
+            temporary.unlink(missing_ok=True)

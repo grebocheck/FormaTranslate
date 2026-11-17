@@ -1,0 +1,14 @@
+{
+  "segments_ready.one": "{count} fragmento · listo",
+  "segments_ready.few": "{count} fragmentos · listos",
+  "segments_ready.many": "{count} fragmentos · listos",
+  "segments_ready.other": "{count} fragmentos · listos",
+  "pages_ready.one": "{count} página · lista",
+  "pages_ready.few": "{count} páginas · listas",
+  "pages_ready.many": "{count} páginas · listas",
+  "pages_ready.other": "{count} páginas · listas",
+  "terms_added.one": "Se añadió {count} término al borrador. Se conservaron las traducciones existentes.",
+  "terms_added.few": "Se añadieron {count} términos al borrador. Se conservaron las traducciones existentes.",
+  "terms_added.many": "Se añadieron {count} términos al borrador. Se conservaron las traducciones existentes.",
+  "terms_added.other": "Se añadieron {count} términos al borrador. Se conservaron las traducciones existentes."
+}

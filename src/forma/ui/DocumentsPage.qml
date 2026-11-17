@@ -13,7 +13,7 @@ ColumnLayout {
     readonly property var document: backend.selectedDocument
     readonly property bool hasDocument: !!document.id
     readonly property bool isPdf: document.format === "PDF"
-    readonly property bool hasPagePreview: hasDocument && (isPdf || document.format === "DOCX")
+    readonly property bool hasPagePreview: hasDocument && backend.documentCapabilities(document.format).page_preview
     readonly property bool hasPdfTools: isPdf && !document.history && document.status !== "done" || backend.recognizingScan
     readonly property bool hasPreview: !hasPagePreview && backend.segments.length > 0
     readonly property bool hasTranslation: hasPreview && document.status === "done"
@@ -343,7 +343,7 @@ ColumnLayout {
                         Layout.fillWidth: true; enabled: !backend.busy
                         onClicked: { translationOptions.close(); shell.showInstructionsDialog() }
                     }
-                    PageControls.Caption { text: qsTr("PDF потребує візуальної перевірки. Редакторський прохід доступний для DOCX і XLSX."); visible: shell.hasPdf; wrapMode: Text.WordWrap; Layout.fillWidth: true }
+                    PageControls.Caption { text: qsTr("PDF потребує візуальної перевірки. Редакторський прохід доступний для інших підтримуваних документів."); visible: shell.hasPdf; wrapMode: Text.WordWrap; Layout.fillWidth: true }
                 }
             }
         }

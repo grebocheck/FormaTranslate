@@ -13,6 +13,8 @@ from PySide6.QtCore import QCoreApplication, QTranslator
 
 from forma.localization import catalog as i18n
 
+NON_UK_LANGUAGES = tuple(code for code in i18n.LANGUAGE_METADATA if code != "uk")
+
 
 @pytest.fixture(autouse=True)
 def restore_language():
@@ -32,6 +34,20 @@ def restore_language():
         ("es-MX", "es"),
         ("ja_JP", "en"),
         ("C", "en"),
+        ("it_IT", "it"),
+        ("pt_BR", "pt-BR"),
+        ("PT-br", "pt-BR"),
+        ("pt", "pt-BR"),
+        ("pt_PT", "pt-BR"),
+        ("cs_CZ", "cs"),
+        ("ro-RO", "ro"),
+        ("nl_NL", "nl"),
+        ("NL_be", "nl"),
+        ("nl-BE-u-nu-latn", "nl"),
+        ("sk_SK", "sk"),
+        ("sk-CZ", "sk"),
+        ("sk_SK_u_ca_gregory", "sk"),
+        ("sl_SI", "en"),
     ],
 )
 def test_system_locale_and_explicit_choice(monkeypatch, locale, expected):
@@ -44,19 +60,14 @@ def test_system_locale_and_explicit_choice(monkeypatch, locale, expected):
 def test_language_switching_and_self_named_options():
     assert i18n.resolve_language("uk") == "uk"
     assert i18n.resolve_language("not-supported") == "en"
-    expected = {"uk": "Налаштування", "en": "Settings", "pl": "Ustawienia", "de": "Einstellungen", "fr": "Paramètres", "es": "Ajustes"}
+    expected = {"uk": "Налаштування", "en": "Settings", "pl": "Ustawienia", "de": "Einstellungen", "fr": "Paramètres", "es": "Ajustes", "it": "Impostazioni", "pt-BR": "Configurações", "cs": "Nastavení", "ro": "Setări", "nl": "Instellingen", "sk": "Nastavenia"}
     for language, label in expected.items():
         assert i18n.set_language(language) == language
         assert i18n.translate("Налаштування") == label
         choices = i18n.available_languages()
-        assert [choice["code"] for choice in choices] == ["system", "uk", "en", "pl", "de", "fr", "es"]
+        assert [choice["code"] for choice in choices] == ["system", *i18n.LANGUAGE_METADATA]
         assert [choice["label"] for choice in choices[1:]] == [
-            "Українська",
-            "English",
-            "Polski",
-            "Deutsch",
-            "Français",
-            "Español",
+            metadata.label for metadata in i18n.LANGUAGE_METADATA.values()
         ]
         assert choices[0]["label"] == i18n.translate("Як у системі")
 
@@ -118,9 +129,9 @@ def test_catalogs_cover_every_qml_key_and_preserve_placeholders():
     assert qml_keys
     formatter = Formatter()
     catalogs = i18n._catalogs()
-    non_uk_keys = [set(catalogs[language]) for language in ("en", "pl", "de", "fr", "es")]
+    non_uk_keys = [set(catalogs[language]) for language in NON_UK_LANGUAGES]
     assert all(keys == non_uk_keys[0] for keys in non_uk_keys[1:])
-    for language in ("en", "pl", "de", "fr", "es"):
+    for language in NON_UK_LANGUAGES:
         catalog = catalogs[language]
         assert qml_keys <= catalog.keys(), sorted(qml_keys - catalog.keys())
         for source, translated in catalog.items():
@@ -135,12 +146,12 @@ def test_catalogs_cover_every_qml_key_and_preserve_placeholders():
             assert Counter(re.findall(r"%\d+|%n", translated)) == Counter(
                 re.findall(r"%\d+|%n", source)
             )
-            assert not re.search(r"[А-Яа-яІіЇїЄєҐґ]", translated), (language, source, translated)
+            if i18n.LANGUAGE_METADATA[language].script == "Latn":
+                assert not re.search(r"[А-Яа-яІіЇїЄєҐґ]", translated), (language, source, translated)
             if "uv tool install" in source:
                 assert "uv tool install --python 3.12 BabelDOC==0.7.1" in translated
 
 
-NON_UK_LANGUAGES = ("en", "pl", "de", "fr", "es")
 
 
 def message_literals(filenames, *, include_fragments=False):
@@ -176,8 +187,13 @@ def message_literals(filenames, *, include_fragments=False):
         ("workspace", ("persistence/session_store.py", "presentation/session_workflow.py"), (*NON_UK_LANGUAGES, "uk")),
         ("preview", ("documents/preview.py", "documents/preview_office.py", "documents/preview_worker.py", "presentation/preview_controller.py"), (*NON_UK_LANGUAGES, "uk")),
         ("stability", ("persistence/instance.py",), (*NON_UK_LANGUAGES, "uk")),
+        ("review", ("presentation/review_workflow.py",), NON_UK_LANGUAGES),
+        ("text-formats", ("documents/adapters.py", "documents/text.py", "documents/markdown.py", "documents/html.py", "documents/source_editor.py"), (*NON_UK_LANGUAGES, "uk")),
+        ("odf", ("documents/odf.py", "documents/odf_spreadsheet.py", "documents/preview_odf.py"), (*NON_UK_LANGUAGES, "uk")),
+        ("subtitles", ("documents/subtitles.py", "documents/srt.py", "documents/vtt.py", "documents/subtitle_editor.py"), (*NON_UK_LANGUAGES, "uk")),
+        ("epub", ("documents/epub.py", "documents/epub_content.py"), (*NON_UK_LANGUAGES, "uk")),
     ],
-    ids=("quick", "ocr", "memory", "glossary", "provider", "workspace", "preview", "stability"),
+    ids=("quick", "ocr", "memory", "glossary", "provider", "workspace", "preview", "stability", "review", "text-formats", "odf", "subtitles", "epub"),
 )
 def test_python_workflow_messages_have_complete_interface_translations(boundary, filenames, languages):
     keys = message_literals(filenames, include_fragments=boundary == "quick")
@@ -209,8 +225,10 @@ def test_python_workflow_messages_have_complete_interface_translations(boundary,
         keys -= DOMAINS
     elif boundary == "stability":
         from forma.persistence.review_store import _STATE_CHANGED_ERROR
+        from forma.presentation.review_workflow import _recovery_readonly_reason
 
         keys.add(_STATE_CHANGED_ERROR)
+        keys.update(_recovery_readonly_reason(metadata) for metadata in ({}, {"retired_extraction": True}))
     assert keys
     for language in languages:
         assert keys <= i18n._catalogs()[language].keys(), (
@@ -227,21 +245,21 @@ def test_python_workflow_messages_have_complete_interface_translations(boundary,
 
 def test_workflow_templates_interpolate_counts_in_all_languages():
     source = "Додано {count} термінів до чернетки. Наявні переклади збережено."
-    for language in ("en", "uk", "pl", "de", "fr", "es"):
+    for language in tuple(i18n.LANGUAGE_METADATA):
         i18n.set_language(language)
         message = i18n.translate(source, count=12)
         assert "12" in message and "{count}" not in message
-        if language != "uk":
+        if i18n.LANGUAGE_METADATA[language].script == "Latn":
             assert not re.search(r"[А-Яа-яІіЇїЄєҐґ]", message)
 
 
 
 
 def test_concurrent_language_changes_return_only_complete_catalog_values():
-    expected = {"Налаштування", "Settings", "Ustawienia", "Einstellungen", "Paramètres", "Ajustes"}
+    expected = {i18n._catalogs()[code].get("Налаштування", "Налаштування") for code in i18n.LANGUAGE_METADATA}
 
     def work(index):
-        i18n.set_language(("uk", "en", "pl", "de", "fr", "es")[index % 6])
+        i18n.set_language(tuple(i18n.LANGUAGE_METADATA)[index % len(i18n.LANGUAGE_METADATA)])
         return i18n.translate("Налаштування")
 
     with ThreadPoolExecutor(max_workers=8) as pool:
@@ -257,7 +275,7 @@ def test_very_large_unknown_text_bypasses_dynamic_matching():
     assert i18n.translate(source) == source
 
 
-@pytest.mark.parametrize("language", ["en", "pl", "de", "fr", "es"])
+@pytest.mark.parametrize("language", NON_UK_LANGUAGES)
 def test_explicit_nested_ui_messages_translate_only_known_components(language):
     i18n.set_language(language)
     name = "Налаштування {name} — Łódź/École 12,50.docx"
@@ -283,7 +301,8 @@ def test_explicit_nested_ui_messages_translate_only_known_components(language):
     for source in messages:
         translated = i18n.translate_ui_message(source)
         assert translated != source
-        assert not re.search(r"[А-Яа-яІіЇїЄєҐґ]", translated), (language, translated)
+        if i18n.LANGUAGE_METADATA[language].script == "Latn":
+            assert not re.search(r"[А-Яа-яІіЇїЄєҐґ]", translated), (language, translated)
         assert re.findall(r"\d+", translated) == re.findall(r"\d+", source)
 
 
@@ -337,3 +356,212 @@ def test_base_template_translation_cannot_poison_nested_ui_message_cache():
     assert "Перекладаємо абзаци" in i18n.translate(source)
     assert "Translating paragraphs" in i18n.translate_ui_message(source)
     assert "Перекладаємо абзаци" in i18n.translate(source)
+
+
+def test_language_metadata_and_regional_preference_round_trip():
+    assert i18n.SUPPORTED_LANGUAGES == frozenset(i18n.LANGUAGE_METADATA)
+    for code, metadata in i18n.LANGUAGE_METADATA.items():
+        assert i18n.resolve_language(metadata.locale) == code
+        assert i18n.resolve_language(code) == code
+        assert metadata.direction in {"ltr", "rtl"}
+        assert metadata.label.strip()
+    with pytest.raises(TypeError):
+        i18n.LANGUAGE_METADATA["xx"] = i18n.LANGUAGE_METADATA["en"]
+    assert i18n.set_language("pt_BR") == "pt-BR"
+    assert i18n.current_language() == "pt-BR"
+    assert i18n.translate("Налаштування") == "Configurações"
+
+
+@pytest.mark.parametrize(
+    "language,categories",
+    [
+        ("uk", ("many", "one", "few", "many", "many", "one")),
+        ("pl", ("many", "one", "few", "many", "many", "many")),
+        ("cs", ("other", "one", "few", "other", "other", "other")),
+        ("ro", ("few", "one", "few", "few", "few", "other")),
+        ("en", ("other", "one", "other", "other", "other", "other")),
+        ("de", ("other", "one", "other", "other", "other", "other")),
+        ("fr", ("one", "one", "other", "other", "other", "other")),
+        ("es", ("other", "one", "other", "other", "other", "other")),
+        ("it", ("other", "one", "other", "other", "other", "other")),
+        ("pt-BR", ("one", "one", "other", "other", "other", "other")),
+        ("nl", ("other", "one", "other", "other", "other", "other")),
+        ("sk", ("other", "one", "few", "other", "other", "other")),
+    ],
+)
+def test_integer_plural_categories(language, categories):
+    counts = (0, 1, 2, 5, 11, 21)
+    assert tuple(i18n.plural_category(count, language) for count in counts) == categories
+    assert tuple(i18n.plural_category(str(count), language) for count in counts) == categories
+
+
+@pytest.mark.parametrize(
+    "count,nl_category,sk_category",
+    [(0, "other", "other"), (1, "one", "one"), (2, "other", "few"),
+     (3, "other", "few"), (4, "other", "few"), (5, "other", "other"),
+     (11, "other", "other"), (12, "other", "other"), (21, "other", "other"),
+     (22, "other", "other"), (24, "other", "other"), (101, "other", "other"),
+     (102, "other", "other"), (1_000_000, "other", "other")],
+)
+def test_dutch_and_slovak_integer_plural_boundaries(count, nl_category, sk_category):
+    assert i18n.plural_category(count, "nl") == nl_category
+    assert i18n.plural_category(count, "sk") == sk_category
+    assert i18n.plural_category(str(count), "nl") == nl_category
+    assert i18n.plural_category(str(count), "sk") == sk_category
+
+
+@pytest.mark.parametrize("language", ("fr", "es", "it", "pt-BR"))
+def test_integer_million_plural_category(language):
+    assert i18n.plural_category(1_000_000, language) == "many"
+    assert i18n.plural_category(2_000_000, language) == "many"
+    assert i18n.plural_category(1_000_001, language) == "other"
+
+
+@pytest.mark.parametrize("count", (-1, 1.5, 1.0, True, None, "1.0", "-1", "1" * 100))
+def test_invalid_interface_counts_are_rejected(count):
+    with pytest.raises(ValueError, match="non-negative integers"):
+        i18n.translate_count("{count} фрагментів · готовий", count)
+
+
+@pytest.mark.parametrize(
+    "language,nouns",
+    [
+        ("uk", ("фрагментів", "фрагмент", "фрагменти", "фрагментів", "фрагментів", "фрагмент")),
+        ("pl", ("fragmentów", "fragment", "fragmenty", "fragmentów", "fragmentów", "fragmentów")),
+        ("cs", ("fragmentů", "fragment", "fragmenty", "fragmentů", "fragmentů", "fragmentů")),
+        ("ro", ("fragmente", "fragment", "fragmente", "fragmente", "fragmente", "de fragmente")),
+        ("nl", ("fragmenten", "fragment", "fragmenten", "fragmenten", "fragmenten", "fragmenten")),
+        ("sk", ("fragmentov", "fragment", "fragmenty", "fragmentov", "fragmentov", "fragmentov")),
+    ],
+)
+def test_plural_wording_at_canonical_message_boundary(language, nouns):
+    source = "{count} фрагментів · готовий"
+    i18n.set_language(language)
+    for count, noun in zip((0, 1, 2, 5, 11, 21), nouns, strict=True):
+        displayed = i18n.translate_count(source, count)
+        assert displayed.startswith(f"{count} {noun} · ")
+        assert i18n.translate_ui_message(source.format(count=count)) == displayed
+    # Counts are presentation only; the canonical source remains unchanged.
+    assert source == "{count} фрагментів · готовий"
+
+
+def test_plural_catalogs_cover_registered_languages_and_preserve_fields(qapp):
+    catalogs = i18n._plural_catalogs()
+    assert set(catalogs) == i18n.SUPPORTED_LANGUAGES
+    expected_keys = {
+        f"{message}.{category}"
+        for message in ("segments_ready", "pages_ready", "terms_added")
+        for category in ("one", "few", "many", "other")
+    }
+    translator = i18n.CatalogTranslator(qapp)
+    qapp.installTranslator(translator)
+    try:
+        for language, catalog in catalogs.items():
+            assert set(catalog) == expected_keys
+            assert all(value.strip() and value.count("{count}") == 1 for value in catalog.values())
+            i18n.set_language(language)
+            for count in (0, 1, 2, 5, 11, 21):
+                for template, qt_source in (
+                    ("{count} фрагментів · готовий", "%n фрагментів · готовий"),
+                    ("{count} стор. · готовий", "%n стор. · готовий"),
+                ):
+                    expected = i18n.translate_count(template, count)
+                    assert str(count) in expected and "{" not in expected
+                    assert QCoreApplication.translate("Counts", qt_source, None, count) == expected
+                added = i18n.translate(
+                    "Додано {count} термінів до чернетки. Наявні переклади збережено.", count=count,
+                )
+                assert str(count) in added and "{count}" not in added
+    finally:
+        qapp.removeTranslator(translator)
+
+
+def test_pptx_messages_and_canonical_location_translate_in_every_language():
+    source = "Slide {slide} · shape {shape} · paragraph {paragraph}"
+    for language in i18n.LANGUAGE_METADATA:
+        i18n.set_language(language)
+        shown = i18n.translate(source, slide=2, shape=5, paragraph=11)
+        assert i18n.translate_ui_message("Slide 2 · shape 5 · paragraph 11") == shown
+        assert re.findall(r"\d+", shown) == ["2", "5", "11"]
+        if language != "en":
+            assert "shape" not in shown
+        keys = message_literals(("documents/pptx.py",))
+        assert keys <= i18n._catalogs()[language].keys(), sorted(keys - i18n._catalogs()[language].keys())
+
+
+def test_registered_document_filter_preserves_extensions_in_every_language():
+    from forma.core.formats import DOCUMENT_FILTER
+
+    extensions = DOCUMENT_FILTER.partition("(")[2].removesuffix(")")
+    for language in i18n.LANGUAGE_METADATA:
+        i18n.set_language(language)
+        displayed = i18n.translate("Документи ({extensions})", extensions=extensions)
+        assert i18n.translate_ui_message(DOCUMENT_FILTER) == displayed
+        assert displayed.endswith(f"({extensions})")
+        assert re.findall(r"\*\.[a-z]+", displayed) == re.findall(r"\*\.[a-z]+", DOCUMENT_FILTER)
+
+
+@pytest.mark.parametrize(
+    "template,values,canonical",
+    [
+        ("Line {line} · fragment {fragment}", {"line": 4, "fragment": 2}, "Line 4 · fragment 2"),
+        ("HTML · text {index} · line {line}", {"index": 7, "line": 11}, "HTML · text 7 · line 11"),
+    ],
+)
+def test_text_format_locations_translate_without_changing_canonical_values(template, values, canonical):
+    for language in i18n.LANGUAGE_METADATA:
+        i18n.set_language(language)
+        displayed = i18n.translate(template, **values)
+        assert i18n.translate_ui_message(canonical) == displayed
+        assert re.findall(r"\d+", displayed) == re.findall(r"\d+", canonical)
+        assert "{" not in displayed
+
+
+@pytest.mark.parametrize(
+    "template,values,canonical",
+    [
+        ("body · paragraph {paragraph}", {"paragraph": 3}, "body · paragraph 3"),
+        *[
+            (f"{role} {{instance}} · paragraph {{paragraph}}", {"instance": 2, "paragraph": 3},
+             f"{role} 2 · paragraph 3")
+            for role in ("header", "header-left", "header-first", "footer", "footer-left", "footer-first")
+        ],
+        ("Slide {slide} · paragraph {paragraph}", {"slide": 2, "paragraph": 3}, "Slide 2 · paragraph 3"),
+        (
+            "ODS · sheet {sheet_index} · rows {row_start}-{row_end} · columns {column_start}-{column_end} · paragraph {paragraph_index}",
+            {"sheet_index": 2, "row_start": 1, "row_end": 5, "column_start": 3, "column_end": 4, "paragraph_index": 1},
+            "ODS · sheet 2 · rows 1-5 · columns 3-4 · paragraph 1",
+        ),
+    ],
+)
+def test_odf_roles_and_ranges_localize_without_changing_canonical_addresses(template, values, canonical):
+    for language in i18n.LANGUAGE_METADATA:
+        i18n.set_language(language)
+        displayed = i18n.translate(template, **values)
+        assert i18n.translate_ui_message(canonical) == displayed
+        assert re.findall(r"\d+", displayed) == re.findall(r"\d+", canonical)
+        assert "{" not in displayed
+        if language != "en":
+            assert not re.search(r"\bparagraph\b", displayed)
+
+
+def test_caption_ordinal_location_translates_without_rewriting_identifiers():
+    for language in i18n.LANGUAGE_METADATA:
+        i18n.set_language(language)
+        assert i18n.translate_ui_message("Cue 42") == i18n.translate("Cue {cue}", cue=42)
+        assert "42" in i18n.translate_ui_message("Cue 42")
+        # User-supplied SRT counters and VTT identifiers are not UI messages.
+        identifier = "PRIVATE_ID — Налаштування 42"
+        assert i18n.translate_ui_message(identifier) == identifier
+
+
+def test_epub_document_addresses_translate_without_rewriting_resource_paths():
+    source = "EPUB · document {document} · fragment {fragment}"
+    for language in i18n.LANGUAGE_METADATA:
+        i18n.set_language(language)
+        displayed = i18n.translate(source, document=3, fragment=11)
+        assert i18n.translate_ui_message("EPUB · document 3 · fragment 11") == displayed
+        assert re.findall(r"\d+", displayed) == ["3", "11"]
+        assert "{" not in displayed
+        resource = "OPS/Налаштування {document}/chapter 3.xhtml#part11"
+        assert i18n.translate_ui_message(resource) == resource

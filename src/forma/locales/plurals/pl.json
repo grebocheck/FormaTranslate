@@ -1,0 +1,14 @@
+{
+  "segments_ready.one": "{count} fragment · gotowe",
+  "segments_ready.few": "{count} fragmenty · gotowe",
+  "segments_ready.many": "{count} fragmentów · gotowe",
+  "segments_ready.other": "{count} fragmentu · gotowe",
+  "pages_ready.one": "{count} strona · gotowe",
+  "pages_ready.few": "{count} strony · gotowe",
+  "pages_ready.many": "{count} stron · gotowe",
+  "pages_ready.other": "{count} strony · gotowe",
+  "terms_added.one": "Dodano {count} termin do wersji roboczej. Istniejące tłumaczenia zachowano.",
+  "terms_added.few": "Dodano {count} terminy do wersji roboczej. Istniejące tłumaczenia zachowano.",
+  "terms_added.many": "Dodano {count} terminów do wersji roboczej. Istniejące tłumaczenia zachowano.",
+  "terms_added.other": "Dodano {count} terminu do wersji roboczej. Istniejące tłumaczenia zachowano."
+}

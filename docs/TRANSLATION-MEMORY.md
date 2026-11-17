@@ -1,12 +1,12 @@
 # Project translation memory
 
-Project memory is an optional, local way to reuse exact translations and adapt closely related passages across **DOCX and XLSX** files. It starts **Off**. Choose a project when documents share a language pair, terminology and wording preferences.
+Project memory is an optional, local way to reuse exact translations across **DOCX, XLSX, PPTX, ODT, ODS, ODP, TXT, Markdown, HTML, SRT, WebVTT and EPUB** files. Where the surrounding context remains compatible, it can also adapt closely related passages through a reviewed API request. It starts **Off**. Choose a project when documents share a language pair, terminology and wording preferences.
 
 ## Start a project
 
 1. In **Documents**, select explicit source and target languages.
 2. Under **Project memory**, click **Create project…**, enter a name and click **Create**. You can select an existing project instead; its languages must match the document settings.
-3. Add the related Office documents and click **Translate**. The memory fills automatically as work completes; an empty glossary is valid.
+3. Add the related editable documents and click **Translate**. The memory fills automatically as work completes; an empty glossary is valid.
 4. If you need agreed terminology, open **Glossary (optional)…**. You can enter terms yourself or choose **Suggest from documents**, review the draft and click **Apply glossary**.
 
 The selected project keeps one shared glossary for its documents. Separate automatic document glossaries are disabled in this mode. The queue captures the glossary and approved-memory revision when it starts. Later changes apply to the next run; existing results are not rewritten. Selecting **Off** returns to ordinary document translation and its glossary settings.
@@ -20,7 +20,7 @@ A glossary is your list of terms and their preferred translations, such as a tec
 Open **Glossary (optional)…** in Documents, or **References & glossary… → Edit terms…** for the selected project:
 
 1. Choose **Add term** and enter a **Source term** and **Preferred translation**. You can edit or remove rows directly.
-2. To make a starting draft, add DOCX/XLSX files to the queue and choose **Suggest from documents**. This explicitly sends bounded excerpts to the configured AI provider and makes a paid request. Opening the window or editing rows makes no API request.
+2. To make a starting draft, add editable document files to the queue and choose **Suggest from documents**. This explicitly sends bounded excerpts to the configured AI provider and makes a paid request. Opening the window or editing rows makes no API request.
 3. Review the proposed source terms and translations. Suggestions preserve existing translations; they do not silently replace your preferences. Remove irrelevant terms and correct the wording, then click **Apply glossary**.
 
 Until applied, the list is a draft. Closing and reopening the window in the same session preserves it; **Discard changes** restores the applied list. A project glossary is saved locally for future sessions. Without a project, it applies to the current document queue. **CSV… → Import CSV / Export CSV** is an optional way to transfer a list. Import adds terms to the draft and keeps existing translations; exporting writes the current draft, not an automatic approval of its contents.
@@ -31,7 +31,15 @@ Glossary entries guide terminology. Complete repeated paragraphs belong in trans
 
 ## What is reused
 
-An exact match requires the same marked-up source, context, document role and translation policy. The policy includes the language pair, subject, custom instructions, shared glossary and numeric convention. For prose, context includes full neighboring segments and an explicit document/section scope; DOCX tables use row/header text, boundaries and cell geometry. XLSX context includes full selected row/column values and every use of a shared string. A changed number, code, negation or control marker does not qualify as an exact match.
+An exact match requires the same marked-up source, context, document role and translation policy. The policy includes the language pair, subject, custom instructions, shared glossary and numeric convention. For prose, context includes full neighboring segments and an explicit document/section scope; DOCX tables use row/header text, boundaries and cell geometry. XLSX context includes full selected row/column values and every use of a shared string. PPTX context binds the paragraph to its slide title, shape/table address and slide content. A changed number, code, negation or control marker does not qualify as an exact match.
+
+TXT, Markdown, HTML, SRT, WebVTT, EPUB and OpenDocument memory is conservatively bound to the complete source snapshot, extraction profile and fragment address. Identical copies can reuse results; changing any source content, including protected code, hidden HTML, subtitle timings/settings, EPUB package resources or OpenDocument package content, invalidates exact reuse for that document. Only bounded extracted visible text enters readable provider context; source hashes also bind excluded structure.
+
+ODF memory uses the complete source-package snapshot rather than the current OOXML section/cell identities. ODS repeated cells remain aggregate ranges: a single stored text cell and its repeat counts identify one translation, not independent translations for every represented coordinate. Changing the package requires ordinary translation under a new source context. These initial ODF rules do not enable reference import or human wording approval for ODT/ODS/ODP.
+
+SRT and WebVTT memory binds the complete source file and ordinal cue address, including unchanged timing, identifiers, settings and protected markup. Retiming the same words creates a different source context and requires ordinary translation. Provider context contains only bounded neighboring visible caption text; headers, comments, styles and voice/language attributes remain excluded. Readability findings do not make a cue human-approved or authorize automatic shortening. Reference import and preferred-wording approval remain DOCX-only features.
+
+EPUB memory binds the complete native book package, profile 13 and each resource/fragment address. A changed stylesheet, font, metadata field, navigation target or protected chapter text requires ordinary translation under a new source context, even when the selected prose is identical. Readable context contains bounded extracted prose; package paths, publisher metadata and protected resources are not translation instructions. Corrected-copy export requires the original book, translated output and canonical report to retain their captured bindings. EPUB reference import and preferred-wording approval are not enabled.
 
 Identical visible text alone is insufficient. A label in a different table or a sentence next to different instructions may need another translation. Formatting markers remain attached to the current document's structure.
 
@@ -86,7 +94,7 @@ The checkbox **I checked this translation: use its wording in the project** is *
 
 Use **Edit → Save edit → Save copy** in Forma to produce a corrected DOCX and its matching report, then select that reviewed copy and new report. An externally changed translation with an old report is rejected. Older reports without file hashes undergo stricter package verification. Reports that do not record the effective automatic glossary can be stored as references, but cannot be approved for automatic reuse.
 
-Import and individual wording approval currently support **DOCX only**; ordinary project-memory translation supports both DOCX and XLSX.
+Import and individual wording approval currently support **DOCX only**; ordinary project-memory translation supports DOCX, XLSX, PPTX, ODT, ODS, ODP, TXT, Markdown, HTML, SRT, WebVTT and EPUB.
 
 ## Remember a correction
 
@@ -114,6 +122,6 @@ uv run forma translate document.docx --source en --target uk --memory-project PR
 
 Use the ID returned by project creation or listing. Add `--glossary terms.csv` to `memory create` to initialize the shared glossary from a UTF-8 CSV with `source,target` columns. CLI translation with a memory project uses that shared glossary; combining `translate --memory-project` with a per-file `--glossary` is rejected. Change an existing project's glossary through **Glossary (optional)…** or **References & glossary… → Edit terms…**.
 
-PDF files can stay in the same queue as Office documents with project memory enabled. **Translate** detects scans, prepares a bound DOCX through the selected OCR workflow and translates it using the queue's captured project and glossary. Text-based PDFs use BabelDOC directly: they keep the shared glossary, but do not reuse paragraph memory. The project remains selected, and DOCX/XLSX files in that queue still use it. Reports identify the route and preserve the original PDF and recognized DOCX hashes. Text/photo translation does not use project memory.
+PDF files can stay in the same queue as editable documents with project memory enabled. **Translate** detects scans, prepares a bound DOCX through the selected OCR workflow and translates it using the queue's captured project and glossary. Text-based PDFs use BabelDOC directly: they keep the shared glossary, but do not reuse paragraph memory. The project remains selected, and editable documents in that queue still use it. Reports identify the route and preserve the original PDF and recognized DOCX hashes. Text/photo translation does not use project memory.
 
 Automatic insertion of fuzzy or semantic matches without API validation, general template slots and TMX import/export are not implemented. Closely related passages follow the reviewed adaptation path above; a similarity threshold never authorizes copying a changed sentence without that check. Reused text still needs appropriate review for meaning, terminology and layout.

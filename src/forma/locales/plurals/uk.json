@@ -1,0 +1,14 @@
+{
+  "segments_ready.one": "{count} фрагмент · готово",
+  "segments_ready.few": "{count} фрагменти · готово",
+  "segments_ready.many": "{count} фрагментів · готово",
+  "segments_ready.other": "{count} фрагмента · готово",
+  "pages_ready.one": "{count} сторінка · готово",
+  "pages_ready.few": "{count} сторінки · готово",
+  "pages_ready.many": "{count} сторінок · готово",
+  "pages_ready.other": "{count} сторінки · готово",
+  "terms_added.one": "Додано {count} термін до чернетки. Наявні переклади збережено.",
+  "terms_added.few": "Додано {count} терміни до чернетки. Наявні переклади збережено.",
+  "terms_added.many": "Додано {count} термінів до чернетки. Наявні переклади збережено.",
+  "terms_added.other": "Додано {count} терміна до чернетки. Наявні переклади збережено."
+}

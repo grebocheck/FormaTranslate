@@ -1,0 +1,14 @@
+{
+  "segments_ready.one": "{count} segmento · pronto",
+  "segments_ready.few": "{count} segmenti · pronti",
+  "segments_ready.many": "{count} segmenti · pronti",
+  "segments_ready.other": "{count} segmenti · pronti",
+  "pages_ready.one": "{count} pagina · pronta",
+  "pages_ready.few": "{count} pagine · pronte",
+  "pages_ready.many": "{count} pagine · pronte",
+  "pages_ready.other": "{count} pagine · pronte",
+  "terms_added.one": "Aggiunto {count} termine alla bozza. Le traduzioni esistenti sono state conservate.",
+  "terms_added.few": "Aggiunti {count} termini alla bozza. Le traduzioni esistenti sono state conservate.",
+  "terms_added.many": "Aggiunti {count} termini alla bozza. Le traduzioni esistenti sono state conservate.",
+  "terms_added.other": "Aggiunti {count} termini alla bozza. Le traduzioni esistenti sono state conservate."
+}

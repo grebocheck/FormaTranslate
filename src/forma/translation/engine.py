@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import tempfile
 import threading
 import time
 from collections.abc import Callable
@@ -22,7 +23,7 @@ from forma.core.models import (
     ValidationError,
     plain_text,
 )
-from forma.documents.ooxml import OfficeDocument
+from forma.documents.adapters import open_document, segment_plain_text
 from forma.persistence.files import atomic_json, available_output
 from forma.providers.client import GLOSSARY_SCHEMA, TRANSLATION_SCHEMA, JobControl, Provider
 from forma.settings.config import Settings, data_directory
@@ -112,7 +113,7 @@ def document_context(segments: list[Segment], max_chars: int = 10000) -> str:
     """Sample the whole document; a long contents page must not hide the actual subject."""
     seen, unique = set(), []
     for segment in segments:
-        plain = segment.plain
+        plain = segment_plain_text(segment)
         if plain.strip() and plain not in seen:
             seen.add(plain)
             unique.append((segment, plain))
@@ -131,6 +132,15 @@ def document_context(segments: list[Segment], max_chars: int = 10000) -> str:
 
 
 def translation_issues(segment: Segment, text: str, options: Options):
+    format_issues = []
+    if segment.id.startswith(("subtitle-v11:", "subtitle-v12:")):
+        from forma.documents.subtitles import candidate_issues
+
+        format_issues = candidate_issues(segment, text)
+    elif segment.id.startswith("epub-v13:"):
+        from forma.documents.epub_content import candidate_issues
+
+        format_issues = candidate_issues(segment, text)
     language = check_language(
         segment.source, text, options.source_language, options.target_language, segment.id
     )
@@ -141,6 +151,7 @@ def translation_issues(segment: Segment, text: str, options: Options):
             if not language or i.code != "unchanged"
         ],
         *language,
+        *format_issues,
     ]
 
 
@@ -462,6 +473,14 @@ class TranslationEngine:
                     "\nThe complete paragraph failed validation. Correct the paragraph_validation_errors "
                     "findings in this fragment without omitting or inventing source content."
                 )
+            if any(segment.id.startswith(("subtitle-v11:", "subtitle-v12:")) for segment in pending):
+                instruction += (
+                    "\nSubtitle segments contain caption text. Keep originally empty or whitespace-only "
+                    "source r spans exactly unchanged: these are protected gaps around caption markup. "
+                    "Redistribute translated words only among source spans that contain visible text. "
+                    "Keep every k anchor and add no newlines, tabs, control characters or timing arrows "
+                    "inside r spans. Translate faithfully without adding explanations."
+                )
             if len(pending) > 1 and stage_input_size(instruction, payload, TRANSLATION_SCHEMA) > STAGE_INPUT_BYTES:
                 return split_pending()
             if revisions and len(pending) == 1 and stage_input_size(instruction, payload, TRANSLATION_SCHEMA) > STAGE_INPUT_BYTES:
@@ -736,11 +755,11 @@ class TranslationEngine:
             if options.memory_project_id:
                 result.issues.append(Issue(
                     "pdf_memory_skipped",
-                    "PDF перекладено зі збереженням глосарія проєкту. Пам’ять абзаців застосовується до DOCX і XLSX; вибраний проєкт залишився активним.",
+                    "PDF перекладено зі збереженням глосарія проєкту. Пам’ять абзаців застосовується до редагованих документів; вибраний проєкт залишився активним.",
                     severity="info",
                 ))
                 result.effective_glossary = dict(effective.glossary)
-                write_translation_report(result, effective, self.settings.model, settings=self.settings)
+                write_translation_report(result, effective, self.settings.model, settings=self.settings, overwrite=True)
             return result
 
         prepared = prepare_pdf_scan(
@@ -771,7 +790,7 @@ class TranslationEngine:
         report_options = options
         if options.memory_project_id:
             report_options = replace(options, glossary=dict(self.memory_run.glossary), auto_glossary=False)
-        write_translation_report(result, report_options, self.settings.model, settings=self.settings)
+        write_translation_report(result, report_options, self.settings.model, settings=self.settings, overwrite=True)
         return result
 
     def _translate(
@@ -796,11 +815,14 @@ class TranslationEngine:
         start = time.monotonic()
         progress(1, "Читаємо структуру документа")
         source_hash = file_digest(source)
-        document = OfficeDocument(source)
+        document = open_document(source, check_cancel=self.control.check)
         if file_digest(source) != source_hash:
             raise FormaError("Оригінал змінився під час читання. Повторіть переклад.")
+        document.validate_package()
         if not document.segments:
             raise FormaError(
+                "У текстовому документі немає підтримуваного тексту для перекладу."
+                if document.engine in {"forma-text", "forma-odf", "forma-epub"} else
                 "У документі немає тексту для перекладу. Текст усередині зображень потребує OCR."
             )
         fragment_plans = validate_segment_sizes(document.segments)
@@ -998,6 +1020,7 @@ class TranslationEngine:
             self.control.check()
             issues = [
                 *document.issues,
+                *document.layout_issues(translations),
                 *check_document_references(document.segments, translations),
                 *[
                     issue
@@ -1011,31 +1034,38 @@ class TranslationEngine:
             self.control.check()
             if file_digest(source) != source_hash:
                 raise FormaError("Оригінал змінився під час перекладу. Повторіть запуск із поточним файлом.")
-            document.write(
-                translations,
-                output,
-                decimal_comma_to_point=use_english_decimals(options),
-            )
-            result = TranslationResult(
-                source,
-                output,
-                document.segments,
-                translations,
-                issues,
-                provider.input_tokens,
-                provider.output_tokens,
-                cached,
-                elapsed_seconds=time.monotonic() - start,
-                effective_glossary=authoritative_glossary,
-                automatic_glossary=automatic_glossary if options.auto_glossary else None,
-                source_sha256=source_hash,
-                output_sha256=file_digest(output),
-                extraction_profile=document.extraction_profile,
-                **operation_ids(),
-            )
-            from forma.translation.reports import write_translation_report
+            with tempfile.TemporaryDirectory(prefix=".forma-export-", dir=folder) as temporary:
+                stage = Path(temporary) / output.name
+                document.write(
+                    translations,
+                    stage,
+                    decimal_comma_to_point=use_english_decimals(options),
+                )
+                result = TranslationResult(
+                    source,
+                    output,
+                    document.segments,
+                    translations,
+                    issues,
+                    provider.input_tokens,
+                    provider.output_tokens,
+                    cached,
+                    elapsed_seconds=time.monotonic() - start,
+                    effective_glossary=authoritative_glossary,
+                    automatic_glossary=automatic_glossary if options.auto_glossary else None,
+                    source_sha256=source_hash,
+                    output_sha256=file_digest(stage),
+                    extraction_profile=document.extraction_profile,
+                    engine=document.engine,
+                    **operation_ids(),
+                )
+                from forma.translation.reports import write_translation_report
 
-            write_translation_report(result, options, self.settings.model, settings=self.settings)
+                self.control.check()
+                write_translation_report(
+                    result, options, self.settings.model, settings=self.settings,
+                    additional_artifacts={output: stage},
+                )
             progress(100, "Переклад готовий")
             return result
         except TranslationFailure as failure:

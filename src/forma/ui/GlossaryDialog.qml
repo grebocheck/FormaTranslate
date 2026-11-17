@@ -33,8 +33,8 @@ Popup {
             Action { text: dialog.controller.working ? qsTr("Пропонуємо терміни…") : qsTr("Запропонувати з документів"); objectName: "suggestGlossaryButton"; enabled: !dialog.controller.working && dialog.controller.documentCount > 0; onClicked: dialog.controller.suggest() }
             Item { Layout.fillWidth: true }
         }
-        Copy { text: qsTr("Надсилає уривки DOCX/XLSX налаштованому AI-провайдеру. Запит оплачується за його тарифом."); color: Theme.muted; font.pixelSize: 12 }
-        Copy { text: qsTr("Додайте DOCX/XLSX до черги для пропозицій термінів."); visible: dialog.controller.documentCount === 0; color: Theme.muted; font.pixelSize: 12 }
+        Copy { text: qsTr("Надсилає уривки підтримуваних документів налаштованому AI-провайдеру. Запит оплачується за його тарифом."); color: Theme.muted; font.pixelSize: 12 }
+        Copy { text: qsTr("Додайте документи до черги для пропозицій термінів."); visible: dialog.controller.documentCount === 0; color: Theme.muted; font.pixelSize: 12 }
         RowLayout {
             Layout.fillWidth: true; Layout.leftMargin: 8; Layout.rightMargin: 20; spacing: 10
             Copy { text: qsTr("Термін оригіналу"); Layout.preferredWidth: 1; font.weight: Font.DemiBold }

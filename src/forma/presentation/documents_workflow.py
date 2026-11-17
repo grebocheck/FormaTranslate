@@ -13,12 +13,12 @@ from pathlib import Path
 from PySide6.QtCore import QUrl
 from PySide6.QtGui import QDesktopServices
 
+from forma.core.formats import SUPPORTED_SUFFIXES, format_capabilities
 from forma.core.models import (
     FormaError,
     Options,
-    plain_text,
 )
-from forma.documents.ooxml import OfficeDocument
+from forma.documents.adapters import open_document, segment_plain_text
 from forma.documents.pdf import inspect_pdf, needs_ocr
 from forma.documents.review import actionable_count
 from forma.localization.catalog import current_language
@@ -80,7 +80,7 @@ class DocumentWorkflow:
         elif document.get("pdfMode") == "direct" and document.get("pdfRoute") == "ocr":
             text = "Прямий PDF перекладає лише текстовий шар. Написи у зображеннях можуть залишитися без перекладу; для них виберіть OCR."
         else:
-            text = "Текстовий PDF: прямий переклад зі збереженням верстки. Пам’ять абзаців застосовується до DOCX і XLSX; глосарій зберігається."
+            text = "Текстовий PDF: прямий переклад зі збереженням верстки. Пам’ять абзаців застосовується до редагованих документів; глосарій зберігається."
         return {"workflowText": tr(text), "workflowKind": "info"}
 
     def documents(self):
@@ -89,6 +89,7 @@ class DocumentWorkflow:
     def _document_row(self, document):
         return {
             **self._display_document(document), **self._workflow_details(document),
+            "capabilities": format_capabilities(document.get("format", "")),
             "pdfMode": document.get("pdfMode", "auto"),
             "canRemove": self._can_remove(document),
             "canMove": self._can_remove(document) and document["status"] in ("loading", "ready", "queued"),
@@ -124,8 +125,8 @@ class DocumentWorkflow:
         rows = [
             {
                 "location": tr(s.location),
-                "source": s.plain,
-                "translation": plain_text(result.translations.get(s.id, "")) if result else "",
+                "source": segment_plain_text(s),
+                "translation": segment_plain_text(s, result.translations.get(s.id, "")) if result else "",
             }
             for s in segments
         ]
@@ -152,8 +153,8 @@ class DocumentWorkflow:
                 "code": i.code,
                 "segmentId": i.segment_id,
                 "location": tr(segments[i.segment_id].location) if i.segment_id in segments else "",
-                "source": segments[i.segment_id].plain if i.segment_id in segments else "",
-                "translation": plain_text(result.translations.get(i.segment_id, "")),
+                "source": segment_plain_text(segments[i.segment_id]) if i.segment_id in segments else "",
+                "translation": segment_plain_text(segments[i.segment_id], result.translations.get(i.segment_id, "")) if i.segment_id in segments else "",
             }
             for i in result.issues
         ]
@@ -169,8 +170,8 @@ class DocumentWorkflow:
             path = (
                 Path(url.toLocalFile() if url.isLocalFile() else str(value)).expanduser().resolve()
             )
-            if path.suffix.lower() not in (".docx", ".xlsx", ".pdf") or not path.is_file():
-                self._notice("Додайте документ у форматі DOCX, XLSX або PDF.", "error")
+            if path.suffix.lower() not in SUPPORTED_SUFFIXES or not path.is_file():
+                self._notice("Непідтримуваний формат документа. Виберіть файл зі списку підтримуваних форматів.", "error")
                 continue
             if any(d["path"] == str(path) for d in self._documents):
                 continue
@@ -260,7 +261,7 @@ class DocumentWorkflow:
                         },
                     )
                 else:
-                    source = OfficeDocument(path)
+                    source = open_document(path)
                     emit(
                         "inspected",
                         {

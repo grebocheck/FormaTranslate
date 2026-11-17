@@ -2,6 +2,22 @@
 
 Versions follow semantic versioning. Changes before 1.0 may evolve as document compatibility improves.
 
+## 0.17.0 — 2026-11-17
+
+- Keep explicitly hidden Markdown HTML and invisible OpenDocument drawing layers outside translation requests; version the corrected extraction surfaces while retaining completed legacy reports for manual editing.
+- Reject release packaging when bundled QML, fonts or interface catalogs differ from the current source inventory, including nested plural catalogs.
+- Avoid quadratic protected-value scanning on long words, malformed format placeholders and many identifiers while preserving existing protected spans.
+- Add Dutch and Slovak interface catalogs and integer plural forms, with persisted-preference and live switching checks across all twelve languages.
+- Resolve supported regional interface-language codes consistently during normal startup, including saved preferences and the testing override.
+- Add native EPUB book translation with supported spine prose and navigation labels, retained package resources and metadata, report-bound editing, recovery and exact project-memory reuse.
+- Add SRT and WebVTT caption translation with preserved cue structure, protected markup and metadata, local readability findings, report-bound editing, recovery and exact project-memory reuse.
+- Add native ODT, ODS and ODP translation with preserved OpenDocument packages, format-specific scope findings, report-bound editing and conservative project-memory reuse.
+- Add TXT, Markdown and HTML files to the document queue, translation, review, corrected-copy export, recovery and project-memory workflows, with format-specific protected content and encoding checks.
+- Add PPTX slide text, grouped shapes and table translation with report-bound editing, recovery, project memory and local LibreOffice previews. Preserve unsupported presentation content with explicit scope findings.
+- Centralize document capabilities and retain the existing DOCX/XLSX extraction profiles and persisted report identities.
+- Protect existing result sidecars, stage complete translation artifact sets before exclusive publication, and stream Office ZIP output with cancellation checks.
+- Add Italian, Brazilian Portuguese, Czech and Romanian interface catalogs, regional locale resolution and registry-driven localization checks.
+
 ## 0.16.1 — 2026-11-16
 
 - Deliver macOS arm64 as a complete application with isolated OCR and BabelDOC workers, local layout/table/recognition models and Tesseract language data. PDF/OCR processing no longer requires a separate Python, worker or model installation.

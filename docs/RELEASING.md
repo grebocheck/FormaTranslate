@@ -2,6 +2,8 @@
 
 No CI/CD is configured. Releases are prepared and uploaded manually from reviewed source.
 
+Record representative document and platform checks using [COMPATIBILITY.md](COMPATIBILITY.md). Its Linux/offline evidence does not replace native validation of the current Windows and macOS packages or native-speaker review of the expanded interface catalogs.
+
 ## Version
 
 `src/forma/__init__.py` contains the single `__version__` value. Package metadata, the CLI and the desktop UI use it. Use semantic versions such as `0.1.0`, with annotated tags `v0.1.0`. Update `CHANGELOG.md` for every release; do not move published tags.
@@ -16,6 +18,8 @@ No CI/CD is configured. Releases are prepared and uploaded manually from reviewe
 6. Extract each actual application ZIP into a fresh directory and launch its root executable with `_internal` and all other files present, or open the extracted `.app` on macOS. Verify first and repeated startup, worker discovery and representative Office/PDF workflows from that extracted application without installed Python or an `.env` file. Check the macOS app with the system archive tools and Finder, its arm64 architecture, bundle signature, isolated preview process and optional Keychain storage. Dependencies should load in place, without self-extracting the application on every launch; record actual startup measurements separately from this layout check. Clearly distinguish native desktop validation from offscreen or Wine checks. State any untested platform behavior in the release notes. macOS packages are ad-hoc signed, without Developer ID signing or notarization; disclose that limitation instead of claiming Gatekeeper approval.
 
 ## Publish
+
+The Markdown adapter adds `markdown-it-py` and `mdurl` to the desktop runtime. Include their exact unmodified source archives from `third_party/SOURCES.json` in the source bundle and their installed distribution licenses in the dependency inventory. Their versions and source hashes must match `uv.lock`; do not reuse an older source inventory after changing the lockfile.
 
 Commit the reviewed changes and create the annotated version tag. Push only the intended public branch/tag to GitHub. Create a GitHub Release with direct Windows/Linux/macOS download links for the available packages at the top, a concise description and clear candidate/platform limits. Put source/rebuild details and extended validation evidence in collapsed technical sections. GitHub's automatically generated source-code links are separate from the prepared application packages. If a platform package is unavailable for that version, say so explicitly; do not relabel an older binary as the new version.
 

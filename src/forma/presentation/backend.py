@@ -6,11 +6,12 @@ from pathlib import Path
 from PySide6.QtCore import Property, QObject, QThread, QTimer, Signal, Slot
 
 from forma import __version__
+from forma.core.formats import DOCUMENT_FILTER, MEMORY_SUFFIXES, format_capabilities
 from forma.core.models import (
     MAX_TRANSLATION_INSTRUCTIONS,
     FormaError,
 )
-from forma.localization.catalog import available_languages, set_language
+from forma.localization.catalog import available_languages, match_language, set_language
 from forma.localization.catalog import translate_ui_message as tr
 from forma.memory.store import TranslationMemory
 from forma.persistence.library import TranslationLibrary
@@ -71,7 +72,9 @@ class Backend(
         preference = os.environ.get("FORMA_UI_LANGUAGE") or load_preferences().get(
             "ui_language", "system"
         )
-        self._ui_language = preference if preference in {item["code"] for item in available_languages()} else "system"
+        self._ui_language = (
+            "system" if preference == "system" else match_language(preference) or "system"
+        )
         set_language(self._ui_language)
         theme = load_preferences().get("ui_theme", "system")
         self._ui_theme = theme if theme in {"system", "light", "dark"} else "system"
@@ -197,7 +200,7 @@ class Backend(
             documents=lambda: [
                 d["path"]
                 for d in self._documents
-                if d.get("format") in {"DOCX", "XLSX"} and d.get("status") != "loading"
+                if Path(d["path"]).suffix.lower() in MEMORY_SUFFIXES and d.get("status") != "loading"
             ],
             settings=lambda: self._settings,
             available=lambda: (
@@ -535,6 +538,10 @@ class Backend(
     def setWindow(self, window):
         self._pickers.window = window
 
+    @Slot(str, result="QVariantMap")
+    def documentCapabilities(self, file_format):
+        return format_capabilities(file_format)
+
     @Slot()
     def pickDocuments(self):
         if self.canAddDocuments:
@@ -542,7 +549,7 @@ class Backend(
                 "Додати документи",
                 self.addFiles,
                 multiple=True,
-                name_filter="Документи (*.docx *.xlsx *.pdf)",
+                name_filter=DOCUMENT_FILTER,
             )
 
     @Slot()

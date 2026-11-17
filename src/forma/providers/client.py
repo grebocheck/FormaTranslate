@@ -426,8 +426,9 @@ class Provider:
                         )
                         # Publish before releasing capacity, so waiting requests see the limit.
                         self.control.defer_requests(self.rate_limit_key, delay)
-            except (httpx.TimeoutException, httpx.NetworkError) as exc:
+            except (httpx.TimeoutException, httpx.NetworkError, httpx.RemoteProtocolError) as exc:
                 record_attempt(self.settings, model=model, attempt=attempt + 1, reason=transport_reason)
+                self.control.check()
                 last_error = FormaError("Немає відповіді API. Перевірте мережу та адресу сервера.")
                 if attempt == 3:
                     raise last_error from exc

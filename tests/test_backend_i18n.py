@@ -7,7 +7,7 @@ from PySide6.QtQuick import QQuickItem
 from PySide6.QtTest import QTest
 
 from forma import __version__
-from forma.localization.catalog import CatalogTranslator, current_language
+from forma.localization.catalog import LANGUAGE_METADATA, CatalogTranslator, current_language
 from forma.presentation.backend import Backend
 from forma.settings.config import Settings, load_preferences
 
@@ -15,7 +15,7 @@ from forma.settings.config import Settings, load_preferences
 def test_switch_language_persists_without_changing_document_or_review_state(qapp, monkeypatch):
     # The QML switching test below exercises every locale; persistence and the
     # canonical document/review boundary use one representative translated locale.
-    language = "fr"
+    language = "pt-BR"
     monkeypatch.setattr(Backend, "_read_settings", lambda _: Settings())
     backend = Backend()
     backend._documents = [
@@ -102,7 +102,8 @@ def test_live_qml_switch_keeps_choices_and_unsaved_settings(qapp, monkeypatch):
         source.setProperty("currentIndex", 3)
         target.setProperty("currentIndex", 2)
         reasoning.setProperty("currentIndex", 2)
-        for language in ("en", "pl", "de", "fr", "es", "uk"):
+        for theme, language in ((theme, code) for theme in ("light", "dark") for code in LANGUAGE_METADATA):
+            backend.setUiTheme(theme)
             backend.setUiLanguage(language)
             QTest.qWait(30)
             assert model.property("text") == "unsaved-provider/model"
@@ -114,6 +115,7 @@ def test_live_qml_switch_keeps_choices_and_unsaved_settings(qapp, monkeypatch):
             assert tab.property("text")
             assert tab.width() >= tab.implicitWidth() - 1
             assert backend.uiLanguage == language
+            assert backend.uiTheme == theme
             assert not window.grabWindow().isNull()
         window.findChild(QQuickItem, "scanSettingsButton").clicked.emit()
         deadline = monotonic() + 1

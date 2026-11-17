@@ -1,12 +1,14 @@
-"""Prepare a private, inactive DOCX copy for installed LibreOffice rendering."""
+"""Prepare a private, inactive Office copy for installed LibreOffice rendering."""
 from __future__ import annotations
 
 import os
+import posixpath
 import re
 import shutil
 import sys
 import zipfile
 from pathlib import Path
+from urllib.parse import unquote, urlsplit
 
 from lxml import etree
 
@@ -27,7 +29,7 @@ def find_libreoffice() -> str:
     return next((str(path) for path in candidates if path.is_file()), "")
 
 
-def prepare_docx(source: Path, destination: Path, check_cancel) -> None:
+def prepare_office(source: Path, destination: Path, check_cancel) -> None:
     """Keep cached visible content; remove external/active loading instructions.
 
     This copy is only for viewing. Hyperlink labels and cached field values stay
@@ -37,7 +39,9 @@ def prepare_docx(source: Path, destination: Path, check_cancel) -> None:
     try:
         with zipfile.ZipFile(source) as archive, zipfile.ZipFile(destination, "w", zipfile.ZIP_DEFLATED) as result:
             entries = archive.infolist()
-            if len(entries) > 10000 or sum(entry.file_size for entry in entries) > 250 * 1024**2:
+            members = {entry.filename for entry in entries}
+            if (len(entries) > 10000 or len(members) != len(entries)
+                    or sum(entry.file_size for entry in entries) > 250 * 1024**2):
                 raise ValueError("size")
             for entry in entries:
                 check_cancel()
@@ -52,12 +56,22 @@ def prepare_docx(source: Path, destination: Path, check_cancel) -> None:
                         if not isinstance(node.tag, str):
                             continue
                         local = etree.QName(node).localname
+                        target = unquote(node.get("Target", "")).replace("\\", "/")
+                        base = entry.filename.rsplit("/_rels/", 1)[0] if "/_rels/" in entry.filename else ""
+                        relative = target.split("#", 1)[0]
+                        internal = posixpath.normpath(relative.lstrip("/") if relative.startswith("/")
+                                                     else posixpath.join(base, relative))
                         if local == "Relationship" and (
                             node.get("TargetMode", "").lower() == "external"
-                            or re.match(r"(?i)(?:[a-z][a-z0-9+.-]*:|\\\\|//)", node.get("Target", ""))
-                            or any(term in node.get("Type", "").lower() for term in ("vbaproject", "oleobject", "attachedtemplate"))
+                            or urlsplit(target).scheme or target.startswith("//")
+                            or internal not in members
+                            or any(term in node.get("Type", "").lower() for term in ("vbaproject", "oleobject", "attachedtemplate", "/audio", "/video", "/media"))
                         ):
                             node.getparent().remove(node)
+                        elif source.suffix.lower() == ".pptx" and local in {"hlinkClick", "hlinkMouseOver", "timing", "transition"}:
+                            # Render a static slide; never follow program actions or play media.
+                            if node.getparent() is not None:
+                                node.getparent().remove(node)
                         elif local == "instrText" and node.text and not re.fullmatch(r"\s*(?:PAGE|NUMPAGES)\s*", node.text, re.I):
                             node.text = ""
                         for attribute, value in list(node.attrib.items()):
@@ -68,8 +82,15 @@ def prepare_docx(source: Path, destination: Path, check_cancel) -> None:
                                 del node.attrib[attribute]
                     content = etree.tostring(tree, encoding="UTF-8", xml_declaration=True)
                 result.writestr(entry, content)
-    except (OSError, ValueError, zipfile.BadZipFile, etree.XMLSyntaxError) as exc:
-        raise FormaError("Не вдалося підготувати DOCX для перегляду. Перевірте, чи відкривається файл у текстовому редакторі.") from exc
+    except (OSError, ValueError, RuntimeError, zipfile.BadZipFile, etree.XMLSyntaxError) as exc:
+        message = ("Не вдалося підготувати PPTX для перегляду. Перевірте, чи відкривається файл у редакторі презентацій."
+                   if source.suffix.lower() == ".pptx" else
+                   "Не вдалося підготувати DOCX для перегляду. Перевірте, чи відкривається файл у текстовому редакторі.")
+        raise FormaError(message) from exc
+
+
+def prepare_docx(source: Path, destination: Path, check_cancel) -> None:
+    prepare_office(source, destination, check_cancel)
 
 
 def prepare_profile(profile: Path) -> None:

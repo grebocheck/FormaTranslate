@@ -1,0 +1,14 @@
+{
+  "segments_ready.one": "{count} fragment · hotovo",
+  "segments_ready.few": "{count} fragmenty · hotovo",
+  "segments_ready.many": "{count} fragmentů · hotovo",
+  "segments_ready.other": "{count} fragmentů · hotovo",
+  "pages_ready.one": "{count} stránka · hotovo",
+  "pages_ready.few": "{count} stránky · hotovo",
+  "pages_ready.many": "{count} stránek · hotovo",
+  "pages_ready.other": "{count} stránek · hotovo",
+  "terms_added.one": "Do konceptu byl přidán {count} termín. Stávající překlady zůstaly zachovány.",
+  "terms_added.few": "Do konceptu byly přidány {count} termíny. Stávající překlady zůstaly zachovány.",
+  "terms_added.many": "Do konceptu bylo přidáno {count} termínů. Stávající překlady zůstaly zachovány.",
+  "terms_added.other": "Do konceptu bylo přidáno {count} termínů. Stávající překlady zůstaly zachovány."
+}

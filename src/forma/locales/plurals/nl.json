@@ -1,0 +1,14 @@
+{
+  "segments_ready.one": "{count} fragment · gereed",
+  "segments_ready.few": "{count} fragmenten · gereed",
+  "segments_ready.many": "{count} fragmenten · gereed",
+  "segments_ready.other": "{count} fragmenten · gereed",
+  "pages_ready.one": "{count} pagina · gereed",
+  "pages_ready.few": "{count} pagina's · gereed",
+  "pages_ready.many": "{count} pagina's · gereed",
+  "pages_ready.other": "{count} pagina's · gereed",
+  "terms_added.one": "{count} term aan het concept toegevoegd. Bestaande vertalingen zijn behouden.",
+  "terms_added.few": "{count} termen aan het concept toegevoegd. Bestaande vertalingen zijn behouden.",
+  "terms_added.many": "{count} termen aan het concept toegevoegd. Bestaande vertalingen zijn behouden.",
+  "terms_added.other": "{count} termen aan het concept toegevoegd. Bestaande vertalingen zijn behouden."
+}

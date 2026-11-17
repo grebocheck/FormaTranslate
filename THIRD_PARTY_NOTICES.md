@@ -41,6 +41,7 @@ source modifications are applied by FormaTranslate.
 | AnyIO, platformdirs, keyring and its helpers | MIT, with individual copyright notices in `licenses/`. |
 | lxml | BSD-3-Clause; includes separately licensed libxml2/libxslt and their notices. The macOS wheel also links GNU libiconv under LGPL-2.1; its full license is in `third_party/licenses/libiconv-1.18-COPYING.LIB`. |
 | pypdf, python-dotenv | BSD-3-Clause. |
+| markdown-it-py, mdurl | MIT; copyright ExecutableBookProject and the upstream markdown-it/mdurl contributors, as recorded in the included distribution licenses. Used for local Markdown structure parsing. |
 | Pillow, when collected through pypdf's optional image support | MIT-CMU, with the complete bundled-library notices in `licenses/pillow/LICENSE`. The FreeType License option is selected for FreeType; portions of this software are based on the work of the FreeType Project (https://www.freetype.org/). |
 | pytest, Pygments, when optional imports are collected by build hooks | MIT and BSD-2-Clause respectively; individual notices are included in `licenses/`. |
 | certifi | Mozilla Public License 2.0; the included CA data is not modified. |

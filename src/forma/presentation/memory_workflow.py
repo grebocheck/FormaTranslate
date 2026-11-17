@@ -11,6 +11,7 @@ from pathlib import Path
 
 from PySide6.QtCore import QUrl
 
+from forma.core.formats import format_capabilities
 from forma.core.models import (
     FormaError,
     plain_text,
@@ -253,7 +254,7 @@ class MemoryWorkflow:
             and not self._review_editing
             and not self._review_saving
             and entry.get("kind") == "segment"
-            and Path(self._review_source(self._review_document() or {})).suffix.lower() == ".docx"
+            and format_capabilities(self._review_source(self._review_document() or {}))["memory_approval"]
             and entry.get("canEdit")
             and entry.get("severity") != "error"
         )

@@ -80,9 +80,9 @@ def main() -> int:
 
                 data = inspect_pdf(args.file)
             else:
-                from forma.documents.ooxml import OfficeDocument
+                from forma.documents.adapters import open_document
 
-                doc = OfficeDocument(args.file)
+                doc = open_document(args.file)
                 data = {
                     "segments": [
                         {"id": s.id, "location": s.location, "text": s.plain} for s in doc.segments

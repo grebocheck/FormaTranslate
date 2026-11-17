@@ -1,0 +1,14 @@
+{
+  "segments_ready.one": "{count} fragment · gata",
+  "segments_ready.few": "{count} fragmente · gata",
+  "segments_ready.many": "{count} de fragmente · gata",
+  "segments_ready.other": "{count} de fragmente · gata",
+  "pages_ready.one": "{count} pagină · gata",
+  "pages_ready.few": "{count} pagini · gata",
+  "pages_ready.many": "{count} de pagini · gata",
+  "pages_ready.other": "{count} de pagini · gata",
+  "terms_added.one": "A fost adăugat {count} termen în ciornă. Traducerile existente au fost păstrate.",
+  "terms_added.few": "Au fost adăugați {count} termeni în ciornă. Traducerile existente au fost păstrate.",
+  "terms_added.many": "Au fost adăugați {count} de termeni în ciornă. Traducerile existente au fost păstrate.",
+  "terms_added.other": "Au fost adăugați {count} de termeni în ciornă. Traducerile existente au fost păstrate."
+}

@@ -471,6 +471,65 @@ def distribution_digest(files: dict[str, dict]) -> str:
     return hashlib.sha256(json.dumps(files, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
 
 
+def validate_application_assets(root: Path, artifact: Path) -> dict[str, int]:
+    """Bind frozen QML, fonts and catalogs to the source being packaged.
+
+    A complete launcher/dependency inventory does not prove that a previous
+    freeze collected the current resources. Native app resource directories
+    may be aliases into Frameworks, so compare their logical file contents
+    while retaining the application's existing symlink/containment policy.
+    """
+    app = macos_app_bundle(artifact)
+    boundary = (app if app is not None else artifact.parent).resolve()
+    resources = app / "Contents/Resources/forma" if app is not None else artifact.parent / "_internal/forma"
+
+    def inventory(directory: Path, allowed: Path) -> dict[str, str]:
+        if not directory.is_dir():
+            raise ValueError(f"Missing application assets directory: {directory.name}")
+        result = {}
+
+        def visit(folder: Path, ancestors: frozenset[Path]) -> None:
+            try:
+                resolved = folder.resolve(strict=True)
+                if resolved in ancestors or not resolved.is_relative_to(allowed):
+                    raise ValueError
+            except (OSError, RuntimeError, ValueError) as exc:
+                raise ValueError(f"Non-portable application asset directory: {folder.name}") from exc
+            for path in sorted(folder.iterdir()):
+                name = path.relative_to(directory).as_posix()
+                if path.is_dir():
+                    visit(path, ancestors | {resolved})
+                elif path.is_file():
+                    try:
+                        if not path.resolve(strict=True).is_relative_to(allowed):
+                            raise ValueError
+                    except (OSError, RuntimeError, ValueError) as exc:
+                        raise ValueError(f"Non-portable application asset: {name}") from exc
+                    result[name] = digest(path)
+                else:
+                    raise ValueError(f"Missing or unsupported application asset: {name}")
+
+        visit(directory, frozenset())
+        return result
+
+    counts = {}
+    source = root / "src/forma"
+    for name in ("ui", "locales"):
+        expected = inventory(source / name, source.resolve())
+        actual = inventory(resources / name, boundary)
+        if not expected:
+            raise ValueError(f"Missing source application assets: {name}")
+        missing, unexpected = sorted(expected.keys() - actual.keys()), sorted(actual.keys() - expected.keys())
+        changed = sorted(path for path in expected.keys() & actual.keys() if expected[path] != actual[path])
+        if missing or unexpected or changed:
+            details = "; ".join(f"{label}: {', '.join(paths)}" for label, paths in (
+                ("missing", missing), ("unexpected", unexpected), ("changed", changed),
+            ) if paths)
+            raise ValueError(f"Application assets do not match current source ({name}; {details})")
+        counts[name] = len(expected)
+    return counts
+
+
 def _write_application(bundle: zipfile.ZipFile, artifact: Path, files: dict[str, dict]) -> None:
     for name, entry in files.items():
         if entry.get("directory"):
@@ -518,6 +577,7 @@ def package_release(
     if separate_runtime_sources and runtime_bundle is None:
         raise ValueError("Separate runtime sources require an embedded runtime bundle")
     files = distribution_files(artifact)
+    application_assets = validate_application_assets(root, artifact)
     payload_files = {path.relative_to(payload).as_posix(): path for path in sorted(payload.rglob("*")) if path.is_file()}
     sources_directory = payload.parent / "runtime-sources"
     runtime_sources = {
@@ -546,6 +606,7 @@ def package_release(
         "distribution_files": files,
         "distribution_sha256": distribution_digest(files),
         "distribution_bytes": sum(entry.get("bytes", 0) for entry in files.values()),
+        "application_assets": application_assets,
         "runtime_members": members,
         "native_windows_validation": "Required separately; a build does not certify GUI behavior",
         "validation": validation or {"runtime": "Not tested by the packaging script"},

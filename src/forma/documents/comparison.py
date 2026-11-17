@@ -9,8 +9,9 @@ from zipfile import ZipFile
 
 from lxml import etree
 
+from forma.core.formats import get_format
 from forma.core.models import FormaError
-from forma.documents.ooxml import A, C, R, S, W, parse_xml
+from forma.documents.ooxml import A, C, OfficeDocument, R, S, W, parse_xml
 from forma.persistence.files import atomic_bytes, atomic_json
 from forma.translation.quality import numbers_match
 from forma.translation.reports import document_html
@@ -104,6 +105,13 @@ def _xlsx_logical_parts(parts: dict[str, bytes]) -> dict[str, bytes]:
 
 def office_signature(path: Path) -> dict:
     structure, text, formulas = {}, [], []
+    presentation_targets = None
+    if path.suffix.lower() == ".pptx":
+        document = OfficeDocument(path)
+        presentation_targets = {}
+        for target in document.targets.values():
+            paths = presentation_targets.setdefault(target.part, set())
+            paths.update(document._tree(target.part).getpath(node) for node in target.nodes)
     with ZipFile(path) as archive:
         if sum(x.file_size for x in archive.infolist()) > 512 * 1024 * 1024:
             raise FormaError("Файл завеликий для порівняння.")
@@ -136,7 +144,10 @@ def office_signature(path: Path) -> dict:
                             for ancestor in node.iterancestors()
                         )
                     )
-                    if node.tag in TEXT_TAGS or chart_text:
+                    translatable = node.tag in TEXT_TAGS or chart_text
+                    if presentation_targets is not None:
+                        translatable = tree.getpath(node) in presentation_targets.get(name, ())
+                    if translatable:
                         cell = next(node.iterancestors(f"{{{S}}}c"), None)
                         if cell is not None and cell.find(f"{{{S}}}f") is not None:
                             # A formula's resolved string is a cached result, not
@@ -182,7 +193,7 @@ def compare_files(source: Path, candidates: list[Path]) -> dict:
                     "visual_review_required": True,
                 }
             )
-    elif source.suffix.lower() in (".docx", ".xlsx"):
+    elif (capability := get_format(source)) is not None and capability.office:
         original = office_signature(source)
         for path in candidates:
             if path.suffix.lower() != source.suffix.lower():
@@ -213,8 +224,30 @@ def compare_files(source: Path, candidates: list[Path]) -> dict:
                     "translated_characters": len(other["text"]),
                 }
             )
+    elif capability is not None and capability.engine in {"forma-text", "forma-odf", "forma-epub"}:
+        from forma.documents.adapters import open_document
+
+        original = open_document(source)
+        original.validate_package()
+        signature = original.structure_signature()
+        original_text = original.comparison_text()
+        for path in candidates:
+            other_capability = get_format(path)
+            if (other_capability is None
+                    or other_capability.extraction_profiles != capability.extraction_profiles):
+                raise FormaError("Для порівняння потрібен однаковий формат оригіналу й перекладу.")
+            other = open_document(path)
+            other.validate_package()
+            translated_text = other.comparison_text()
+            result["candidates"].append({
+                "file": str(path), "name": path.name, "format": capability.code,
+                "structure_ok": signature == other.structure_signature(),
+                "numbers_preserved": numbers_match(original_text, translated_text),
+                "text_changed": original_text != translated_text,
+                "source_characters": len(original_text), "translated_characters": len(translated_text),
+            })
     else:
-        raise FormaError("Підтримуються DOCX, XLSX і PDF.")
+        raise FormaError("Непідтримуваний формат документа. Виберіть файл зі списку підтримуваних форматів.")
     return result
 
 

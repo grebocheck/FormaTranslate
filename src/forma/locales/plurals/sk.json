@@ -1,0 +1,14 @@
+{
+  "segments_ready.one": "{count} fragment · pripravený",
+  "segments_ready.few": "{count} fragmenty · pripravené",
+  "segments_ready.many": "{count} fragmentov · pripravených",
+  "segments_ready.other": "{count} fragmentov · pripravených",
+  "pages_ready.one": "{count} strana · pripravená",
+  "pages_ready.few": "{count} strany · pripravené",
+  "pages_ready.many": "{count} strán · pripravených",
+  "pages_ready.other": "{count} strán · pripravených",
+  "terms_added.one": "Do konceptu sa pridal {count} termín. Existujúce preklady sa zachovali.",
+  "terms_added.few": "Do konceptu sa pridali {count} termíny. Existujúce preklady sa zachovali.",
+  "terms_added.many": "Do konceptu sa pridalo {count} termínov. Existujúce preklady sa zachovali.",
+  "terms_added.other": "Do konceptu sa pridalo {count} termínov. Existujúce preklady sa zachovali."
+}

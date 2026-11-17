@@ -7,12 +7,13 @@ from PySide6.QtQuick import QQuickItem
 from PySide6.QtTest import QTest
 from support import pump
 from ui_support import click as click_control
-from ui_support import item
+from ui_support import forbid_provider_requests, item
 
-from forma.localization.catalog import CatalogTranslator
+from forma.localization.catalog import LANGUAGE_METADATA, CatalogTranslator
 
 
-def test_real_review_confirm_edit_apply_and_export_controls(qapp, reviewed):
+def test_real_review_confirm_edit_apply_and_export_controls(qapp, reviewed, monkeypatch):
+    provider_requests = forbid_provider_requests(monkeypatch)
     backend, result, segment = reviewed
     engine = QQmlApplicationEngine()
     translator = CatalogTranslator(qapp)
@@ -49,21 +50,26 @@ def test_real_review_confirm_edit_apply_and_export_controls(qapp, reviewed):
         QTest.qWait(10)
         assert backend.reviewDraftText == target.property("text")
         selected = backend.selectedReviewId
+        artifacts = {path: path.read_bytes() for path in (result.source, result.output, result.report)}
+        target.forceActiveFocus()
         target.setProperty("cursorPosition", 8)
-        for language, theme in (("uk", "light"), ("en", "light"), ("pl", "dark"),
-                                ("de", "dark"), ("fr", "light"), ("es", "dark")):
+        for _ in range(3):
+            QTest.keyClick(window, Qt.Key.Key_Right, Qt.KeyboardModifier.ShiftModifier)
+        for language, theme in ((code, theme) for theme in ("light", "dark") for code in LANGUAGE_METADATA):
             backend.setUiLanguage(language)
             backend.setUiTheme(theme)
             QTest.qWait(20)
             assert backend.reviewEditing and backend.selectedReviewId == selected
             assert target.property("text") == backend.reviewDraftText == "Введення теплолічильника в експлуатацію"
-            assert target.property("cursorPosition") == 8
+            assert target.property("cursorPosition") == 11
+            assert target.property("selectionStart") == 8 and target.property("selectionEnd") == 11
             apply = window.findChild(QQuickItem, "reviewApplyButton")
             cancel = window.findChild(QQuickItem, "reviewCancelEditButton")
             assert target.height() >= 140
             assert abs(apply.mapToScene(QPointF()).y() - cancel.mapToScene(QPointF()).y()) < 1
             assert cancel.mapToScene(QPointF(cancel.width(), cancel.height())).x() <= window.width() - 16
             assert not export.isVisible() and not export.isEnabled()
+        assert all(path.read_bytes() == original for path, original in artifacts.items())
         click("reviewApplyButton")
         assert not backend.reviewEditing and backend.reviewHasEdits
         assert target.property("readOnly")
@@ -93,6 +99,7 @@ def test_real_review_confirm_edit_apply_and_export_controls(qapp, reviewed):
         assert backend.reviewDocument["output"] != str(result.output)
         assert Path(backend.reviewDocument["output"]).is_file()
         assert not backend.reviewHasEdits
+        assert not provider_requests
         assert not warnings, "\n".join(warnings)
     finally:
         backend.cancelReviewEdit()

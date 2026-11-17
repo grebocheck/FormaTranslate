@@ -24,23 +24,72 @@ NUMBERS = re.compile(
     rf"(?<!\d)[+-]?(?:\d{{1,3}}(?:{_GROUP_SPACE}\d{{3}})+|\d+)"
     rf"(?:{_GROUP_SPACE}*[.,]\d+)*(?:\s?%)?(?!\d)"
 )
-PROTECTED = re.compile(
-    r"https?://[^\s<>]+|[\w.+-]+@[\w.-]+\.\w+|\{\{[^{}]+\}\}|\{[\w.:-]+\}|"
-    r"%\([^)]+\)[a-z]|\$\{[^{}]+\}|[\w.\-–]+\.(?:docx|xlsx|pdf|pptx|csv|txt)\b"
-)
+_URL = r"https?://[^\s<>]+"
+_EMAIL = r"[\w.+-]+@[\w.-]+\.\w+"
+_BRACED = r"\{\{[^{}]+\}\}|\{[\w.:-]+\}"
+_FORMAT = r"%\([^)]+\)[a-z]"
+_VARIABLE = r"\$\{[^{}]+\}"
+_FILENAME = r"[\w.\-–]+\.(?:docx|xlsx|pdf|pptx|csv|txt)\b"
+PROTECTED = re.compile("|".join((_URL, _EMAIL, _BRACED, _FORMAT, _VARIABLE, _FILENAME)))
+_PROTECTED_SCAN = re.compile("|".join((
+    _URL, r"(?<![\w.+-])" + _EMAIL, _BRACED, _VARIABLE, r"(?<![\w.\-–])" + _FILENAME,
+)))
 CODE_CANDIDATES = re.compile(r"\b[A-ZА-ЯІЇЄҐ0-9]+(?:[-_./,][A-ZА-ЯІЇЄҐ0-9]+)*\b")
 QUANTITY_UNIT_MESSAGE = "У перекладі змінилися одиниці вимірювання або їхній зв’язок із числами."
 
 
+def _protected_spans(text):
+    """Keep legacy leftmost matches without retrying at every character."""
+    closing = -1
+
+    def format_after(position):
+        nonlocal closing
+        while (start := text.find("%(", position)) >= 0:
+            if closing < start + 2:
+                closing = text.find(")", start + 2)
+            if closing < 0:
+                return None
+            if closing > start + 2 and closing + 1 < len(text) and "a" <= text[closing + 1] <= "z":
+                return start, closing + 2
+            # Every opening before this same ')' has the same invalid suffix.
+            position = closing + 1
+        return None
+
+    cursor = 0
+    ordinary, formatted = _PROTECTED_SCAN.search(text), format_after(0)
+    while cursor < len(text):
+        if ordinary is not None and ordinary.start() < cursor:
+            ordinary = _PROTECTED_SCAN.search(text, cursor)
+        if formatted is not None and formatted[0] < cursor:
+            formatted = format_after(cursor)
+        # A preceding %(name)s can end inside an email/filename character run.
+        # The legacy regex starts afresh at that boundary, regardless of its
+        # preceding character. Never send an unmatched '%(' back to that regex.
+        direct = None if text.startswith("%(", cursor) else PROTECTED.match(text, cursor)
+        if direct is not None:
+            start, end = direct.span()
+        elif formatted is not None and (ordinary is None or formatted[0] < ordinary.start()):
+            start, end = formatted
+        elif ordinary is not None:
+            start, end = ordinary.span()
+        else:
+            break
+        yield start, end, text[start:end]
+        cursor = end
+
+
 def immutable_spans(text: str) -> list[tuple[int, int, str]]:
-    spans = [(m.start(), m.end(), m.group()) for m in PROTECTED.finditer(text)]
+    spans = list(_protected_spans(text))
+    protected_count, protected_index = len(spans), 0
     for match in CODE_CANDIDATES.finditer(text):
         value = match.group()
         if not (any(c.isdigit() for c in value) and any(c.isalpha() for c in value)):
             continue
         if not value[0].isalpha() and not re.search(r"\d+[A-ZА-ЯІЇЄҐ]+\d", value):
             continue
-        if not any(start <= match.start() < end for start, end, _ in spans):
+        while protected_index < protected_count and spans[protected_index][1] <= match.start():
+            protected_index += 1
+        if protected_index == protected_count or spans[protected_index][0] > match.start():
             spans.append((match.start(), match.end(), value))
     return sorted(spans)
 

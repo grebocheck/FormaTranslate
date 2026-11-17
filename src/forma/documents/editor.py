@@ -14,6 +14,7 @@ from xml.sax.saxutils import escape
 
 from lxml import etree
 
+from forma.core.formats import get_format
 from forma.core.models import FormaError, Segment, TranslationResult, plain_text
 from forma.documents.ooxml import A, OfficeDocument, S, Target, W
 from forma.documents.review import SEGMENT_CHECK_CODES
@@ -47,12 +48,16 @@ def _edit_zone(bindings: list[tuple[str, str]], edited: str) -> dict[str, str]:
     return {tag: "".join(chars) for tag, chars in result.items()}
 
 
-def edit_translation_markup(original_markup: str, edited_plain: str) -> str:
+def edit_translation_markup(original_markup: str, edited_plain: str, *, segment: Segment | None = None) -> str:
     """Map plain edits to existing runs without exposing XML or moving control anchors.
 
     Every visible newline represents an existing control anchor or text newline.
     Its position between text regions may change, but its identity/order cannot.
     """
+    if segment is not None and segment.id.startswith(("subtitle-v11:", "subtitle-v12:")):
+        from forma.documents.subtitle_editor import edit_caption_markup
+
+        return edit_caption_markup(segment, original_markup, edited_plain)
     parse_translation(original_markup, original_markup)
     if not isinstance(edited_plain, str) or len(edited_plain) > max(
         20000, len(original_markup) * 12
@@ -150,6 +155,14 @@ def _shape(document: OfficeDocument, part: str, *, shared_cells=frozenset()) -> 
         ),
     }
     tree = document._tree(part)
+    presentation = document.extraction_profile == 4
+    if presentation:
+        from forma.documents.pptx import P
+
+        content_tags.update(dict.fromkeys(
+            [f"{{{P}}}{tag}" for tag in ("sp", "grpSp", "graphicFrame", "cNvPr", "ph")]
+            + [f"{{{A}}}{tag}" for tag in ("tbl", "tr", "tc", "fld")], "presentation",
+        ))
     result = []
     for node in tree.iter():
         if node.tag not in content_tags:
@@ -177,6 +190,8 @@ def _shape(document: OfficeDocument, part: str, *, shared_cells=frozenset()) -> 
                 "endnoteReference",
             )
         }:
+            attributes = tuple(sorted(node.attrib.items()))
+        elif presentation and node.tag not in {f"{{{A}}}p", f"{{{A}}}r", f"{{{A}}}t"}:
             attributes = tuple(sorted(node.attrib.items()))
         result.append((tree.getpath(node), node.tag, attributes, reference))
     return result
@@ -276,7 +291,7 @@ def export_reviewed_copy(
     *,
     expected_report_fingerprint: str | None = None,
 ) -> TranslationResult:
-    """Validate a report-bound edit and publish a fresh DOCX/XLSX plus its reports.
+    """Validate a report-bound edit and publish a separate native copy with reports.
 
     Source IDs are never interpreted as node indexes. The full reported source is
     matched by location + exact markup; output nodes follow verified XML paths.
@@ -284,11 +299,12 @@ def export_reviewed_copy(
     """
     started = time.monotonic()
     source, output, report = Path(source), Path(output), Path(report)
+    capability = get_format(source)
     if (
-        source.suffix.lower() not in {".docx", ".xlsx"}
+        capability is None or not capability.manual_export
         or output.suffix.lower() != source.suffix.lower()
     ):
-        raise FormaError("Ручний експорт підтримує DOCX і XLSX одного формату.")
+        raise FormaError("Ручний експорт потребує підтримуваних файлів оригіналу й перекладу одного формату.")
     if source.resolve() == output.resolve():
         raise FormaError("Оригінал і переклад мають бути різними файлами.")
     if (
@@ -298,6 +314,12 @@ def export_reviewed_copy(
     ):
         raise FormaError("Немає коректних змін для збереження у копії.")
     try:
+        if not capability.office:
+            from forma.documents.source_editor import export_source_copy
+
+            return export_source_copy(source, output, report, edits,
+                                      Path(destination) if destination else output.parent,
+                                      expected_report_fingerprint, started)
         return _export(
             source,
             output,
@@ -349,6 +371,8 @@ def _export(source, output, report, edits, folder, expected_report_fingerprint, 
         raise FormaError("Оригінал змінився після створення звіту.")
     original = OfficeDocument(source, extraction_profile=previous.extraction_profile)
     current = OfficeDocument(output, extraction_profile=previous.extraction_profile)
+    if previous.extraction_profile == 4 and original.presentation_slides != current.presentation_slides:
+        raise FormaError("Структура перекладеного документа змінилася; зіставлення редактури небезпечне.")
     if previous.extraction_profile == 3 and (
         original.chart_labels is None or not original.chart_labels.compatible_layout(current.chart_labels)
     ):
@@ -446,6 +470,12 @@ def _export(source, output, report, edits, folder, expected_report_fingerprint, 
             raise FormaError("Переклад фрагмента не може бути порожнім.")
         issues.extend(translation_issues(segment, translations[segment.id], options))
     issues.extend(check_document_references(segments, translations))
+    issues = [issue for issue in issues if issue.code != "pptx_text_fit"]
+    # Estimate against source geometry/text, while exporting from the current copy.
+    issues.extend(original.layout_issues({
+        by_source[(old.location, old.source)][0].id: translations[old.id]
+        for old in previous.segments
+    }))
     if any(issue.severity == "error" for issue in issues):
         raise FormaError(
             "Експорт зупинено: перевірте числа, коди й форматування відредагованих фрагментів."

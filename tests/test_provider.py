@@ -291,6 +291,87 @@ def test_auth_error_never_exposes_server_echoed_key():
     provider.close()
 
 
+def test_remote_disconnect_retries_and_accounts_each_attempt_once(monkeypatch):
+    attempts, delays, records = [], [], []
+
+    def handler(request):
+        attempts.append(request)
+        if len(attempts) < 3:
+            raise httpx.RemoteProtocolError("Server disconnected without sending a response", request=request)
+        return chat_response({"segments": []})
+
+    control = JobControl(1)
+    monkeypatch.setattr(control, "delay", delays.append)
+    monkeypatch.setattr("forma.providers.client.record_attempt", lambda *args, **kwargs: records.append(kwargs))
+    provider = Provider(settings(), control, transport=httpx.MockTransport(handler))
+    try:
+        assert provider.complete("Translate", {}, TRANSLATION_SCHEMA) == {"segments": []}
+        assert len(attempts) == 3 and delays == [1, 2]
+        assert [record["attempt"] for record in records] == [1, 2, 3]
+        assert [record["reason"] for record in records] == [None, "transport_retry", "transport_retry"]
+        assert [record.get("status") for record in records] == [None, None, 200]
+        assert len(provider.usage_records) == 1
+        assert (provider.input_tokens, provider.output_tokens) == (14, 8)
+        with control.request_slots():
+            pass  # Retrying must release capacity before the next request.
+    finally:
+        provider.close()
+
+
+def test_remote_disconnect_retries_are_bounded_and_error_is_sanitized(monkeypatch):
+    attempts, delays, records = [], [], []
+
+    def handler(request):
+        attempts.append(request)
+        raise httpx.RemoteProtocolError(
+            "Server disconnected: private-test-key https://private-provider.invalid", request=request,
+        )
+
+    control = JobControl(1)
+    monkeypatch.setattr(control, "delay", delays.append)
+    monkeypatch.setattr("forma.providers.client.record_attempt", lambda *args, **kwargs: records.append(kwargs))
+    provider = Provider(settings(api_key="private-test-key"), control, transport=httpx.MockTransport(handler))
+    try:
+        with pytest.raises(FormaError, match="Немає відповіді API") as caught:
+            provider.complete("Translate", {}, TRANSLATION_SCHEMA)
+        assert len(attempts) == 4 and delays == [1, 2, 4]
+        assert [record["attempt"] for record in records] == [1, 2, 3, 4]
+        assert "private-test-key" not in str(caught.value)
+        assert "private-provider" not in str(caught.value)
+        assert not provider.usage_records
+        assert (provider.input_tokens, provider.output_tokens) == (0, 0)
+        with control.request_slots():
+            pass
+    finally:
+        provider.close()
+
+
+@pytest.mark.parametrize("cancel_attempt", [1, 4])
+def test_remote_disconnect_cancellation_precedes_retry_or_final_error(monkeypatch, cancel_attempt):
+    attempts, records = [], []
+    control = JobControl(1)
+
+    def handler(request):
+        attempts.append(request)
+        if len(attempts) == cancel_attempt:
+            control.cancelled.set()
+        raise httpx.RemoteProtocolError("Server disconnected without sending a response", request=request)
+
+    monkeypatch.setattr(control, "delay", lambda _: control.check())
+    monkeypatch.setattr("forma.providers.client.record_attempt", lambda *args, **kwargs: records.append(kwargs))
+    provider = Provider(settings(), control, transport=httpx.MockTransport(handler))
+    try:
+        with pytest.raises(Cancelled):
+            provider.complete("Translate", {}, TRANSLATION_SCHEMA, retain_completed_on_cancel=True)
+        assert len(attempts) == len(records) == cancel_attempt
+        assert not provider.usage_records
+        control.cancelled.clear()
+        with control.request_slots():
+            pass
+    finally:
+        provider.close()
+
+
 def test_responses_api_body_and_refusal():
     def handler(request):
         body = json.loads(request.content)

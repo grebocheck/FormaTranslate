@@ -12,6 +12,7 @@ import os
 import re
 from pathlib import Path
 
+from forma.core.formats import EDITABLE_SUFFIXES
 from forma.core.models import FormaError, Options
 from forma.documents.review import parse_report_data, refresh_segment_checks
 from forma.persistence.review_store import ReviewStore
@@ -58,12 +59,12 @@ def _report_bytes(path):
 def _validated_completion(document, record):
     source, output, report = (Path(document["path"]), Path(record.get("output", "")),
                               Path(record.get("report", "")))
-    if source.suffix.lower() not in {".docx", ".xlsx"} or output.suffix.lower() != source.suffix.lower():
+    if source.suffix.lower() not in EDITABLE_SUFFIXES or output.suffix.lower() != source.suffix.lower():
         return None
     raw = _report_bytes(report)
     data = json.loads(raw)
     if (
-        not isinstance(data, dict) or data.get("engine") not in {"forma-ooxml", "forma-corpus"}
+        not isinstance(data, dict) or data.get("engine") not in {"forma-ooxml", "forma-corpus", "forma-text", "forma-odf", "forma-epub"}
         or not isinstance(data.get("source"), str) or _path(data["source"]) != _path(source)
         or not isinstance(data.get("output"), str) or _path(data["output"]) != _path(output)
         or data.get("model") != document["model"]

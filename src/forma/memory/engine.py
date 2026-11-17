@@ -2,15 +2,17 @@
 
 from __future__ import annotations
 
+import tempfile
 import threading
 import time
 from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 from contextvars import copy_context
 from dataclasses import replace
+from pathlib import Path
 
 from forma.accounting.context import operation_ids
 from forma.core.models import FormaError, Segment, TranslationFailure, TranslationResult
-from forma.documents.ooxml import OfficeDocument
+from forma.documents.adapters import open_document
 from forma.memory.context import (
     adaptation_context,
     request_context,
@@ -75,11 +77,16 @@ def translate_with_memory(engine, source, folder, options, progress):
     options.validate()
     progress(1, "Читаємо структуру документа")
     source_hash = file_digest(source)
-    document = OfficeDocument(source)
+    document = open_document(source, check_cancel=engine.control.check)
     if file_digest(source) != source_hash:
         raise FormaError("Оригінал змінився під час читання. Повторіть переклад.")
+    document.validate_package()
     if not document.segments:
-        raise FormaError("У документі немає тексту для перекладу. Текст усередині зображень потребує OCR.")
+        raise FormaError(
+            "У текстовому документі немає підтримуваного тексту для перекладу."
+            if document.engine in {"forma-text", "forma-odf", "forma-epub"} else
+            "У документі немає тексту для перекладу. Текст усередині зображень потребує OCR."
+        )
     fragment_plans = validate_segment_sizes(document.segments)
     checkpoint, state = load_checkpoint(
         source_hash, options, settings, memory_policy=run.policy, memory_generation=run.generation,
@@ -440,6 +447,7 @@ def translate_with_memory(engine, source, folder, options, progress):
             raise FormaError("Експорт зупинено: переклад містить не всі фрагменти.")
         issues = [
             *document.issues,
+            *document.layout_issues(translations),
             *check_document_references(document.segments, translations),
             *(issue for segment in document.segments for issue in translation_issues(segment, translations[segment.id], options)),
         ]
@@ -449,29 +457,35 @@ def translate_with_memory(engine, source, folder, options, progress):
         control.check()
         if file_digest(source) != source_hash:
             raise FormaError("Оригінал змінився під час перекладу. Повторіть запуск із поточним файлом.")
-        document.write(translations, output, decimal_comma_to_point=use_english_decimals(options))
-        result = TranslationResult(
-            source, output, document.segments, translations, issues,
-            input_tokens=provider.input_tokens if provider is not None else 0,
-            output_tokens=provider.output_tokens if provider is not None else 0,
-            cached_segments=sum(kind == "checkpoint" for kind in kinds.values()),
-            elapsed_seconds=time.monotonic() - started,
-            memory_project_id=run.snapshot.project_id,
-            memory_segments=sum(kind == "memory" for kind in kinds.values()),
-            repeated_segments=sum(kind == "repeat" for kind in kinds.values()),
-            draft_memory_segments=len(draft_hits),
-            adapted_segments=sum(kind == "adapted" for kind in kinds.values()),
-            memory_revision=run.snapshot.approved_revision,
-            memory_references=references,
-            effective_glossary=dict(run.glossary),
-            source_sha256=source_hash,
-            output_sha256=file_digest(output),
-            extraction_profile=document.extraction_profile,
-            **operation_ids(),
-        )
-        from forma.translation.reports import write_translation_report
+        with tempfile.TemporaryDirectory(prefix=".forma-output-", dir=folder) as temporary:
+            stage = Path(temporary) / output.name
+            document.write(translations, stage, decimal_comma_to_point=use_english_decimals(options))
+            result = TranslationResult(
+                source, output, document.segments, translations, issues,
+                input_tokens=provider.input_tokens if provider is not None else 0,
+                output_tokens=provider.output_tokens if provider is not None else 0,
+                cached_segments=sum(kind == "checkpoint" for kind in kinds.values()),
+                elapsed_seconds=time.monotonic() - started,
+                memory_project_id=run.snapshot.project_id,
+                memory_segments=sum(kind == "memory" for kind in kinds.values()),
+                repeated_segments=sum(kind == "repeat" for kind in kinds.values()),
+                draft_memory_segments=len(draft_hits),
+                adapted_segments=sum(kind == "adapted" for kind in kinds.values()),
+                memory_revision=run.snapshot.approved_revision,
+                memory_references=references,
+                effective_glossary=dict(run.glossary),
+                source_sha256=source_hash,
+                output_sha256=file_digest(stage),
+                extraction_profile=document.extraction_profile,
+                engine=document.engine,
+                **operation_ids(),
+            )
+            from forma.translation.reports import write_translation_report
 
-        write_translation_report(result, options, settings.model, settings=settings)
+            control.check()
+            write_translation_report(
+                result, options, settings.model, settings=settings, additional_artifacts={output: stage},
+            )
         progress(100, "Переклад готовий")
         return result
     except TranslationFailure as failure:

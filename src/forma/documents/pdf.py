@@ -21,7 +21,7 @@ from forma.documents.pdf_api import PDFAPI
 from forma.documents.pdf_inspection import inspect_page
 from forma.documents.pdf_progress import PDFProgress
 from forma.documents.worker_process import BoundedWorkerLog, start_worker_tree, stop_worker_tree
-from forma.persistence.files import atomic_bytes, atomic_json, available_output
+from forma.persistence.files import atomic_bytes, available_output
 from forma.providers.client import JobControl
 from forma.settings.config import Settings, data_directory
 from forma.translation.instructions import translation_prompt
@@ -395,10 +395,8 @@ def translate_pdf(
                 raise FormaError("Оригінал змінився під час перекладу. Повторіть запуск із поточним файлом.")
         folder.mkdir(parents=True, exist_ok=True)
         output = available_output(source, options.target_language, folder)
-        atomic_bytes(output, output_bytes, overwrite=False)
         statistics = api.summary()
         statistics_path = output.with_suffix(output.suffix + ".api.json")
-        atomic_json(statistics_path, statistics)
     result = TranslationResult(
         source,
         output,
@@ -419,6 +417,13 @@ def translate_pdf(
     )
     from forma.translation.reports import write_translation_report
 
-    write_translation_report(result, options, settings.model, settings=settings)
+    control.check()
+    write_translation_report(
+        result, options, settings.model, settings=settings,
+        additional_artifacts={
+            output: output_bytes,
+            statistics_path: json.dumps(statistics, ensure_ascii=False, indent=2).encode("utf-8"),
+        },
+    )
     progress(100, "PDF готовий · перевірте верстку")
     return result

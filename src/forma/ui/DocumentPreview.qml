@@ -125,9 +125,9 @@ Item {
                 Accessible.name: qsTr("Масштаб відносно ширини сторінки")
             }
             Icon {
-                visible: preview.document.format === "DOCX"; name: "info"; color: Theme.muted
+                visible: ["DOCX", "PPTX", "ODT", "ODP"].indexOf(preview.document.format) >= 0; name: "info"; color: Theme.muted
                 Layout.preferredWidth: 16; Layout.preferredHeight: 16
-                Accessible.name: qsTr("Вигляд DOCX може дещо відрізнятися від вигляду у Word.")
+                Accessible.name: ["ODT", "ODP"].indexOf(preview.document.format) >= 0 ? qsTr("Перегляд LibreOffice може відрізнятися від оригіналу; активний і вбудований вміст у ньому приховано.") : preview.document.format === "PPTX" ? qsTr("Вигляд PPTX може дещо відрізнятися від вигляду у PowerPoint.") : qsTr("Вигляд DOCX може дещо відрізнятися від вигляду у Word.")
                 HoverHandler { id: docxHint }
                 ToolTip.visible: docxHint.hovered; ToolTip.text: Accessible.name; ToolTip.delay: 400
             }

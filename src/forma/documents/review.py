@@ -9,6 +9,7 @@ from collections import defaultdict
 from dataclasses import replace
 from pathlib import Path, PureWindowsPath
 
+from forma.core.formats import DOCUMENT_FORMATS, get_format
 from forma.core.models import (
     INFORMATION_CODES,
     ISSUE_EXPLANATIONS,
@@ -19,6 +20,7 @@ from forma.core.models import (
     TranslationResult,
     plain_text,
 )
+from forma.documents.adapters import segment_plain_text
 from forma.translation.engine import translation_issues
 from forma.translation.references import (
     REFERENCE_CODES,
@@ -164,18 +166,19 @@ def parse_report_data(data: dict, path: Path) -> tuple[TranslationResult, Option
         options = Options(source_language=source_language, target_language=target_language)
         options.validate()
         engine = data.get("engine", "forma-ooxml")
-        if engine not in ("forma-ooxml", "forma-corpus", "babeldoc"):
+        if engine not in ("forma-ooxml", "forma-corpus", "forma-text", "forma-odf", "forma-epub", "babeldoc"):
             raise ValueError
         extraction_profile = data.get("extraction_profile", 1)
-        if type(extraction_profile) is not int or extraction_profile not in {1, 2, 3}:
+        profiles = {profile for item in DOCUMENT_FORMATS for profile in item.extraction_profiles}
+        if type(extraction_profile) is not int or extraction_profile not in profiles:
             raise ValueError("extraction profile")
-        if extraction_profile in {2, 3} and engine != "forma-ooxml":
+        if extraction_profile != 1:
+            capability = get_format(PureWindowsPath(data["source"]).suffix) if isinstance(data.get("source"), str) else None
+            if (capability is None or extraction_profile not in capability.extraction_profiles
+                    or engine != capability.engine):
+                raise ValueError("extraction format")
+        elif engine in {"forma-text", "forma-odf", "forma-epub"}:
             raise ValueError("extraction engine")
-        if extraction_profile in {2, 3} and (
-            not isinstance(data.get("source"), str)
-            or PureWindowsPath(data["source"]).suffix.lower() != (".xlsx" if extraction_profile == 2 else ".docx")
-        ):
-            raise ValueError("extraction format")
         result = TranslationResult(
             path, None, segments, translations, issues, engine=engine, report=path,
             extraction_profile=extraction_profile,
@@ -271,8 +274,8 @@ def build_review(result: TranslationResult, options: Options, *, edits=None, acc
         segment.id: {
             "id": segment.id,
             "location": segment.location,
-            "source": segment.plain,
-            "translation": plain_text(result.translations.get(segment.id, "")),
+            "source": segment_plain_text(segment),
+            "translation": segment_plain_text(segment, result.translations.get(segment.id, "")),
             "messages": [],
             "severity": "",
             "kind": "segment",

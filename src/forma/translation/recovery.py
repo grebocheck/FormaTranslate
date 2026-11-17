@@ -16,8 +16,9 @@ import threading
 from dataclasses import asdict, fields
 from pathlib import Path
 
+from forma.core.formats import EXTRACTION_PROFILES, RECOVERABLE_SUFFIXES, get_format
 from forma.core.models import FormaError, Issue, Options, Segment, TranslationResult
-from forma.documents.ooxml import OfficeDocument
+from forma.documents.adapters import open_document
 from forma.persistence.files import atomic_json
 from forma.settings.config import data_directory
 from forma.settings.connection import connection_identity
@@ -134,7 +135,7 @@ def _metadata(data, fingerprint):
         raise ValueError
     if any(not _valid_hash(raw[key]) for key in ("checkpoint_id", "source_sha256", "settings_signature")):
         raise ValueError
-    if type(raw["extraction_profile"]) is not int or raw["extraction_profile"] not in {1, 2, 3}:
+    if type(raw["extraction_profile"]) is not int or raw["extraction_profile"] not in EXTRACTION_PROFILES:
         raise ValueError
     options = _options(raw["options"])
     requested = _options(data["requested_options"])
@@ -156,10 +157,16 @@ def _metadata(data, fingerprint):
         raise ValueError
     if options.source_language != requested.source_language or options.target_language != requested.target_language:
         raise ValueError
+    # Old indexed extractions could expose hidden HTML spans or ODF layers.
+    # Keep diagnostics readable without submitting that surface to a provider.
+    retired_extraction = raw["extraction_profile"] == {
+        ".md": 6, ".markdown": 6, ".odt": 8, ".odp": 10,
+    }.get(Path(data["source"]).suffix.lower())
     return options, {
         **raw, "requested_options": asdict(requested), "report_fingerprint": fingerprint,
         "source": data["source"], "original_source": preparation.get("original_source", data["source"]),
-        "can_resume": True,
+        "can_resume": not retired_extraction,
+        "retired_extraction": retired_extraction,
     }
 
 
@@ -182,7 +189,7 @@ def load_failure_report(path):
             or data.get("schema_version") not in {1, 2}
             or data.get("stage") not in {"translation", "review", "preflight"}
             or not isinstance(data.get("source"), str) or not 0 < len(data["source"]) <= 8192
-            or "\x00" in data["source"] or Path(data["source"]).suffix.lower() not in {".docx", ".xlsx"}
+            or "\x00" in data["source"] or Path(data["source"]).suffix.lower() not in RECOVERABLE_SUFFIXES
         ):
             raise ValueError
         entries = data.get("segments")
@@ -217,6 +224,7 @@ def load_failure_report(path):
         result = TranslationResult(
             Path(data["source"]), None, segments, translations, [], report=path,
             source_sha256=data.get("source_sha256", ""), extraction_profile=meta.get("extraction_profile", 1),
+            engine=get_format(data["source"]).engine,
         )
         # Old OCR reports lacked the source hash required by current provenance.
         if data.get("preparation") and data["schema_version"] == 2:
@@ -301,7 +309,7 @@ def save_recovery_edits(report, edits, *, expected_report_fingerprint):
         preparation = result.preparation
         if preparation and file_digest(Path(preparation["original_source"])) != preparation["original_source_sha256"]:
             raise FormaError(_CHANGED_ERROR)
-        document = OfficeDocument(source, extraction_profile=meta["extraction_profile"])
+        document = open_document(source, extraction_profile=meta["extraction_profile"])
         report_segments = {segment.id: segment for segment in result.segments}
         if set(edits) - report_segments.keys():
             raise ValueError

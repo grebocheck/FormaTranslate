@@ -20,6 +20,22 @@ class Scope:
     prompt: str
 
 
+def presentation_scope(document, segment):
+    """Bind all slide content, including facts outside readable excerpts."""
+    full = document.presentation_contexts[segment.id]
+    cached = getattr(document, "_memory_presentation_scopes", None)
+    if cached is None:
+        cached = document._memory_presentation_scopes = {}
+    if full["slide"] not in cached:
+        identity = {"version": 1, "format": "pptx", "slide": full["slide"],
+                    "title": full["title"], "text": full["slide_text"]}
+        cached[full["slide"]] = Scope(
+            _digest(identity), f"Slide {full['slide']}; title: " + _excerpt(full["title"], 700)
+            + "; content: " + _excerpt(full["slide_text"], 1800),
+        )
+    return cached[full["slide"]]
+
+
 def _outline(properties):
     node = properties.find(f"{{{W}}}outlineLvl") if properties is not None else None
     if node is None:

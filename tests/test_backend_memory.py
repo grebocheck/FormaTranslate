@@ -13,12 +13,12 @@ from PySide6.QtQml import QQmlApplicationEngine
 from PySide6.QtQuick import QQuickItem
 from PySide6.QtTest import QTest
 from support import settle
-from ui_support import click
+from ui_support import click, forbid_provider_requests
 
 import forma.presentation.backend as backend_module
 from forma.core.models import FormaError, Options
 from forma.documents.ooxml import OfficeDocument
-from forma.localization.catalog import CatalogTranslator
+from forma.localization.catalog import LANGUAGE_METADATA, CatalogTranslator
 from forma.presentation import documents_workflow, memory_workflow, settings_workflow
 from forma.presentation.backend import Backend
 from forma.settings.config import ENV_FIELDS, Settings, load_preferences
@@ -334,8 +334,9 @@ def test_missing_selected_memory_is_visible_and_can_be_disabled_without_database
 
 
 def test_preferred_dialog_async_close_preserves_conflict_and_replacement(
-    qapp, memory_backend, tmp_path
+    qapp, memory_backend, tmp_path, monkeypatch
 ):
+    provider_requests = forbid_provider_requests(monkeypatch)
     backend = memory_backend
     files = reference_files(tmp_path)
     backend.createMemoryProject("Energy", "uk", "en")
@@ -350,6 +351,8 @@ def test_preferred_dialog_async_close_preserves_conflict_and_replacement(
     engine.load(QUrl.fromLocalFile(str(Path(__file__).parents[1] / "src/forma/ui/Main.qml")))
     assert engine.rootObjects()
     window = engine.rootObjects()[0]
+    window.setWidth(960)
+    window.setHeight(680)
     window.setProperty("page", 1)
     settle(qapp, backend)
     backend.selectReviewEntry(files[3])
@@ -380,26 +383,31 @@ def test_preferred_dialog_async_close_preserves_conflict_and_replacement(
         replacement = window.findChild(QQuickItem, "replacementMemoryWordingText")
         assert previous.property("text") == "Pump power 16 kW"
         assert replacement.property("text") == "Rated pump power 16 kW"
-        original_theme = backend.uiTheme
-        for theme in ("light", "dark"):
-            backend.setUiTheme(theme)
-            QTest.qWait(100)
-            assert previous.property("color") == window.property("ink")
-            assert replacement.property("color") == window.property("ink")
-        backend.setUiTheme(original_theme)
         tokens = (
             backend.memoryConflict["expected_revision"],
             backend.memoryConflict["expected_glossary_revision"],
         )
-        for language in ("en", "pl", "de", "uk"):
-            backend.setUiLanguage(language)
-            QTest.qWait(20)
-            assert previous.property("text") == "Pump power 16 kW"
-            assert replacement.property("text") == "Rated pump power 16 kW"
-            assert tokens == (
-                backend.memoryConflict["expected_revision"],
-                backend.memoryConflict["expected_glossary_revision"],
-            )
+        for theme in ("light", "dark"):
+            backend.setUiTheme(theme)
+            for language in LANGUAGE_METADATA:
+                backend.setUiLanguage(language)
+                QTest.qWait(20)
+                assert previous.property("color") == window.property("ink")
+                assert replacement.property("color") == window.property("ink")
+                assert previous.property("text") == "Pump power 16 kW"
+                assert replacement.property("text") == "Rated pump power 16 kW"
+                assert tokens == (
+                    backend.memoryConflict["expected_revision"],
+                    backend.memoryConflict["expected_glossary_revision"],
+                )
+                for name in ("cancelRememberWordingButton", "confirmRememberWordingButton"):
+                    button = window.findChild(QQuickItem, name)
+                    top_left = button.mapToScene(QPointF())
+                    bottom_right = button.mapToScene(QPointF(button.width(), button.height()))
+                    assert button.width() >= button.implicitWidth() - 1
+                    assert top_left.x() >= 16 and top_left.y() >= 16
+                    assert bottom_right.x() <= window.width() - 16, (theme, language, button.objectName())
+                    assert bottom_right.y() <= window.height() - 16, (theme, language, button.objectName())
         window.findChild(QObject, "cancelRememberWordingButton").clicked.emit()
         QTest.qWait(30)
         assert not backend.memoryConflict and not dialog.property("visible")
@@ -413,6 +421,7 @@ def test_preferred_dialog_async_close_preserves_conflict_and_replacement(
         QTest.qWait(30)
         assert not backend.memoryConflict and not dialog.property("visible")
         assert backend._memory.snapshot(backend.memoryProject["id"]).approved_revision > first_revision
+        assert not provider_requests
         assert not warnings, "\n".join(warnings)
     finally:
         window.close()
@@ -422,8 +431,9 @@ def test_preferred_dialog_async_close_preserves_conflict_and_replacement(
 
 
 def test_memory_dialog_drafts_project_and_delete_confirmation_survive_language_switches(
-    qapp, memory_backend
+    qapp, memory_backend, monkeypatch
 ):
+    provider_requests = forbid_provider_requests(monkeypatch)
     backend = memory_backend
     backend.createMemoryProject("Energy — {name}", "uk", "en")
     translator = CatalogTranslator(qapp)
@@ -460,20 +470,30 @@ def test_memory_dialog_drafts_project_and_delete_confirmation_survive_language_s
         click("deleteMemoryProjectButton")
         confirmation = window.findChild(QObject, "deleteMemoryProjectDialog")
         assert confirmation.property("opened")
-        for language in ("en", "pl", "de", "fr", "es", "uk"):
-            backend.setUiLanguage(language)
-            QTest.qWait(30)
-            assert name.property("text") == "Unsaved — {draft}"
-            assert approved.property("checked")
-            assert backend.memoryReference["source"] == "/unsaved/Документ.docx"
-            assert backend.memoryProject["name"] == "Energy — {name}"
-            assert confirmation.property("projectId") == project_id
-            assert confirmation.property("projectName") == "Energy — {name}"
-            assert window.findChild(QQuickItem, "sourceLanguage").property("currentIndex") == 2
-            assert window.findChild(QQuickItem, "targetLanguage").property("currentIndex") == 0
-            assert backend.workspaceOptions["sourceLanguage"] == "uk"
-            assert backend.workspaceOptions["targetLanguage"] == "en"
-            assert not window.grabWindow().isNull()
+        for theme in ("light", "dark"):
+            backend.setUiTheme(theme)
+            for language in LANGUAGE_METADATA:
+                backend.setUiLanguage(language)
+                QTest.qWait(30)
+                assert name.property("text") == "Unsaved — {draft}"
+                assert approved.property("checked")
+                assert backend.memoryReference["source"] == "/unsaved/Документ.docx"
+                assert backend.memoryProject["name"] == "Energy — {name}"
+                assert confirmation.property("projectId") == project_id
+                assert confirmation.property("projectName") == "Energy — {name}"
+                assert window.findChild(QQuickItem, "sourceLanguage").property("currentIndex") == 2
+                assert window.findChild(QQuickItem, "targetLanguage").property("currentIndex") == 0
+                assert backend.workspaceOptions["sourceLanguage"] == "uk"
+                assert backend.workspaceOptions["targetLanguage"] == "en"
+                for control in ("cancelDeleteMemoryProjectButton", "confirmDeleteMemoryProjectButton"):
+                    button = window.findChild(QQuickItem, control)
+                    top_left = button.mapToScene(QPointF())
+                    bottom_right = button.mapToScene(QPointF(button.width(), button.height()))
+                    assert button.width() >= button.implicitWidth() - 1
+                    assert top_left.x() >= 16 and top_left.y() >= 16
+                    assert bottom_right.x() <= window.width() - 16, (theme, language, button.objectName())
+                    assert bottom_right.y() <= window.height() - 16, (theme, language, button.objectName())
+                assert not window.grabWindow().isNull()
         click("cancelDeleteMemoryProjectButton")
         assert backend._memory.get_project(project_id).name == "Energy — {name}"
         assert not backend.memoryWorking
@@ -490,6 +510,7 @@ def test_memory_dialog_drafts_project_and_delete_confirmation_survive_language_s
         assert backend.memoryProject["id"] == other.id
         assert project_id not in {project["id"] for project in backend.memoryProjects}
         window.findChild(QObject, "closeMemoryDialogButton").clicked.emit()
+        assert not provider_requests
         assert not warnings, "\n".join(warnings)
     finally:
         window.close()

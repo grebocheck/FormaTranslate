@@ -7,6 +7,7 @@ from pathlib import Path
 
 from PySide6.QtCore import QEventLoop, QObject, Signal
 
+from forma.core.formats import PREVIEW_SUFFIXES
 from forma.core.models import Cancelled, FormaError
 from forma.localization.catalog import translate_ui_message as tr
 from forma.presentation.preview_pages import ContinuousPages
@@ -211,9 +212,9 @@ class PreviewController(QObject):
                     state[side] = _side(request, side, status="unavailable", message=(
                         "Переклад ще не створено." if side == "translation" else "Виберіть документ для перегляду."
                     ))
-                elif Path(path).suffix.lower() not in {".pdf", ".docx"}:
+                elif Path(path).suffix.lower() not in PREVIEW_SUFFIXES:
                     state[side] = _side(request, side, status="unavailable",
-                                        message="Попередній перегляд сторінок доступний для PDF і DOCX.")
+                                        message="Попередній перегляд сторінок доступний для PDF, DOCX, PPTX, ODT і ODP.")
                 elif signatures[side] is None:
                     state[side] = _side(request, side, status="unavailable",
                                         message="Файл недоступний. Відкрийте його знову або додайте файл.")

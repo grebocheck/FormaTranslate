@@ -4,6 +4,7 @@ import importlib.metadata
 import json
 import plistlib
 import runpy
+import shutil
 import stat
 import struct
 import subprocess
@@ -13,6 +14,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
+from build_support import copy_application_assets
 
 
 @pytest.mark.parametrize(
@@ -323,6 +325,7 @@ def test_release_delivers_matching_runtime_sources(tmp_path, monkeypatch, separa
     worker.parent.mkdir(parents=True)
     worker.write_bytes(b"exact prepared worker")
     (support / "Qt6Core.dll").write_bytes(b"desktop dependency")
+    copy_application_assets(tmp_path, artifact)
     payload = tmp_path / "build/release/candidate/legal"
     payload.mkdir(parents=True)
     (payload / "LICENSE.txt").write_text("fixture license")
@@ -405,6 +408,7 @@ def test_macos_zip_preserves_whole_app_bundle_and_framework_links(tmp_path, monk
     artifact.chmod(0o755)
     resources = app / "Contents/Resources"
     resources.mkdir()
+    copy_application_assets(tmp_path, artifact)
     library = app / "Contents/Frameworks/QtCore.framework/Versions/A/QtCore"
     library.parent.mkdir(parents=True)
     library.write_bytes(b"native framework")
@@ -467,6 +471,7 @@ def test_portable_linux_zip_preserves_links_permissions_and_rejects_external_tar
     library.write_bytes(b"\x7fELF\x00GLIBC_2.31")
     artifact.write_bytes(b"fixture executable")
     artifact.chmod(0o755)
+    copy_application_assets(tmp_path, artifact)
     link = artifact.parent / "_internal/sample.so"
     link.symlink_to("lib/sample.so.1")
     directory_link = artifact.parent / "_internal/alias"
@@ -519,3 +524,95 @@ def test_portable_linux_zip_preserves_links_permissions_and_rejects_external_tar
     link.symlink_to("missing.so")
     with pytest.raises(ValueError, match="Non-portable or broken"):
         build["package_release"](tmp_path, artifact, payload)
+
+
+def _asset_package_fixture(root, platform="linux"):
+    for name in ("src/forma/__init__.py", "scripts/build.py", "pyproject.toml", "uv.lock"):
+        path = root / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text('__version__ = "7.8.9"\n' if name.endswith("__init__.py") else "fixture")
+    if platform == "macos":
+        app = root / "dist/Forma-macos-arm64.app"
+        artifact = app / "Contents/MacOS/Forma-macos-arm64"
+        (app / "Contents/Resources").mkdir(parents=True)
+        (app / "Contents/Frameworks").mkdir()
+        (app / "Contents/Info.plist").write_bytes(plistlib.dumps({"CFBundleExecutable": artifact.name}))
+    else:
+        name = "Forma-linux-x86_64" if platform == "linux" else "Forma-windows-x86_64-desktop-only"
+        artifact = root / "dist" / name / (name + (".exe" if platform == "windows" else ""))
+        (artifact.parent / "_internal").mkdir(parents=True)
+    artifact.parent.mkdir(parents=True, exist_ok=True)
+    artifact.write_bytes(b"synthetic launcher")
+    assets = copy_application_assets(root, artifact)
+    payload = root / "legal"
+    payload.mkdir()
+    return artifact, assets, payload
+
+
+@pytest.mark.parametrize("platform", ["linux", "windows", "macos"])
+def test_application_asset_gate_uses_native_paths_and_includes_fonts_and_plural_catalogs(tmp_path, platform):
+    build = runpy.run_path(str(Path(__file__).parents[1] / "scripts/build.py"))
+    artifact, _, _ = _asset_package_fixture(tmp_path, platform)
+    assert build["validate_application_assets"](tmp_path, artifact) == {"ui": 4, "locales": 6}
+
+
+@pytest.mark.parametrize("mutation", ["missing-language", "missing-plural", "changed-qml", "changed-font", "unexpected-catalog", "new-source-catalog", "changed-source-qml"])
+def test_release_refuses_stale_resource_inventory_before_replacing_a_zip(tmp_path, mutation):
+    build = runpy.run_path(str(Path(__file__).parents[1] / "scripts/build.py"))
+    artifact, assets, payload = _asset_package_fixture(tmp_path)
+    package = build["package_release"](tmp_path, artifact, payload)
+    accepted = package.read_bytes()
+    with zipfile.ZipFile(package) as archive:
+        assert json.loads(archive.read("RELEASE.json"))["application_assets"] == {"ui": 4, "locales": 6}
+        assert archive.read("_internal/forma/locales/plurals/sk.json") == (assets / "locales/plurals/sk.json").read_bytes()
+    paths = {
+        "missing-language": assets / "locales/sk.json",
+        "missing-plural": assets / "locales/plurals/sk.json",
+        "changed-qml": assets / "ui/Main.qml",
+        "changed-font": assets / "ui/fonts/Inter.ttf",
+        "unexpected-catalog": assets / "locales/old.json",
+        "new-source-catalog": tmp_path / "src/forma/locales/new.json",
+        "changed-source-qml": tmp_path / "src/forma/ui/Main.qml",
+    }
+    if mutation.startswith("missing-"):
+        paths[mutation].unlink()
+    else:
+        paths[mutation].write_text("different current or stale asset")
+    with pytest.raises(ValueError, match="Application assets do not match current source"):
+        build["package_release"](tmp_path, artifact, payload)
+    assert package.read_bytes() == accepted
+
+
+def test_release_cannot_certify_source_catalogs_when_no_assets_were_collected(tmp_path):
+    build = runpy.run_path(str(Path(__file__).parents[1] / "scripts/build.py"))
+    artifact, assets, payload = _asset_package_fixture(tmp_path)
+    shutil.rmtree(assets)
+    with pytest.raises(ValueError, match="Missing application assets directory"):
+        build["package_release"](tmp_path, artifact, payload)
+    assert not list((tmp_path / "dist").glob("*.zip"))
+    assert not (payload.parent / "SOURCE.json").exists()
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="Native macOS resource aliases")
+def test_resource_gate_accepts_in_app_aliases_and_rejects_escaping_or_recursive_assets(tmp_path):
+    build = runpy.run_path(str(Path(__file__).parents[1] / "scripts/build.py"))
+    artifact, assets, _ = _asset_package_fixture(tmp_path, "macos")
+    contents = artifact.parents[1]
+    relocated = contents / "Frameworks/forma"
+    assets.rename(relocated)
+    assets.symlink_to("../Frameworks/forma", target_is_directory=True)
+    font = relocated / "ui/fonts/Inter.ttf"
+    font.rename(contents / "Frameworks/shared-font.ttf")
+    font.symlink_to("../../../shared-font.ttf")
+    assert build["validate_application_assets"](tmp_path, artifact) == {"ui": 4, "locales": 6}
+    font.unlink()
+    outside = tmp_path / "private-font"
+    outside.write_bytes(b"must not be read")
+    font.symlink_to(outside)
+    with pytest.raises(ValueError, match="Non-portable application asset"):
+        build["validate_application_assets"](tmp_path, artifact)
+    font.unlink()
+    font.symlink_to("../../../shared-font.ttf")
+    (relocated / "ui/again").symlink_to("..", target_is_directory=True)
+    with pytest.raises(ValueError, match="Non-portable application asset directory"):
+        build["validate_application_assets"](tmp_path, artifact)

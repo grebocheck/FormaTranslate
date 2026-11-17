@@ -40,6 +40,24 @@
       "sha256": "a9895e6e2758b371e0545e321a3a8fd1fcfd9829ada8824a936dfb16aaaf36cd",
       "bytes": 136225,
       "modified": false
+    },
+    {
+      "component": "markdown-it-py",
+      "version": "4.3.0",
+      "archive": "markdown_it_py-4.3.0.tar.gz",
+      "url": "https://files.pythonhosted.org/packages/16/fc/cee2c45553c9a9bf77d8b0c391560c556d7ed756b1f0bb35eb5d48db09ea/markdown_it_py-4.3.0.tar.gz",
+      "sha256": "91a58fa5b72c71a40cf7177250fd767480d7a2bb3ac426ccfb76fb90305fdaaa",
+      "bytes": 242701,
+      "modified": false
+    },
+    {
+      "component": "mdurl",
+      "version": "0.1.2",
+      "archive": "mdurl-0.1.2.tar.gz",
+      "url": "https://files.pythonhosted.org/packages/d6/54/cfe61301667036ec958cb99bd3efefba235e65cdeb9c84d24a8293ba1d90/mdurl-0.1.2.tar.gz",
+      "sha256": "bb413d29f5eea38f31dd4754dd7377d4465116fb207585f97bf925588687c1ba",
+      "bytes": 8729,
+      "modified": false
     }
   ]
 }

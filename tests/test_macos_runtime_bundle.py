@@ -11,6 +11,7 @@ import zipfile
 from pathlib import Path
 
 import pytest
+from build_support import copy_application_assets
 
 TOOLS = runpy.run_path(str(Path(__file__).parents[1] / "scripts/macos_runtime.py"))
 
@@ -202,6 +203,7 @@ def test_runtime_inventory_rejects_external_or_broken_links_and_private_data(mac
 def test_macos_install_and_package_preserve_worker_bytes_and_bind_complete_inventory(macos_runtime, tmp_path, monkeypatch):
     build = runpy.run_path(str(Path(__file__).parents[1] / "scripts/build.py"))
     artifact = make_app(tmp_path)
+    copy_application_assets(tmp_path, artifact)
     commands = []
     monkeypatch.setitem(build["install_macos_runtime"].__globals__, "macos_minimum_version", lambda _: "26.0.0")
     before = TOOLS["inventory"](macos_runtime)

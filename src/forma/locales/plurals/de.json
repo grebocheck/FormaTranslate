@@ -1,0 +1,14 @@
+{
+  "segments_ready.one": "{count} Abschnitt · bereit",
+  "segments_ready.few": "{count} Abschnitte · bereit",
+  "segments_ready.many": "{count} Abschnitte · bereit",
+  "segments_ready.other": "{count} Abschnitte · bereit",
+  "pages_ready.one": "{count} Seite · bereit",
+  "pages_ready.few": "{count} Seiten · bereit",
+  "pages_ready.many": "{count} Seiten · bereit",
+  "pages_ready.other": "{count} Seiten · bereit",
+  "terms_added.one": "{count} Begriff zum Entwurf hinzugefügt. Vorhandene Übersetzungen wurden beibehalten.",
+  "terms_added.few": "{count} Begriffe zum Entwurf hinzugefügt. Vorhandene Übersetzungen wurden beibehalten.",
+  "terms_added.many": "{count} Begriffe zum Entwurf hinzugefügt. Vorhandene Übersetzungen wurden beibehalten.",
+  "terms_added.other": "{count} Begriffe zum Entwurf hinzugefügt. Vorhandene Übersetzungen wurden beibehalten."
+}

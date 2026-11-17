@@ -110,7 +110,7 @@ def inspection_batch(factory, qapp, monkeypatch, tmp_path):
             with lock:
                 state["active"] -= 1
 
-    monkeypatch.setattr("forma.presentation.documents_workflow.OfficeDocument", inspect)
+    monkeypatch.setattr("forma.presentation.documents_workflow.open_document", inspect)
     paths = [tmp_path / f"inspection-{index}.docx" for index in range(12)]
     for path in paths:
         path.write_bytes(b"Offline fixture parsed by the blocked stand-in")
@@ -220,7 +220,7 @@ def test_restoration_does_not_inspect_newly_added_files_twice(
         calls.append(path)
         return OfficeDocument(path)
 
-    monkeypatch.setattr("forma.presentation.documents_workflow.OfficeDocument", inspect)
+    monkeypatch.setattr("forma.presentation.documents_workflow.open_document", inspect)
     backend = factory()
     backend.addFiles([str(docx_file)])
     pump(qapp, lambda: not backend._threads)

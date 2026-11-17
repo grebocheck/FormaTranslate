@@ -29,7 +29,7 @@ Vision and local OCR can omit or misread small, rotated, blurred or unfamiliar t
 
 ## Validation
 
-The offline suite covers both API formats, malformed/truncated responses, text structure and numeric protection, clipboard behavior, cancellation, PNG export, image bounds, Unicode text fitting, image metadata and pixels outside the actual paint regions. Photo regressions include displaced/tiny vision boxes, local OCR span matching, repeated labels, collision-aware expansion, source glyph coverage, unchanged neighbouring artwork, bounded local process output and cancellation. All six interface languages remain supported.
+The offline suite covers both API formats, malformed/truncated responses, text structure and numeric protection, clipboard behavior, cancellation, PNG export, image bounds, Unicode text fitting, image metadata and pixels outside the actual paint regions. Photo regressions include displaced/tiny vision boxes, local OCR span matching, repeated labels, collision-aware expansion, source glyph coverage, unchanged neighbouring artwork, bounded local process output and cancellation. All registered interface languages remain supported.
 
 The new placement was also exercised with installed local Tesseract and a synthetic dark interface screenshot containing sixteen labels, links and table rows. All sixteen were detected, and deliberately displaced eight-pixel model boxes produced readable overlays without overlap warnings. The translations in this placement check came from an offline provider; it measures geometry and rendering, not model translation quality.
 

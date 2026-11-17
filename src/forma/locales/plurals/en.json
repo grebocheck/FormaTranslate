@@ -1,0 +1,14 @@
+{
+  "segments_ready.one": "{count} segment · ready",
+  "segments_ready.few": "{count} segments · ready",
+  "segments_ready.many": "{count} segments · ready",
+  "segments_ready.other": "{count} segments · ready",
+  "pages_ready.one": "{count} page · ready",
+  "pages_ready.few": "{count} pages · ready",
+  "pages_ready.many": "{count} pages · ready",
+  "pages_ready.other": "{count} pages · ready",
+  "terms_added.one": "Added {count} term to the draft. Existing translations were kept.",
+  "terms_added.few": "Added {count} terms to the draft. Existing translations were kept.",
+  "terms_added.many": "Added {count} terms to the draft. Existing translations were kept.",
+  "terms_added.other": "Added {count} terms to the draft. Existing translations were kept."
+}
